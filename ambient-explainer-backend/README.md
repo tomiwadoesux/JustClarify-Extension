@@ -19,4 +19,5 @@ This folder is ready to be deployed as its own Vercel project.
 4. Deploy the project.
 5. Attach your custom domain, for example `api.justclarify.ayotomcs.me`.
 
-Vercel will use [app.py](./app.py) as the FastAPI entrypoint.
+Vercel will use [api/index.py](./api/index.py) as the FastAPI entrypoint.
+The included rewrite sends all incoming paths to that function, so routes like `/health` and `/explain` work directly on your API domain.
