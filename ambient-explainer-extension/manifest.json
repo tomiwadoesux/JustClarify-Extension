@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "JustClarify",
+  "version": "0.1.0",
+  "description": "Explain highlighted text without breaking flow",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": ["contextMenus", "storage"],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://api.justclarify.ayotomcs.me/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
