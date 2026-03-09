@@ -5,15 +5,23 @@ import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from app.schemas import ExplainRequest, ExplanationResponse
+from app.email_validation import normalize_email, validate_signup_email
+from app.schemas import (
+    CaptureEmailRequest,
+    CaptureEmailResponse,
+    ExplainRequest,
+    ExplanationResponse,
+)
 from app.utils import is_single_word, lookup_dictionary, normalize_text
 
 load_dotenv()
 
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 HF_MODEL = "Qwen/Qwen2.5-72B-Instruct"
 
 HF_URL = "https://router.huggingface.co/v1/chat/completions"
+RESEND_CONTACTS_URL = "https://api.resend.com/contacts"
 
 HEADERS = {
     "Authorization": f"Bearer {HF_API_TOKEN}"
@@ -162,9 +170,57 @@ def call_huggingface(prompt: str) -> str:
 
     raise RuntimeError(f"Unexpected HF response: {data}")
 
+def create_resend_contact(email: str) -> None:
+    if not RESEND_API_KEY:
+        raise HTTPException(status_code=500, detail="RESEND_API_KEY is not configured.")
+
+    response = requests.post(
+        RESEND_CONTACTS_URL,
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "email": email,
+            "unsubscribed": False,
+            "properties": {
+                "source": "justclarify_extension",
+                "product": "justclarify",
+            },
+        },
+        timeout=10,
+    )
+
+    if response.status_code in {200, 201}:
+        return
+
+    try:
+        error_payload = response.json()
+    except ValueError:
+        error_payload = {"message": response.text}
+
+    error_text = json.dumps(error_payload).lower()
+    if response.status_code == 409 or "already exists" in error_text:
+        return
+
+    raise HTTPException(
+        status_code=502,
+        detail="Could not save email to Resend.",
+    )
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+@app.post("/capture-email", response_model=CaptureEmailResponse)
+def capture_email(payload: CaptureEmailRequest):
+    email = normalize_email(payload.email)
+    validation_error = validate_signup_email(email)
+    if validation_error:
+        raise HTTPException(status_code=400, detail=validation_error)
+
+    create_resend_contact(email)
+    return CaptureEmailResponse(success=True)
 
 @app.post("/explain", response_model=ExplanationResponse)
 def explain_text(payload: ExplainRequest):

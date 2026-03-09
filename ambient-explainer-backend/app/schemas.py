@@ -18,3 +18,10 @@ class ExplanationResponse(BaseModel):
     ambiguity: bool
     suggested_questions: List[str]
     source: str = "ai"  # "dictionary" | "ai"
+
+class CaptureEmailRequest(BaseModel):
+    email: str
+
+class CaptureEmailResponse(BaseModel):
+    success: bool
+    provider: str = "resend"

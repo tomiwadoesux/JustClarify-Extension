@@ -2,7 +2,7 @@ let blobEl = null;
 let popupEl = null;
 let blobShowTimer = null;
 let blobDismissTimer = null;
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://api.justclarify.ayotomcs.me";
 const ACCESS_EMAIL_KEY = "justclarifyAccessEmail";
 
 // --- Semantic Window Extraction ---
@@ -292,6 +292,29 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+async function captureAccessEmail(email) {
+  const response = await fetch(`${API_BASE_URL}/capture-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+
+  if (response.ok) {
+    return;
+  }
+
+  let message = "Could not save your email. Try again.";
+
+  try {
+    const data = await response.json();
+    if (data?.detail) {
+      message = data.detail;
+    }
+  } catch {}
+
+  throw new Error(message);
+}
+
 async function openPopupAtSelection(rect, data) {
   removePopup();
   currentExplainData = data;
@@ -360,9 +383,22 @@ function renderEmailGate(popup) {
     <div class="popup-divider"></div>
 
     <div class="email-gate">
-      <img class="gate-logo" src="${chrome.runtime.getURL("icons/icon-96.png")}" alt="JustClarify logo" />
+      <div class="gate-logo" aria-hidden="true">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g clip-path="url(#gate-logo-clip)">
+            <path d="M0 0H16.64C25.1231 0 32 6.87692 32 15.36V32H16C7.16346 32 0 24.8365 0 16V0Z" fill="#4447A9"/>
+            <path d="M26.88 26.8801H15.9802C9.98223 26.8801 5.12 22.008 5.12 16.01C5.12 10.0011 9.99114 5.12012 16 5.12012C22.0088 5.12012 26.88 9.99127 26.88 16.0001V26.8801Z" fill="black"/>
+            <path d="M24.4364 24.4362H15.9846C11.3338 24.4362 7.56366 20.6583 7.56366 16.0075C7.56366 11.3482 11.3407 7.56348 16 7.56348C20.6593 7.56348 24.4364 11.3405 24.4364 15.9998V24.4362Z" fill="#F0F0F0"/>
+          </g>
+          <defs>
+            <clipPath id="gate-logo-clip">
+              <rect width="32" height="32" fill="white"/>
+            </clipPath>
+          </defs>
+        </svg>
+      </div>
       <span class="content-label">EARLY ACCESS</span>
-      <p class="gate-copy">Enter your email once to start using the extension and receive product updates.</p>
+      <p class="gate-copy">Enter your email to get to use the early access.</p>
       <form id="ambient-email-form" class="email-form">
         <input id="ambient-email-input" class="email-input" type="email" placeholder="you@example.com" autocomplete="email" required />
         <button type="submit" class="email-submit">Continue</button>
@@ -395,6 +431,7 @@ function renderEmailGate(popup) {
     form.querySelector("button").disabled = true;
 
     try {
+      await captureAccessEmail(email);
       await saveAccessEmail(email);
       popup.classList.remove("is-loaded");
       popup.classList.add("is-loading");
@@ -404,10 +441,10 @@ function renderEmailGate(popup) {
         <div class="loader"></div>
       `;
       fetchExplanation("default");
-    } catch {
+    } catch (error) {
       input.disabled = false;
       form.querySelector("button").disabled = false;
-      errorEl.textContent = "Could not save your email. Try again.";
+      errorEl.textContent = error.message || "Could not save your email. Try again.";
       errorEl.hidden = false;
     }
   });

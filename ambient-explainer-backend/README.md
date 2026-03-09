@@ -15,7 +15,7 @@ This folder is ready to be deployed as its own Vercel project.
 
 1. Create a new Vercel project from this repository.
 2. Set the project Root Directory to `ambient-explainer-backend`.
-3. Add the environment variable `HF_API_TOKEN` in Vercel Project Settings.
+3. Add the environment variables `HF_API_TOKEN` and `RESEND_API_KEY` in Vercel Project Settings.
 4. Deploy the project.
 5. Attach your custom domain, for example `api.justclarify.ayotomcs.me`.
 
