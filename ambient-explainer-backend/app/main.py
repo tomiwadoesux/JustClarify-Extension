@@ -21,7 +21,8 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 HF_MODEL = "Qwen/Qwen2.5-72B-Instruct"
 
 HF_URL = "https://router.huggingface.co/v1/chat/completions"
-RESEND_CONTACTS_URL = "https://api.resend.com/contacts"
+RESEND_AUDIENCE_ID = os.getenv("RESEND_AUDIENCE_ID")
+RESEND_CONTACTS_URL = "https://api.resend.com/audiences/{audience_id}/contacts"
 
 HEADERS = {
     "Authorization": f"Bearer {HF_API_TOKEN}"
@@ -174,8 +175,13 @@ def create_resend_contact(email: str) -> None:
     if not RESEND_API_KEY:
         raise HTTPException(status_code=500, detail="RESEND_API_KEY is not configured.")
 
+    if not RESEND_AUDIENCE_ID:
+        raise HTTPException(status_code=500, detail="RESEND_AUDIENCE_ID is not configured.")
+
+    url = RESEND_CONTACTS_URL.format(audience_id=RESEND_AUDIENCE_ID)
+
     response = requests.post(
-        RESEND_CONTACTS_URL,
+        url,
         headers={
             "Authorization": f"Bearer {RESEND_API_KEY}",
             "Content-Type": "application/json",
@@ -183,10 +189,6 @@ def create_resend_contact(email: str) -> None:
         json={
             "email": email,
             "unsubscribed": False,
-            "properties": {
-                "source": "justclarify_extension",
-                "product": "justclarify",
-            },
         },
         timeout=10,
     )

@@ -26,11 +26,11 @@ function getThemeColors(element) {
     const style = window.getComputedStyle(el);
     const bgColor = style.backgroundColor;
 
-    // Check for transparency (keyword or alpha=0)
+    // Check for transparency (keyword, rgba with alpha 0 or 0.0, etc.)
     if (
       bgColor &&
       bgColor !== "transparent" &&
-      !bgColor.match(/rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*0\s*\)/)
+      !bgColor.match(/rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*0(\.0*)?\s*\)/)
     ) {
       bg = bgColor;
       break;
@@ -340,7 +340,18 @@ async function openPopupAtSelection(rect, data) {
       ? range.commonAncestorContainer.parentElement
       : range.commonAncestorContainer;
 
-  const { bg, text } = getThemeColors(container);
+  let { bg, text } = getThemeColors(container);
+
+  // If bg is still transparent or not a real color, force white
+  if (
+    !bg ||
+    bg === "transparent" ||
+    bg === "rgba(0, 0, 0, 0)" ||
+    bg.match(/rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*0(\.0*)?\s*\)/)
+  ) {
+    bg = "rgb(250, 250, 250)";
+    text = "rgb(0, 0, 0)";
+  }
 
   // Hydrate popup with detected colors, force accent
   popup.style.setProperty("--surface-color", bg);
@@ -430,23 +441,23 @@ function renderEmailGate(popup) {
     input.disabled = true;
     form.querySelector("button").disabled = true;
 
+    // Try to send email to backend, but don't block the user if it fails
     try {
       await captureAccessEmail(email);
-      await saveAccessEmail(email);
-      popup.classList.remove("is-loaded");
-      popup.classList.add("is-loading");
-      content.classList.remove("ready");
-      content.classList.add("loading");
-      content.innerHTML = `
-        <div class="loader"></div>
-      `;
-      fetchExplanation("default");
-    } catch (error) {
-      input.disabled = false;
-      form.querySelector("button").disabled = false;
-      errorEl.textContent = error.message || "Could not save your email. Try again.";
-      errorEl.hidden = false;
+    } catch (err) {
+      console.warn("Email capture failed (non-blocking):", err.message);
     }
+
+    // Always save locally and proceed to explanation
+    await saveAccessEmail(email);
+    popup.classList.remove("is-loaded");
+    popup.classList.add("is-loading");
+    content.classList.remove("ready");
+    content.classList.add("loading");
+    content.innerHTML = `
+      <div class="loader"></div>
+    `;
+    fetchExplanation("default");
   });
 }
 
