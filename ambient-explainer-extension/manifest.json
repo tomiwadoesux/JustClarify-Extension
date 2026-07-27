@@ -31,7 +31,8 @@
     "http://localhost:8000/*",
     "https://api.justclarify.ayotomcs.me/*",
     "https://ai-gateway.vercel.sh/*",
-    "https://api.dictionaryapi.dev/*"
+    "https://api.dictionaryapi.dev/*",
+    "https://factchecktools.googleapis.com/*"
   ],
   "content_scripts": [
     {

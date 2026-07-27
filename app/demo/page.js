@@ -14,7 +14,18 @@
 
 import { useEffect, useRef, useState } from "react";
 
+// The extension mints a fresh muted OKLCH accent every browser start
+// (brand.js). The site does the same on every reload, from the same ranges, so
+// the two surfaces read as one product. Server-rendered with the fixed value
+// and re-minted after mount — a random colour during SSR would mismatch on
+// hydration.
 const ACCENT = "oklch(0.56 0.10 28)";
+function randomAccent() {
+  const l = (0.55 + Math.random() * 0.11).toFixed(3);
+  const c = (0.05 + Math.random() * 0.06).toFixed(3);
+  const h = Math.floor(Math.random() * 360);
+  return `oklch(${l} ${c} ${h})`;
+}
 const STORE_URL = "https://chromewebstore.google.com/detail/justclarify/ggeikfbifbojgkgcehebpelplhajfffj";
 const GITHUB_URL = "https://github.com/tomiwadoesux/JustClarify-Extension";
 
@@ -139,6 +150,7 @@ export default function DemoPage() {
   const [taTool, setTaTool] = useState(null); // which Text area tool has been applied
   const [taBusy, setTaBusy] = useState(false);
   const [barPage, setBarPage] = useState(0); // which page of the action bar is showing
+  const [accent, setAccent] = useState(ACCENT); // re-minted per reload, like the extension
   const [anchor, setAnchor] = useState(null); // {left, top} of the phrase's bottom, in stage coords
   const [stageMinH, setStageMinH] = useState(460); // stage grows to fit the floating popup so nothing clips
   const popRef = useRef(null);
@@ -159,6 +171,20 @@ export default function DemoPage() {
     const s = stage.getBoundingClientRect();
     const r = el.getBoundingClientRect();
     setCursor((c) => ({ ...c, x: r.left - s.left + r.width / 2, y: r.top - s.top + r.height / 2, on: true }));
+  }
+  // Park the cursor at one edge of an element — used to drag-select the phrase
+  // from its start to its end rather than teleporting to the middle of it.
+  function pointAtEdge(el, edge) {
+    const stage = stageRef.current;
+    if (!stage || !el) return;
+    const s = stage.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    setCursor((c) => ({
+      ...c,
+      x: (edge === "start" ? r.left : r.right) - s.left,
+      y: r.top - s.top + r.height / 2,
+      on: true,
+    }));
   }
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -184,6 +210,11 @@ export default function DemoPage() {
     const onResize = () => measureAnchor();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Fresh brand colour per reload, after mount so SSR and the client agree.
+  useEffect(() => {
+    setAccent(randomAccent());
   }, []);
 
   // The popup floats (absolute), so grow the "browser window" to contain it —
@@ -289,10 +320,22 @@ export default function DemoPage() {
     await wait(600);
     if (!alive()) return;
 
-    setPhase("selecting"); // sweep the selection across the phrase
+    // Drag-select the phrase: land the cursor at its start, press, sweep to the
+    // end. The highlight wipe is timed to travel with the cursor, so it reads
+    // as the cursor doing the highlighting rather than a hover.
+    pointAtEdge(phraseRef.current, "start");
+    await wait(520);
+    if (!alive()) return;
+    setCursor((c) => ({ ...c, click: true }));
+    await wait(140);
+    if (!alive()) return;
+    setPhase("selecting");
     measureAnchor();
-    pointAt(phraseRef.current);
-    await wait(750);
+    pointAtEdge(phraseRef.current, "end");
+    await wait(560);
+    if (!alive()) return;
+    setCursor((c) => ({ ...c, click: false }));
+    await wait(180);
     if (!alive()) return;
 
     setPhase("selected"); // diamond drops in
@@ -405,7 +448,7 @@ export default function DemoPage() {
               : "You never left the page. In the real extension this is generated on-device in ~1 second.";
 
   return (
-    <main className="jcd-root">
+    <main className="jcd-root" style={{ "--a": accent }}>
       <style>{CSS.replace(/__ACCENT__/g, ACCENT)}</style>
 
       <header className="jcd-top">
@@ -572,7 +615,7 @@ export default function DemoPage() {
                           </div>
                         ) : (
                           <>
-                            <span className="jcd-tag" style={{ color: ACCENT }}>
+                            <span className="jcd-tag" style={{ color: "var(--a)" }}>
                               <Icon name={action.icon} />
                               <span>{action.tag}</span>
                               {answer.verdict && <em className="jcd-verdict">· {answer.verdict}</em>}

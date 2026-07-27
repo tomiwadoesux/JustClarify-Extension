@@ -333,6 +333,41 @@ body {
   }
 }
 
+/* Buttons that carry a plain-language line under their label. Same label/hint
+   pairing as .jc-row-label / .jc-row-hint, so rows and buttons read alike. */
+.jc-btn-stack {
+  align-items: flex-start;
+}
+
+.jc-btn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.jc-btn-label {
+  font-weight: 600;
+}
+
+.jc-btn-hint {
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--jc-muted);
+}
+
+/* On the filled buttons the hint has to lift off the accent, not off paper. */
+.jc-btn-red .jc-btn-hint,
+.jc-btn-dark .jc-btn-hint {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* The icon and caret sit with the label, not centred against the whole stack. */
+.jc-btn-stack > .jc-ico {
+  margin-top: 1px;
+}
+
 .jc-ico {
   width: 15px;
   height: 15px;
@@ -382,6 +417,16 @@ body {
 /* Collapsed content must not be tabbable or clickable. */
 .jc-reveal[data-open="false"] > .jc-reveal-inner {
   visibility: hidden;
+}
+
+/* --- Fields --------------------------------------------------------------- */
+/* A control and the line that explains it are one thing, so they sit closer to
+   each other than they do to the next control. */
+.jc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 /* --- Inputs --------------------------------------------------------------- */
@@ -476,7 +521,8 @@ body {
 .jc-fc-group:hover .jc-fc-options,
 .jc-fc-group:focus-within .jc-fc-options,
 .jc-fc-group.is-open .jc-fc-options {
-  max-height: 240px;
+  /* Headroom for the three targets now that each carries an explanatory line. */
+  max-height: 420px;
   opacity: 1;
   margin-top: 6px;
 }

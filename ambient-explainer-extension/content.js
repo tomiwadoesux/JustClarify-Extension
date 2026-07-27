@@ -40,6 +40,34 @@ function getThemeColors(element) {
   return { bg, text, font };
 }
 
+// Where to hang the diamond and the popup. A multi-line selection's bounding
+// box is as wide as its WIDEST line, so its right edge sits out in the margin
+// whenever the final line stops short — the diamond then appears nowhere near
+// the words the reader actually finished on. Anchor to the end of the last
+// line box instead. Single-line selections are unaffected (one rect, and it is
+// the bounding box).
+function jcSelectionAnchorRect(range) {
+  const box = range.getBoundingClientRect();
+  const rects = Array.from(range.getClientRects()).filter((r) => r.width || r.height);
+  if (rects.length < 2) return box;
+  // Bottom-most line box; among ties (same line, split across nodes) the one
+  // that ends furthest right.
+  const last = rects.reduce((a, b) => {
+    if (Math.abs(b.bottom - a.bottom) < 1) return b.right > a.right ? b : a;
+    return b.bottom > a.bottom ? b : a;
+  });
+  return {
+    top: box.top,
+    bottom: last.bottom,
+    left: box.left,
+    right: last.right,
+    width: Math.max(0, last.right - box.left),
+    height: box.height,
+    x: box.left,
+    y: box.top,
+  };
+}
+
 // Grab the passage around the selection. `sentences` controls how many full
 // sentences to reach for on each side, and `maxRadius` is the character fallback
 // when sentence boundaries can't be found. Explain reads a tight window; Expand
@@ -181,7 +209,7 @@ document.addEventListener("selectionchange", () => {
     console.log("CONTEXT WINDOW:", contextWindow);
     console.log("SELECTED TEXT:", selectedText);
 
-    const rect = range.getBoundingClientRect();
+    const rect = jcSelectionAnchorRect(range);
     // Visual line count (one client rect per line box the selection spans) — used
     // by the action menu to decide whether to offer Summarize.
     const lineCount = range.getClientRects().length;
@@ -4510,7 +4538,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const selection = window.getSelection();
     const text = selection ? selection.toString() : "";
     removeBlob(false);
-    openPopupAtSelection(selection.getRangeAt(0).getBoundingClientRect(), {
+    openPopupAtSelection(jcSelectionAnchorRect(selection.getRangeAt(0)), {
       selectedText: text,
       contextWindow: text,
     });

@@ -187,9 +187,12 @@ function sendToPage(button, message) {
     if (!tab || tab.id == null) return;
     chrome.tabs.sendMessage(tab.id, message, () => {
       if (chrome.runtime.lastError) {
-        const original = button.textContent;
-        button.textContent = "Open a regular webpage first";
-        setTimeout(() => (button.textContent = original), 1800);
+        // Swap only the label — the button also holds an icon and the line of
+        // helper text, and textContent on the button itself would eat both.
+        const label = button.querySelector(".jc-btn-label") || button;
+        const original = label.textContent;
+        label.textContent = "Open a regular webpage first";
+        setTimeout(() => (label.textContent = original), 1800);
         return;
       }
       window.close();
