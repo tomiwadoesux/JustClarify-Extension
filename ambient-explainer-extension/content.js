@@ -2,7 +2,7 @@ let blobEl = null;
 let popupEl = null;
 let blobShowTimer = null;
 let blobDismissTimer = null;
-const API_BASE_URL = "https://api.justclarify.ayotomcs.me";
+const API_BASE_URL = "https://api.justclarify.xyz";
 
 // --- Semantic Window Extraction ---
 

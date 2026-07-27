@@ -17,7 +17,7 @@ This folder is ready to be deployed as its own Vercel project.
 2. Set the project Root Directory to `ambient-explainer-backend`.
 3. Add the environment variables `HF_API_TOKEN` and `RESEND_API_KEY` in Vercel Project Settings.
 4. Deploy the project.
-5. Attach your custom domain, for example `api.justclarify.ayotomcs.me`.
+5. Attach your custom domain, for example `api.justclarify.xyz`.
 
 Vercel will use [index.py](./index.py) as the FastAPI entrypoint.
 Routes like `/health` and `/explain` will be served directly by the FastAPI app.

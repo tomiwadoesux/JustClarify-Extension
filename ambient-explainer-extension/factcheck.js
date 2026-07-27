@@ -19,7 +19,7 @@
 //
 // Loaded by background.js after gateway.js (reuses gatewayGetSettings).
 
-const FC_LOOKUP_PROXY = "https://api.justclarify.ayotomcs.me/factcheck/lookup";
+const FC_LOOKUP_PROXY = "https://api.justclarify.xyz/factcheck/lookup";
 const FC_GOOGLE_ENDPOINT =
   "https://factchecktools.googleapis.com/v1alpha1/claims:search";
 
