@@ -79,6 +79,16 @@
       }
       .ctrls button:hover { background: #14110f; border-color: #14110f; color: #fff; }
       .ctrls button:active { transform: scale(.97); }
+      .ctrls button.on { background: #14110f; border-color: #14110f; color: #fff; }
+
+      /* Text-area tool chips inside the answer panel (Frame "Step 1"). */
+      .ta-chip {
+        padding: 6px 11px; border: 1px solid #e0dcd8; border-radius: 999px; background: #fff;
+        color: #2a2a2a; font: 600 11px/1 "Inter", sans-serif; cursor: pointer;
+        transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+      }
+      .ta-chip:hover { background: #141414; border-color: #141414; color: #fff; }
+      .ta-chip.on { background: #FF0000; border-color: #FF0000; color: #fff; }
 
       /* ---- HUD ---------------------------------------------------------- */
       #hud {
@@ -294,38 +304,67 @@
     <div id="viewport">
       <div id="canvas">
 
-        <!-- ══ Selection → answer ══════════════════════════════════════ -->
-        <section class="frame" data-name="Selection" style="left:0; top:0; width:600px;">
-          <div class="frame-label">Selection → answer <small>action row, sliding diamond, morphing panel</small></div>
+        <!-- ══ Start here ══════════════════════════════════════════════ -->
+        <section class="frame" data-name="Start here" style="left:0; top:0; width:460px;">
+          <div class="frame-label">Start here <small>what this canvas is</small></div>
+          <div class="frame-body">
+            <p class="note" style="max-width:60ch">
+              <b>JustClarify</b> is a browser extension: highlight anything on any page
+              and it explains it right there — free, on your own device, open source.
+              Everything on this canvas is rendered with the extension's real CSS, so
+              what you see here is what ships.
+            </p>
+            <p class="note" style="max-width:60ch">
+              Read it as a story, left to right. <b>Step 1</b> — you highlight and pick
+              from the bar. <b>Step 2</b> — the answer lands in place, with its one key
+              line pinned. <b>Step 3</b> — the one-time on-device setup a first-run user
+              sees. The second row is the fact-checker; below that, the engine card,
+              the ambient panel, every setting, and the full list of what JustClarify
+              does. The buttons in the bottom bar jump straight to any frame.
+            </p>
+          </div>
+        </section>
+
+        <!-- ══ Step 1 — highlight & choose ═════════════════════════════ -->
+        <section class="frame" data-name="Step 1 · The bar" style="left:540px; top:0; width:640px;">
+          <div class="frame-label">Step 1 — highlight &amp; choose <small>two per page; the arrow reveals more</small></div>
           <div class="frame-body">
             <p class="note">
-              Highlight text and this row appears. Picking an action slides the diamond
-              under its label, scales the icon, shimmers while waiting, then grows the
-              answer panel to fit the reply. Click the same action again to dismiss.
+              Highlight text → the diamond appears under it → click it and this bar opens
+              on <b>Explain + Expand</b>. Highlight a <b>single word</b> and Define joins
+              that first page. The › arrow pages onward — <b>Fact-check + Text area</b>,
+              then <b>Example</b> — and the highlight itself can invite more: Translate
+              when the text isn't English, Summarize when it's long. Pick an action:
+              the diamond slides under it, the label shimmers while it thinks, then the
+              panel below grows to fit the reply. Click the same action again to dismiss.
             </p>
             <div class="row" id="row">
               <button class="arrow" id="prev" disabled><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
               <div class="sep"></div>
-              <div class="viewport-x"><div class="pages" id="pages">
-                <div class="page" id="p0"></div>
-                <div class="page" id="p1"></div>
-              </div></div>
+              <div class="viewport-x"><div class="pages" id="pages"></div></div>
               <div class="sep"></div>
               <button class="arrow" id="next"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
               <div class="marker" id="marker"><i></i></div>
             </div>
             <div class="panel" id="panel"></div>
+            <div class="ctrls" id="scen">
+              <button data-scen="phrase" class="on">Phrase highlighted</button>
+              <button data-scen="word">Single word</button>
+              <button data-scen="long">Long selection</button>
+              <button data-scen="foreign">Non-English</button>
+            </div>
           </div>
         </section>
 
         <!-- ══ Ambient panel ═══════════════════════════════════════════ -->
-        <section class="frame" data-name="Ambient panel" style="left:680px; top:0; width:340px;">
-          <div class="frame-label">Ambient panel <small>floating workspace, streams live</small></div>
+        <section class="frame" data-name="Ambient panel" style="left:1860px; top:880px; width:340px;">
+          <div class="frame-label">Ambient panel <small>opt-in floating workspace, streams live</small></div>
           <div class="frame-body apdemo">
             <p class="note">
-              Opt-in floating card. While a question is in flight it shows a miniature
-              of the answer card — the answering model's mark, the quoted highlight,
-              then the text as it streams. Settles back to topic chips when done.
+              An optional companion that floats at the page's edge. While a question is
+              in flight it shows a miniature of the answer card — the answering
+              model's mark, the quoted highlight, then the text as it streams. Settles
+              back to topic chips when done.
             </p>
             <div id="jc-ambient-panel" class="jc-ap-in">
               <div class="jc-ap-head">
@@ -347,7 +386,7 @@
         </section>
 
         <!-- ══ Toolbar popup ═══════════════════════════════════════════ -->
-        <section class="frame" data-name="Toolbar popup" style="left:1100px; top:0; width:400px;">
+        <section class="frame" data-name="Toolbar popup" style="left:0; top:1760px; width:400px;">
           <div class="frame-label">Toolbar popup <small>every setting — the real popup.html</small></div>
           <div class="frame-body">
             <p class="note">
@@ -362,13 +401,15 @@
         </section>
 
         <!-- ══ Engine states ═══════════════════════════════════════════ -->
-        <section class="frame" data-name="Engine states" style="left:1580px; top:0; width:360px;">
-          <div class="frame-label">Engine card <small>what answers, and why</small></div>
+        <section class="frame" data-name="Engine card" style="left:0; top:880px; width:360px;">
+          <div class="frame-label">Engine card <small>what answers, and why — honest diagnostics</small></div>
           <div class="frame-body">
             <p class="note">
-              Chrome's built-in model needs 16GB RAM, 4GB VRAM and 22GB free disk —
-              all three — and reports a bare "unavailable" without saying which failed.
-              The blocked state names the bar and points at the fix.
+              Where the power for prompts comes from. On-device first: Chrome's
+              built-in model — free, private, offline. It needs 16GB RAM, 4GB VRAM and
+              22GB free disk — all three — and reports a bare "unavailable" without
+              saying which failed; the blocked state names the bar and points at the
+              fix (your own key via the AI Gateway).
             </p>
             <div class="engdemo">
               <div class="engcard">
@@ -388,14 +429,16 @@
           </div>
         </section>
 
-        <!-- ══ Fact-check: one claim ═══════════════════════════════════ -->
-        <section class="frame" data-name="Fact-check (claim)" style="left:0; top:700px; width:600px;">
-          <div class="frame-label">Fact-check — one claim <small>verdict in the selection panel</small></div>
+        <!-- ══ Step 4 — fact-check one claim ═══════════════════════════ -->
+        <section class="frame" data-name="Step 4 · Fact-check" style="left:540px; top:880px; width:600px;">
+          <div class="frame-label">Step 4 — fact-check one claim <small>behind the › arrow on the bar</small></div>
           <div class="frame-body">
             <p class="note">
-              Evidence first: a free lookup against published ClaimReview rulings
-              (PolitiFact, Snopes, FactCheck.org…), then a search-grounded model only
-              for claims nobody has ruled on. Every verdict carries its sources.
+              Highlight a claim, page the bar to Fact-check, and the verdict lands in
+              the same panel. Evidence first: a free lookup against published
+              ClaimReview rulings (PolitiFact, Snopes, FactCheck.org…), then a
+              search-grounded model only for claims nobody has ruled on. Every verdict
+              carries its sources — never an opinion dressed up as a fact.
             </p>
             <div class="fcdemo-panel is-factcheck" id="fc-one"></div>
             <div class="ctrls">
@@ -407,13 +450,15 @@
           </div>
         </section>
 
-        <!-- ══ Fact-check: page / video ════════════════════════════════ -->
-        <section class="frame" data-name="Fact-check (page)" style="left:680px; top:700px; width:600px;">
-          <div class="frame-label">Fact-check — page, transcript, live <small>verdicts land as they resolve</small></div>
+        <!-- ══ Step 5 — fact-check a whole page / video ════════════════ -->
+        <section class="frame" data-name="Step 5 · Page check" style="left:1220px; top:880px; width:600px;">
+          <div class="frame-label">Step 5 — fact-check a page, transcript, live <small>verdicts land as they resolve</small></div>
           <div class="frame-body">
             <p class="note">
-              Claims are extracted on-device for free, then verified in parallel — each
-              verdict appears the moment it resolves instead of waiting for the slowest.
+              The same checker, pointed at a whole article, a YouTube transcript, or
+              live tab audio. Claims are extracted on-device for free, then verified in
+              parallel — each verdict appears the moment it resolves instead of waiting
+              for the slowest, and timestamps seek the video.
             </p>
             <div class="fcdemo-stage" id="fc-stage"></div>
             <div class="ctrls">
@@ -423,15 +468,16 @@
           </div>
         </section>
 
-        <!-- ══ Answer anatomy: key + topic ═════════════════════════════ -->
-        <section class="frame" data-name="Answer — key + topic" style="left:1300px; top:700px; width:440px;">
-          <div class="frame-label">Answer — key line + topic <small>[[KEY]] rule, [[TOPIC]] chip</small></div>
+        <!-- ══ Step 2 — the answer ═════════════════════════════════════ -->
+        <section class="frame" data-name="Step 2 · The answer" style="left:1220px; top:0; width:440px;">
+          <div class="frame-label">Step 2 — the answer <small>key line pinned, topic tagged</small></div>
           <div class="frame-body">
             <p class="note">
-              A finished answer when the model marks its one load-bearing sentence
-              with <b>[[KEY]]</b> and tags the subject with <b>[[TOPIC]]</b>. The key
-              line gets the red rule; the topic becomes a chip. Malformed or unclosed
-              tags from a weak model are stripped, never shown raw.
+              What lands after you pick an action: the answer streams into the panel,
+              and the model marks its one load-bearing sentence with <b>[[KEY]]</b> and
+              tags the subject with <b>[[TOPIC]]</b>. The key line gets the red rule;
+              the topic becomes a chip. Malformed or unclosed tags from a weak model
+              are stripped, never shown raw.
             </p>
             <div class="jc-explain-panel is-open" style="position:relative; opacity:1; transform:none; width:360px; align-self:flex-start;">
               <div class="popup-header"><h1 class="header-name"><span style="color:#FF0000">"</span>refine<span style="color:#FF0000">"</span></h1></div>
@@ -453,15 +499,15 @@
           </div>
         </section>
 
-        <!-- ══ First run: consent + one-time download bar ══════════════ -->
-        <section class="frame" data-name="First run" style="left:1300px; top:1180px; width:420px;">
-          <div class="frame-label">First run <small>on-device consent, then the one-time download bar</small></div>
+        <!-- ══ Step 3 — first run ══════════════════════════════════════ -->
+        <section class="frame" data-name="Step 3 · First run" style="left:1740px; top:0; width:420px;">
+          <div class="frame-label">Step 3 — first run <small>on-device consent, then the one-time download bar</small></div>
           <div class="frame-body">
             <p class="note">
-              The first time an answer would need Chrome's built-in model downloaded
-              (and no key is set), JustClarify asks first. Accept, and the one-time
-              ~4GB download shows as a labelled bar; after that, normal answers use
-              the dot loader.
+              What a brand-new user sees the first time an answer would need Chrome's
+              built-in model downloaded (and no key is set): JustClarify asks first.
+              Accept, and the one-time ~4GB download shows as a labelled bar; after
+              that, every answer is instant and uses the normal dot loader.
             </p>
             <div style="display:flex; flex-direction:column; gap:16px;">
               <div class="jc-explain-panel is-open" style="position:relative; opacity:1; transform:none; width:340px; align-self:flex-start;">
@@ -500,8 +546,8 @@
         </section>
 
         <!-- ══ Capabilities ════════════════════════════════════════════ -->
-        <section class="frame" data-name="What it does" style="left:0; top:1560px; width:820px;">
-          <div class="frame-label">What JustClarify does <small>shipping surface area</small></div>
+        <section class="frame" data-name="What it does" style="left:540px; top:1760px; width:820px;">
+          <div class="frame-label">What JustClarify does <small>the full shipping surface area</small></div>
           <div class="frame-body is-plain">
             <div class="caps" id="caps"></div>
           </div>
@@ -667,33 +713,64 @@
     </script>
 
     <script>
-      /* ═══ Frame 1 — action row demo ═══════════════════════════════════ */
+      /* ═══ Step 1 — action bar demo ═══════════════════════════════════
+         Mirrors content.js exactly: page 0 is Explain + Expand (Define joins
+         for a single word), then the second bar — Fact-check, Text area,
+         Example, plus whatever the highlight invites — paged two at a time.
+         The scenario buttons rebuild the bar the way a real selection would. */
       const ICON = {
         explain: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path class="open" d="m20 20-3.7-3.7M11 8v3.5M11 14.5h.01"/></svg>',
         detailed:'<svg viewBox="0 0 24 24"><path class="open" d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>',
         define:  '<svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
-        eli5:    '<svg viewBox="0 0 24 24"><path d="M8 14a5 5 0 1 1 8 0c-.8.7-1.5 1.4-1.7 2.5H9.7C9.5 15.4 8.8 14.7 8 14Z"/><path class="open" d="M9 18h6M10 22h4"/></svg>',
         example: '<svg viewBox="0 0 24 24"><path d="M9 14a5 5 0 1 1 6 0c-.7.6-1.3 1.3-1.5 2.5h-3C10.3 15.3 9.7 14.6 9 14Z"/><path class="open" d="M9 18h6M10 22h4"/></svg>',
         factcheck:'<svg viewBox="0 0 24 24"><path class="open" d="M20 6 9 17l-5-5"/></svg>',
+        textarea:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="4"/><path class="open" d="M7 9.5h10M7 13h10M7 16.5h6"/></svg>',
+        translate:'<svg viewBox="0 0 24 24"><path class="open" d="M3.5 5.5h9M8 3.5v2M11 5.5c-1.2 4.2-3.9 7.5-7.5 9.6M5 5.5c1 3.6 3.6 6.7 7 8.6"/><path class="open" d="m12.5 20.5 4-9.5 4 9.5M13.9 17.3h5.2"/></svg>',
+        summarize:'<svg viewBox="0 0 24 24"><path class="open" d="M4 6h16M4 11h11M4 16h7"/></svg>',
       };
-      const TITLE = { explain:'Explanation', detailed:'Expanded', define:'Definition', eli5:'In simple terms', example:'Example', factcheck:'Fact-check' };
+      const TITLE = { explain:'Explanation', detailed:'Expanded', define:'Definition', example:'Example',
+                      factcheck:'Fact-check', textarea:'Text area', translate:'Translation', summarize:'Summary' };
       const ANSWER = {
         explain:"Here the writer means they set structure aside and let the words come out unplanned — drafting freely without editing as they go.",
         detailed:"In context, “just write” is shorthand for bypassing planning entirely: no outline, no editing mid-draft, just continuous output. It matters because it names a deliberate mode — generative, not corrective — the writer switches into when analysis would stall the work.",
-        define:"write — verb. To form letters or words on a surface, or to compose text. Here it means to compose freely, without stopping to plan or edit.",
-        eli5:"It means: don’t plan, don’t fix — just put words down and keep going.",
-        example:"Like a musician jamming instead of reading sheet music — you play and see what comes.",
-        factcheck:"Accurate as a description of free-writing, a well-known drafting technique.",
+        define:"refine — verb. To improve something by making small changes; to perfect the basics of a craft. “She spent a year refining her serve.”",
+        example:"Like a musician jamming instead of reading sheet music — you play first and see what comes, then shape it after.",
+        factcheck:"Accurate as a description of free-writing, a well-known drafting technique. In the real extension this verdict arrives with clickable sources.",
+        translate:"“You just have to write.” — French → English. The real extension asks which language you want first, then streams the translation here.",
+        summarize:"The passage argues that planning can stall a draft: the writer's fix is to write continuously, then shape the result afterwards.",
       };
-      const PAGES = [
-        [['explain','Explain'],['detailed','Expand'],['define','Define']],
-        [['eli5','ELI5'],['example','Example'],['factcheck','Factcheck']],
-      ];
+      // Per-scenario overrides so the answer matches what was "highlighted".
+      const OVERRIDE = {
+        word:   { explain:"Here, “refine” means improving the basic skills and techniques of your work — perfecting what already exists rather than inventing something new." },
+        foreign:{ explain:"This French phrase means “you just have to write” — the same advice: stop planning, start drafting." },
+        long:   { explain:"The paragraph argues that planning can become a stall: drafting continuously and editing later is what keeps the work moving." },
+      };
+      const SCENARIOS = {
+        phrase: { sel:'just write.' },
+        word:   { sel:'refine' },
+        long:   { sel:'the opening paragraph' },
+        foreign:{ sel:'il faut juste écrire' },
+      };
+      // Same assembly as content.js: primary page, then the "more" list
+      // chunked two at a time.
+      function buildPages(scen){
+        const primary=[['explain','Explain'],['detailed','Expand']];
+        if(scen==='word') primary.push(['define','Define']);
+        const more=[['factcheck','Fact-check'],['textarea','Text area'],['example','Example']];
+        if(scen==='foreign') more.push(['translate','Translate']);
+        if(scen==='long') more.push(['summarize','Summarize']);
+        const pages=[primary];
+        for(let i=0;i<more.length;i+=2) pages.push(more.slice(i,i+2));
+        return pages;
+      }
 
       const row=document.getElementById('row'), pagesEl=document.getElementById('pages'),
             marker=document.getElementById('marker'), panel=document.getElementById('panel'),
             prevB=document.getElementById('prev'), nextB=document.getElementById('next');
-      let page=0, selKey=null, selBtn=null, timer=null;
+      let scen='phrase', PAGES=buildPages(scen), page=0, selKey=null, selBtn=null, timer=null;
+
+      function selText(){ return SCENARIOS[scen].sel; }
+      function head(){ return '<div class="hd"><span class="q">"</span>'+selText()+'<span class="q">"</span></div>'; }
 
       function makeBtn([key,label]){
         const b=document.createElement('button'); b.className='btn'; b.dataset.key=key;
@@ -701,8 +778,14 @@
         b.addEventListener('click',()=>onClick(b,key));
         return b;
       }
-      PAGES[0].forEach(v=>document.getElementById('p0').appendChild(makeBtn(v)));
-      PAGES[1].forEach(v=>document.getElementById('p1').appendChild(makeBtn(v)));
+      function buildRow(){
+        pagesEl.innerHTML='';
+        PAGES.forEach((pg)=>{
+          const div=document.createElement('div'); div.className='page';
+          pg.forEach(v=>div.appendChild(makeBtn(v)));
+          pagesEl.appendChild(div);
+        });
+      }
 
       function moveMarker(btn){
         const rowR=row.getBoundingClientRect(), lb=btn.querySelector('.label').getBoundingClientRect();
@@ -714,13 +797,13 @@
       function onClick(btn,key){
         if(selKey===key){ deselect(); return; }
         selKey=key; selBtn=btn;
-        document.querySelectorAll('.btn').forEach(b=>b.classList.toggle('sel',b===btn));
+        row.querySelectorAll('.btn').forEach(b=>b.classList.toggle('sel',b===btn));
         moveMarker(btn);
         loadPanel(key);
       }
       function deselect(){
         selKey=null; selBtn=null;
-        document.querySelectorAll('.btn').forEach(b=>b.classList.remove('sel'));
+        row.querySelectorAll('.btn').forEach(b=>b.classList.remove('sel'));
         marker.classList.remove('on');
         panel.classList.remove('on');
         row.classList.remove('loading');
@@ -729,27 +812,91 @@
       function loadPanel(key){
         row.classList.add('loading');
         panel.style.width='270px';
-        panel.innerHTML='<div class="hd"><span class="q">"</span>just write.<span class="q">"</span></div><div class="rule"></div><div class="load"><b></b><b></b><b></b></div>';
+        panel.innerHTML=head()+'<div class="rule"></div><div class="load"><b></b><b></b><b></b></div>';
         panel.classList.add('on');
         clearTimeout(timer);
         timer=setTimeout(()=>{ row.classList.remove('loading'); fillPanel(key); },1000);
       }
+      function tagFor(key){
+        return '<div class="tag">'+ICON[key].replace('<svg','<svg fill="none"').replace(/fill="rgba[^"]*"/g,'')+'<span>'+TITLE[key]+'</span></div>';
+      }
+      /* The Text area scratchpad. Each tool is live: it swaps the body for a
+         genuinely different rewrite of the same rough draft, the way the real
+         editor does. */
+      const TA_ORIGINAL = 'the team decided to refactor cuz the code was honestly a mess and it was slowing everything down so much, like every tiny change took forever';
+      const TA_TOOLS = {
+        Humanize: { note:'Humanized — same meaning, written like a person wrote it.',
+          out:'The team chose to refactor: the codebase had become difficult to work in, and even small changes were taking far longer than they should.' },
+        Shorten: { note:'Shortened — 24 words down to 11.',
+          out:'The team refactored because the messy codebase was slowing every change down.' },
+        Expand: { note:'Expanded — the reasoning spelled out.',
+          out:'The team decided to refactor because the codebase had grown genuinely messy over time; shortcuts from earlier sprints had accumulated. The cost showed up in velocity: trivial changes meant touching several places at once, so an hour of work stretched across a day.' },
+        Summarize: { note:'Summarized — the points, nothing else.',
+          bullets:['The codebase had become messy.','Every small change was taking far too long.','The team refactored to fix it.'] },
+      };
+      let taTool = null, taTimer = null;
+
+      function taRender(){
+        const t = taTool ? TA_TOOLS[taTool] : null;
+        const chips = Object.keys(TA_TOOLS).map(name =>
+          '<button class="ta-chip'+(taTool===name?' on':'')+'" data-ta="'+name+'">'+name+'</button>').join('');
+        const body = t
+          ? (t.bullets
+              ? '<ul style="margin:0;padding:0;list-style:none;font:400 13.5px/1.55 Inter,sans-serif;color:#1a1a1a;">'
+                + t.bullets.map(b=>'<li style="position:relative;padding:0 0 7px 16px;"><i style="position:absolute;left:1px;top:6px;width:5px;height:5px;background:#FF0000;transform:rotate(45deg);"></i>'+b+'</li>').join('')
+                + '</ul>'
+              : '<div style="font:400 13.5px/1.55 Inter,sans-serif;color:#1a1a1a;">'+t.out+'</div>')
+          : '<div style="font:400 13px/1.55 Inter,sans-serif;color:#57504a;">'+TA_ORIGINAL+'</div>';
+        panel.innerHTML = head()+'<div class="rule"></div>'+tagFor('textarea')
+          + (t ? '<div style="margin-bottom:9px;padding:9px 11px;border:1px dashed rgba(17,17,17,.2);border-radius:9px;background:#fbf9f8;font:400 11.5px/1.5 Inter,sans-serif;color:#a49b95;">'
+                 + '<span style="display:block;margin-bottom:3px;font:800 9px/1 Inter,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#c3bab3;">Your text</span>'
+                 + TA_ORIGINAL + '</div>' : '')
+          + body
+          + '<div style="display:flex;gap:6px;margin-top:11px;flex-wrap:wrap;">'+chips+'</div>'
+          + '<p style="margin:9px 0 0;font:400 11px/1.5 Inter,sans-serif;color:#a49b95;">'
+          + (t ? t.note+' · Copy it, or download as Markdown / PDF.'
+               : 'Paste rough text, pick a tool — it rewrites in place. Try all four.')
+          + '</p>';
+        panel.querySelectorAll('[data-ta]').forEach(b=>b.addEventListener('click',()=>{
+          if(taTool===b.dataset.ta) return;
+          clearTimeout(taTimer);
+          panel.querySelector('[data-ta="'+b.dataset.ta+'"]').classList.add('on');
+          taTimer=setTimeout(()=>{ taTool=b.dataset.ta; taRender(); },550);
+        }));
+      }
+
       function fillPanel(key){
-        const txt=ANSWER[key], w=Math.round(Math.max(260,Math.min(430,250+txt.length*0.42)));
+        if(key==='textarea'){
+          panel.style.width='360px';
+          taTool=null; taRender();
+          return;
+        }
+        const txt=(OVERRIDE[scen]&&OVERRIDE[scen][key])||ANSWER[key];
+        const w=Math.round(Math.max(260,Math.min(430,250+txt.length*0.42)));
         panel.style.width=w+'px';
-        panel.innerHTML='<div class="hd"><span class="q">"</span>just write.<span class="q">"</span></div><div class="rule"></div>'
-          +'<div class="tag">'+ICON[key].replace('<svg','<svg fill="none"').replace(/fill="rgba[^"]*"/g,'')+'<span>'+TITLE[key]+'</span></div>'
-          +'<div class="body">'+txt+'</div>';
+        panel.innerHTML=head()+'<div class="rule"></div>'+tagFor(key)+'<div class="body">'+txt+'</div>';
       }
       function setPage(p){
         page=p; pagesEl.style.transform='translateX('+(-100*p)+'%)';
         prevB.disabled=p===0; nextB.disabled=p===PAGES.length-1;
-        if(selBtn && selBtn.closest('.page')===document.getElementById('p'+p)) moveMarker(selBtn);
+        const pageDivs=pagesEl.children;
+        if(selBtn && selBtn.parentElement===pageDivs[p]) moveMarker(selBtn);
         else marker.classList.remove('on');
       }
       nextB.addEventListener('click',()=>{ if(page<PAGES.length-1) setPage(page+1); });
       prevB.addEventListener('click',()=>{ if(page>0) setPage(page-1); });
-      requestAnimationFrame(()=>onClick(document.querySelector('.btn'),'explain'));
+
+      function setScenario(next){
+        scen=next; PAGES=buildPages(scen);
+        deselect(); buildRow(); setPage(0);
+        document.querySelectorAll('#scen button').forEach(b=>b.classList.toggle('on',b.dataset.scen===scen));
+        requestAnimationFrame(()=>onClick(pagesEl.querySelector('.btn'),'explain'));
+      }
+      document.querySelectorAll('#scen button').forEach(b=>
+        b.addEventListener('click',()=>setScenario(b.dataset.scen)));
+
+      buildRow(); setPage(0);
+      requestAnimationFrame(()=>onClick(pagesEl.querySelector('.btn'),'explain'));
     </script>
 
     <script>
@@ -1018,14 +1165,16 @@
          Kept as data so it stays easy to prune when something ships or dies.
          `soon: true` marks anything specced but not in the shipping build. */
       const CAPS = [
-        ['Reading a highlight', [
-          ['Explain', 'read in the context of the sentence around it'],
-          ['Expand', 'wider context, mechanism spelled out'],
-          ['Define', 'only offered for single-word selections'],
-          ['Summarize', 'only offered for long selections'],
-          ['Translate', 'only offered when the text looks non-English'],
-          ['ELI5', 'plain language, no jargon'],
-          ['Example', 'one concrete analogy'],
+        ['Reading a highlight — the bar, two per page', [
+          ['Explain', 'first page — read in the context of the sentence around it'],
+          ['Expand', 'first page — wider context, mechanism spelled out'],
+          ['Define', 'joins the first page when a single word is highlighted'],
+          ['Fact-check', 'behind the › arrow — the evidence pipeline, never a model opinion'],
+          ['Text area', 'behind the arrow — morphs the popup into a scratch editor'],
+          ['Example', 'behind the arrow — one concrete analogy'],
+          ['Summarize', 'appears only for long selections'],
+          ['Translate', 'appears only when the text looks non-English'],
+          ['ELI5', 'lives on as a follow-up restyle on any answer'],
           ['Follow-ups', 'restyle any answer; it stays one thread'],
         ]],
         ['How answers arrive', [

@@ -526,10 +526,11 @@ const JC_STYLES = [
 ];
 
 // The popup is an action surface, not just an explanation. Clicking the blob
-// shows a compact horizontal bar. Page 0 is the primary bar — always just
-// Explain and Expand. The › arrow flips to the context-sensitive second bar,
-// whose contents depend on what was highlighted (a non-English span offers
-// Translate, a single word offers Define, a long span offers Summarize…).
+// shows a compact horizontal bar. Page 0 is the primary bar — Explain and
+// Expand, joined by Define when a single word is highlighted. The › arrow
+// flips to the context-sensitive second bar — Fact-check, Text area, Example,
+// plus whatever the highlight invites (a non-English span offers Translate,
+// a long span offers Summarize…), paged two at a time.
 // Explanation-style actions fetch an answer that replaces the bar; Translate
 // opens a language prompt. Reword, Collapse and Simplify are parked for now —
 // their handlers stay wired (see jcRunAction / startTranslate / rewordInPlace /
@@ -611,26 +612,33 @@ function jcLooksNonEnglish(text) {
   return diacritics >= 3 && diacritics / (ascii + diacritics) >= 0.12;
 }
 
-// Primary bar — always exactly Explain and Expand, and always first. Explain
-// reads the tight surrounding passage; Expand pulls the wider one (buildClaudePrompt).
-function jcPrimaryActions() {
-  return [
+// Primary bar — Explain and Expand, always first. A single-word highlight
+// invites a dictionary entry, so Define joins them right on the first page
+// instead of hiding behind the arrow. Explain reads the tight surrounding
+// passage; Expand pulls the wider one (buildClaudePrompt).
+function jcPrimaryActions(data) {
+  const primary = [
     { key: "default", label: "Explain", icon: "explain", kind: "style" },
     { key: "detailed", label: "Expand", icon: "expand", kind: "style" },
   ];
+  if (jcSelectedWordCount(data) <= 1) {
+    primary.push({ key: "define", label: "Define", icon: "define", kind: "style" });
+  }
+  return primary;
 }
 
-// The second bar (behind the › arrow). Fixed lead pair — Fact-check, then the
-// Text area scratchpad — followed by whatever the highlight itself invites:
+// The second bar (behind the › arrow). Fixed lead trio — Fact-check, the Text
+// area scratchpad, then Example — followed by whatever the highlight itself
+// invites:
 //   • non-English text          → Translate
-//   • a single word             → Define (dictionary entry)
 //   • a long / multi-line span  → Summarize
-// Paged two-at-a-time (JC_BAR_PER_PAGE), so with no context extras page 2 is
-// exactly Fact-check + Text area. ELI5 and Example were retired here. Reword,
+// Paged two-at-a-time (JC_BAR_PER_PAGE), so with no context extras the arrow
+// reveals Fact-check + Text area, then Example on the page after. Define lives
+// on the primary bar now (single-word highlights only — see jcPrimaryActions).
+// ELI5 stays retired from the bar (it survives as a follow-up restyle). Reword,
 // Collapse and Simplify stay parked (handlers still wired in jcRunAction).
 function jcMoreActions(data) {
   const words = (data.selectedText || "").trim().split(/\s+/).filter(Boolean);
-  const isSingleWord = words.length <= 1;
   const isLong = (data.lineCount || 0) >= 4 || words.length >= 40;
 
   const more = [];
@@ -639,12 +647,11 @@ function jcMoreActions(data) {
   more.push({ key: "factcheck", label: "Fact-check", icon: "factcheck", kind: "factcheck" });
   // Text area morphs the popup into a resizable scratch editor.
   more.push({ key: "textarea", label: "Text area", icon: "textarea", kind: "textarea" });
+  // One vivid real-world example or analogy.
+  more.push({ key: "example", label: "Example", icon: "example", kind: "style" });
 
   if (jcLooksNonEnglish(data.selectedText)) {
     more.push({ key: "translate", label: "Translate", icon: "translate", kind: "translate" });
-  }
-  if (isSingleWord) {
-    more.push({ key: "define", label: "Define", icon: "define", kind: "style" });
   }
   if (isLong) {
     more.push({ key: "summarize", label: "Summarize", icon: "summarize", kind: "style" });
@@ -808,9 +815,10 @@ function renderActionMenu(popup) {
   const track = content.querySelector(".jc-row-track");
   const prev = content.querySelector(".jc-row-prev");
   const next = content.querySelector(".jc-row-next");
-  // Page 0 is the primary bar (Explain / Expand). The › arrow reveals the
-  // context-sensitive second bar, split across further pages if it runs long.
-  const pages = [jcPrimaryActions()];
+  // Page 0 is the primary bar (Explain / Expand, plus Define for a single
+  // word). The › arrow reveals the context-sensitive second bar, split across
+  // further pages if it runs long.
+  const pages = [jcPrimaryActions(currentExplainData)];
   const more = jcMoreActions(currentExplainData);
   for (let i = 0; i < more.length; i += JC_BAR_PER_PAGE) {
     pages.push(more.slice(i, i + JC_BAR_PER_PAGE));
