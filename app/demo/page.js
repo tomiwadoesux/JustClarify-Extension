@@ -102,6 +102,8 @@ export default function DemoPage() {
   const [cursor, setCursor] = useState({ x: 0, y: 0, on: false, click: false });
   const [taApplied, setTaApplied] = useState(false);
   const [anchor, setAnchor] = useState(null); // {left, top} of the phrase's bottom, in stage coords
+  const [stageMinH, setStageMinH] = useState(460); // stage grows to fit the floating popup so nothing clips
+  const popRef = useRef(null);
 
   const runId = useRef(0);
   const stageRef = useRef(null);
@@ -139,6 +141,22 @@ export default function DemoPage() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  // The popup floats (absolute), so grow the "browser window" to contain it —
+  // otherwise a tall answer (Expand) gets clipped by the stage's overflow.
+  useEffect(() => {
+    if (phase === "idle") return setStageMinH(440);
+    if (phase === "textarea") return setStageMinH(480);
+    const id = requestAnimationFrame(() => {
+      const stage = stageRef.current;
+      const pop = popRef.current;
+      if (!stage || !pop) return;
+      const s = stage.getBoundingClientRect();
+      const p = pop.getBoundingClientRect();
+      setStageMinH(Math.max(440, Math.round(p.bottom - s.top + 28)));
+    });
+    return () => cancelAnimationFrame(id);
+  }, [phase, sel, anchor, taApplied]);
 
   function resetAll() {
     setPhase("idle");
@@ -302,7 +320,7 @@ export default function DemoPage() {
             <Step n="3" done={phase === "answer" || phase === "textarea"} active={phase === "open" || phase === "loading"} label="Read it in place" />
           </div>
 
-          <div className="jcd-stage" ref={stageRef} role="figure" aria-label="A webpage with JustClarify">
+          <div className="jcd-stage" ref={stageRef} style={{ minHeight: stageMinH }} role="figure" aria-label="A webpage with JustClarify">
             <div className="jcd-fakebar">
               <i /><i /><i />
               <span>a-long-article-you're-reading.com</span>
@@ -339,6 +357,7 @@ export default function DemoPage() {
                 </article>
 
                 <div
+                  ref={popRef}
                   className="jcd-pop"
                   style={anchor ? { left: anchor.left, top: anchor.top } : { left: 28, top: 190 }}
                 >
