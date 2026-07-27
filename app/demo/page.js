@@ -934,7 +934,11 @@ const CSS = `
 /* The article is dimmed so the one selectable phrase stands out. */
 .jcd-article p { margin: 0 0 14px; font-size: clamp(14.5px, 2vw, 16px); line-height: 1.65; color: #bcb4ac; }
 .jcd-article .jcd-dim { color: #cfc9c2; }
-.jcd-hl { position: relative; color: #14110f; font-weight: 600; cursor: pointer; border-radius: 3px; padding: 0 2px;
+/* <mark> carries a highlight background in the UA stylesheet, which would show
+   the phrase as already-selected before the cursor ever reaches it. The only
+   highlight here is the one the sweep paints on .is-sel. */
+.jcd-hl { position: relative; background: transparent; color: #14110f; font-weight: 600; cursor: pointer;
+  border-radius: 3px; padding: 0 2px;
   box-decoration-break: clone; -webkit-box-decoration-break: clone; outline: none; }
 .jcd-hl.is-live::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px;
   background: var(--a); border-radius: 2px; animation: jcd-underline 1.5s ease-in-out infinite; }
