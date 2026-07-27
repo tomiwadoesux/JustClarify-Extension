@@ -1,0 +1,1085 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>JustClarify — design harness</title>
+    <!-- The extension's REAL stylesheet. Everything on this canvas is rendered
+         with the CSS that ships, so this page is a visual test, not a mock-up. -->
+    <link rel="stylesheet" href="ambient-explainer-extension/styles.css" />
+    <style>
+      /* ═══════════════════════════════════════════════════════════════════
+         Canvas shell — pan and zoom like a design tool.
+         Drag empty space (or space-drag / middle-drag anywhere) to pan.
+         ⌘/Ctrl + wheel or the +/− buttons to zoom. Frames are pinned: the
+         canvas moves, components never do.
+         ═══════════════════════════════════════════════════════════════════ */
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; }
+      body {
+        background: #eeecea;
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #14110f;
+      }
+
+      #viewport {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        cursor: grab;
+        background-image: radial-gradient(circle, rgba(20,17,15,.13) 1px, transparent 1px);
+        background-repeat: repeat;
+      }
+      #viewport.is-panning { cursor: grabbing; }
+
+      #canvas {
+        position: absolute;
+        top: 0; left: 0;
+        transform-origin: 0 0;
+        will-change: transform;
+      }
+
+      /* ---- Frames ------------------------------------------------------- */
+      .frame { position: absolute; }
+      .frame-label {
+        display: flex; align-items: baseline; gap: 8px;
+        margin-bottom: 8px; padding-left: 2px;
+        font: 700 11px/1 "Inter", sans-serif; letter-spacing: .04em;
+        text-transform: uppercase; color: #756c66;
+      }
+      .frame-label small {
+        font: 500 10px/1 "Inter", sans-serif; letter-spacing: 0;
+        text-transform: none; color: #a49b95;
+      }
+      .frame-body {
+        position: relative;
+        padding: 26px;
+        background: #f7f5f3;
+        border: 1px solid #ddd7d2;
+        border-radius: 16px;
+        corner-shape: squircle;
+        box-shadow: 0 1px 2px rgba(0,0,0,.04);
+      }
+      .frame-body.is-plain { background: #fff; }
+
+      .note {
+        margin: 0 0 18px;
+        max-width: 52ch;
+        font: 400 12px/1.6 "Inter", sans-serif; color: #7c736c;
+      }
+
+      /* Small controls used by the demos on the canvas. */
+      .ctrls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+      .ctrls button {
+        border: 1px solid rgba(20,17,15,.18); background: transparent;
+        border-radius: 7px; corner-shape: squircle; padding: 6px 10px;
+        cursor: pointer; color: #3a3a3a;
+        font: 600 10px/1 "Inter", sans-serif; letter-spacing: .05em; text-transform: uppercase;
+        transition: background-color .15s ease, border-color .15s ease, color .15s ease,
+                    transform .15s cubic-bezier(.25,.46,.45,.94);
+      }
+      .ctrls button:hover { background: #14110f; border-color: #14110f; color: #fff; }
+      .ctrls button:active { transform: scale(.97); }
+
+      /* ---- HUD ---------------------------------------------------------- */
+      #hud {
+        position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+        display: flex; align-items: center; gap: 4px;
+        padding: 5px; z-index: 10;
+        background: rgba(255,255,255,.94);
+        backdrop-filter: blur(12px);
+        border: 1px solid #ddd7d2; border-radius: 12px; corner-shape: squircle;
+        box-shadow: 0 8px 26px rgba(0,0,0,.14), 0 1px 2px rgba(0,0,0,.06);
+      }
+      #hud button {
+        min-width: 30px; height: 28px; padding: 0 9px;
+        border: 0; border-radius: 8px; corner-shape: squircle;
+        background: transparent; color: #3a3a3a; cursor: pointer;
+        font: 600 11px/1 "Inter", sans-serif;
+        transition: background-color .15s ease, transform .15s cubic-bezier(.25,.46,.45,.94);
+      }
+      #hud button:hover { background: #f1efec; }
+      #hud button:active { transform: scale(.94); }
+      #hud .zoom {
+        min-width: 52px; text-align: center; font-variant-numeric: tabular-nums;
+        color: #14110f; cursor: default;
+      }
+      #hud .zoom:hover { background: transparent; }
+      #hud .div { width: 1px; height: 18px; background: #e4dfdb; margin: 0 3px; }
+      #hud .jump { font-weight: 600; }
+
+      #help {
+        position: fixed; top: 16px; left: 18px; z-index: 10;
+        font: 500 11px/1.7 "Inter", sans-serif; color: #8d847e;
+        pointer-events: none;
+      }
+      #help b { color: #14110f; font-weight: 650; }
+      #help kbd {
+        font: 600 10px/1 "Inter", sans-serif; background: #fff; color: #14110f;
+        border: 1px solid #ddd7d2; border-bottom-width: 2px;
+        border-radius: 4px; padding: 3px 5px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .ctrls button, #hud button { transition: none; }
+      }
+
+      /* ═══════════════════════════════════════════════════════════════════
+         Frame 1 — selection action row + answer panel
+         ═══════════════════════════════════════════════════════════════════ */
+      .row {
+        position: relative; display: inline-flex; align-items: stretch; gap: 0;
+        padding: 5px; background: rgba(255,255,255,.97);
+        border: 1px solid rgba(17,17,17,.12); border-radius: 12px; corner-shape: squircle;
+        box-shadow: 0 8px 24px rgba(0,0,0,.13), 0 1px 2px rgba(0,0,0,.08);
+      }
+      .arrow {
+        flex: 0 0 auto; width: 30px; align-self: stretch; display: grid; place-items: center;
+        border: 0; background: transparent; color: #3a3a3a; cursor: pointer; border-radius: 8px;
+        transition: background-color .14s, opacity .14s;
+      }
+      .arrow svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .arrow:disabled { opacity: .26; cursor: default; }
+      .arrow:not(:disabled):hover { background: #f1f1ef; }
+      .sep { flex: 0 0 1px; align-self: stretch; margin: 4px 3px; background: rgba(17,17,17,.14); }
+
+      .viewport-x { overflow: hidden; }
+      .pages { display: flex; transition: transform .34s cubic-bezier(.4,0,.2,1); }
+      .page { flex: 0 0 100%; display: flex; align-items: stretch; gap: 2px; }
+
+      .btn {
+        position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+        gap: 6px; min-width: 74px; padding: 8px 12px 12px; border: 0; background: transparent; cursor: pointer;
+        border-radius: 8px; corner-shape: squircle; transition: background-color .14s;
+      }
+      .btn:hover { background: #f5f4f2; }
+      .btn .icon { width: 22px; height: 22px; display: grid; place-items: center;
+        transition: transform .3s cubic-bezier(.34,1.45,.6,1); transform: scale(1); transform-origin: center; }
+      .btn .icon svg { width: 22px; height: 22px; stroke: #141414; stroke-width: 1.7; fill: rgba(17,17,17,.11);
+        stroke-linecap: round; stroke-linejoin: round; }
+      .btn .icon .open { fill: none; }
+      .btn .label { font: 600 11px/1 "Inter", sans-serif; color: #3a3a3a; white-space: nowrap; transition: color .16s; }
+      .btn.sel .icon { transform: scale(1.32); }
+      .btn.sel .icon svg { fill: rgba(17,17,17,.17); }
+      .btn.sel .label { font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: #111; }
+
+      .marker {
+        position: absolute; left: 0; bottom: -3.5px; width: 7px; height: 7px; margin-left: -3.5px;
+        opacity: 0; transform: translateY(4px);
+        transition: left .32s cubic-bezier(.32,1.2,.5,1), opacity .2s ease, transform .2s ease;
+        pointer-events: none;
+      }
+      .marker.on { opacity: 1; transform: translateY(0); }
+      .marker i { display: block; width: 100%; height: 100%; background: #FF0000; transform: rotate(45deg); }
+
+      .row.loading .btn.sel .label {
+        background: linear-gradient(90deg,#c4c4c4 0%,#c4c4c4 38%,#141414 50%,#c4c4c4 62%,#c4c4c4 100%);
+        background-size: 220% 100%; -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent; animation: shim 1.15s linear infinite;
+      }
+      @keyframes shim { from { background-position: 130% 0 } to { background-position: -130% 0 } }
+
+      .panel {
+        margin-top: 9px; width: 360px; box-sizing: border-box; padding: 16px 18px;
+        background: #fff; border-radius: 13px; corner-shape: squircle;
+        box-shadow: 0 14px 34px rgba(0,0,0,.16), 0 2px 6px rgba(0,0,0,.07);
+        opacity: 0; transform: scale(.9); transform-origin: center top; pointer-events: none;
+        transition: width .3s cubic-bezier(.4,0,.2,1), opacity .2s ease, transform .28s cubic-bezier(.2,.85,.25,1);
+      }
+      .panel.on { opacity: 1; transform: scale(1); }
+      .panel .hd { font: 700 14px/1.2 "Inter", sans-serif; color: #111; margin-bottom: 10px; }
+      .panel .hd .q { color: #FF0000; }
+      .panel .rule { height: 1px; background: rgba(17,17,17,.1); margin: 0 0 12px; }
+      .panel .tag { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 11px;
+        color: #FF0000; font: 600 12px/1 "Inter", sans-serif; }
+      .panel .tag svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.9; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .panel .body { font: 400 15px/1.6 "Inter", sans-serif; color: #1a1a1a; }
+      .panel .load { display: flex; gap: 5px; padding: 4px 0 8px; }
+      .panel .load b { width: 6px; height: 6px; border-radius: 50%; background: #141414; opacity: .35; animation: dot 1s ease-in-out infinite; }
+      .panel .load b:nth-child(2) { animation-delay: .15s } .panel .load b:nth-child(3) { animation-delay: .3s }
+      @keyframes dot { 0%,100% { opacity: .3; transform: scale(1) } 50% { opacity: 1; transform: scale(1.5) } }
+
+      /* ═══════════════════════════════════════════════════════════════════
+         Frame 2 — ambient panel (real classes, un-fixed for the canvas)
+         ═══════════════════════════════════════════════════════════════════ */
+      .apdemo #jc-ambient-panel {
+        position: relative; right: auto; bottom: auto; left: auto; top: auto;
+        opacity: 1; transform: none;
+      }
+
+      /* ═══════════════════════════════════════════════════════════════════
+         Frame 3 — toolbar popup (the real popup.html in an iframe)
+         ═══════════════════════════════════════════════════════════════════ */
+      .popframe {
+        width: 320px; height: 688px; border: 1px solid #ddd7d2;
+        border-radius: 14px; corner-shape: squircle; overflow: hidden;
+        box-shadow: 0 14px 34px rgba(0,0,0,.13), 0 2px 6px rgba(0,0,0,.06);
+        background: #fbf9f7;
+      }
+      .popframe iframe { width: 320px; height: 688px; border: 0; display: block; }
+
+      /* Engine-card states, drawn with the popup's own tokens. The extension
+         can't reach chrome.* from this page, so these three are static. */
+      .engdemo { display: flex; flex-direction: column; gap: 12px; width: 300px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      .engcard { padding: 11px 12px; background: #fff; border: 1px solid #ece7e3;
+        border-radius: 11px; corner-shape: squircle; }
+      .engcard.blocked { border-color: rgba(255,0,0,.35); background: #fffafa; }
+      .engtop { display: flex; align-items: center; gap: 7px; }
+      .engdia { width: 8px; height: 8px; flex: none; background: #ff0000;
+        border-radius: 2px; corner-shape: squircle; transform: rotate(45deg); }
+      .engname { font: 650 12.5px/1.4 inherit; }
+      .engstate { margin-left: auto; font: 650 11px/1 inherit; color: #7c736c; }
+      .engstate.ok { color: #1a7f37; } .engstate.off { color: #ff0000; }
+      .engdetail { margin: 5px 0 0; font: 400 11px/1.5 inherit; color: #7c736c; }
+      .engbar { margin-top: 9px; height: 3px; border-radius: 999px; background: #ece7e3; overflow: hidden; }
+      .engbar i { display: block; height: 100%; width: 47%; background: #ff0000; }
+
+      /* ═══════════════════════════════════════════════════════════════════
+         Frames 4/5 — fact-check
+         ═══════════════════════════════════════════════════════════════════ */
+      .fcdemo-h3 { margin: 0; padding-bottom: 7px; border-bottom: 1px solid #111;
+        font: 700 10px/1 "Inter", sans-serif; letter-spacing: .09em; text-transform: uppercase; }
+      .fcdemo-note { margin: 9px 0 16px; font: 400 12px/1.55 "Inter", sans-serif; color: #8b837c; max-width: 46ch; }
+      .fcdemo-panel {
+        background: #fff; border: 1px solid rgba(17,17,17,.13); border-radius: 13px; corner-shape: squircle;
+        padding: 16px 18px 18px; box-shadow: 0 14px 34px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.05);
+      }
+      .fcdemo-panel .popup-header { margin: 0 0 11px; }
+      .fcdemo-panel .header-name { margin: 0; color: #111; font: 600 14px/1.35 "Inter", sans-serif; letter-spacing: -.02em; }
+      .fcdemo-panel .popup-divider { height: 1px; background: rgba(17,17,17,.09); margin: 0 0 14px; }
+      .fcdemo-stage { position: relative; min-height: 620px; width: 520px;
+        border: 1px solid rgba(17,17,17,.13); border-radius: 13px; corner-shape: squircle;
+        background: repeating-linear-gradient(-45deg, #f7f5f3 0 7px, #f2efec 7px 14px); overflow: hidden; }
+      .fcdemo-stage .jc-fc-overlay { position: absolute; top: 16px; right: 16px; width: 336px; max-height: 588px; }
+
+      /* ═══════════════════════════════════════════════════════════════════
+         Frame 6 — capability list
+         ═══════════════════════════════════════════════════════════════════ */
+      .caps { width: 760px; }
+      .caps h3 {
+        margin: 22px 0 10px; padding-bottom: 7px; border-bottom: 1px solid #14110f;
+        font: 700 10px/1 "Inter", sans-serif; letter-spacing: .09em; text-transform: uppercase;
+      }
+      .caps h3:first-child { margin-top: 0; }
+      .caps ul { margin: 0; padding: 0; list-style: none; columns: 2; column-gap: 30px; }
+      .caps li {
+        break-inside: avoid; display: flex; gap: 8px; padding: 5px 0;
+        font: 400 12.5px/1.5 "Inter", sans-serif; color: #3f3934;
+      }
+      .caps li i {
+        flex: none; width: 6px; height: 6px; margin-top: 6px; background: #ff0000;
+        border-radius: 2px; corner-shape: squircle; transform: rotate(45deg);
+      }
+      .caps li b { font-weight: 650; color: #14110f; }
+      .caps li.soon i, .caps li.parked i { background: #c9c2bc; }
+      .caps li.soon b::after, .caps li.parked b::after {
+        margin-left: 6px; padding: 1px 5px; border-radius: 999px;
+        background: #ece7e3; color: #8d847e;
+        font: 700 8.5px/1.5 "Inter", sans-serif; letter-spacing: .06em; text-transform: uppercase;
+        vertical-align: middle;
+      }
+      /* parked = the code is built but nothing in the UI can reach it.
+         planned = specced, not written. */
+      .caps li.parked b::after { content: "parked"; }
+      .caps li.soon b::after { content: "planned"; }
+    </style>
+  </head>
+
+  <body>
+    <div id="help">
+      <b>Drag</b> empty space to pan · <kbd>space</kbd>+drag anywhere<br />
+      <kbd>⌘</kbd>/<kbd>ctrl</kbd> + scroll to zoom · scroll to pan
+    </div>
+
+    <div id="viewport">
+      <div id="canvas">
+
+        <!-- ══ Selection → answer ══════════════════════════════════════ -->
+        <section class="frame" data-name="Selection" style="left:0; top:0; width:600px;">
+          <div class="frame-label">Selection → answer <small>action row, sliding diamond, morphing panel</small></div>
+          <div class="frame-body">
+            <p class="note">
+              Highlight text and this row appears. Picking an action slides the diamond
+              under its label, scales the icon, shimmers while waiting, then grows the
+              answer panel to fit the reply. Click the same action again to dismiss.
+            </p>
+            <div class="row" id="row">
+              <button class="arrow" id="prev" disabled><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+              <div class="sep"></div>
+              <div class="viewport-x"><div class="pages" id="pages">
+                <div class="page" id="p0"></div>
+                <div class="page" id="p1"></div>
+              </div></div>
+              <div class="sep"></div>
+              <button class="arrow" id="next"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+              <div class="marker" id="marker"><i></i></div>
+            </div>
+            <div class="panel" id="panel"></div>
+          </div>
+        </section>
+
+        <!-- ══ Ambient panel ═══════════════════════════════════════════ -->
+        <section class="frame" data-name="Ambient panel" style="left:680px; top:0; width:340px;">
+          <div class="frame-label">Ambient panel <small>floating workspace, streams live</small></div>
+          <div class="frame-body apdemo">
+            <p class="note">
+              Opt-in floating card. While a question is in flight it shows a miniature
+              of the answer card — the answering model's mark, the quoted highlight,
+              then the text as it streams. Settles back to topic chips when done.
+            </p>
+            <div id="jc-ambient-panel" class="jc-ap-in">
+              <div class="jc-ap-head">
+                <span class="jc-ap-dot" aria-hidden="true"></span>
+                <span class="jc-ap-title">JustClarify</span>
+                <span class="jc-ap-status"></span>
+                <button class="jc-ap-x" aria-label="Turn off">×</button>
+              </div>
+              <div class="jc-ap-livewrap"></div>
+              <div class="jc-ap-threads"></div>
+              <button class="jc-ap-ask" type="button">Ask anything…</button>
+            </div>
+            <div class="ctrls">
+              <button data-ap="play">Play sequence</button>
+              <button data-ap="idle">Idle</button>
+              <button data-ap="blocked">No engine</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ Toolbar popup ═══════════════════════════════════════════ -->
+        <section class="frame" data-name="Toolbar popup" style="left:1100px; top:0; width:400px;">
+          <div class="frame-label">Toolbar popup <small>every setting — the real popup.html</small></div>
+          <div class="frame-body">
+            <p class="note">
+              Rendered from the shipping file, so this is exactly what opens when the
+              extension icon is clicked. It's static here — the page can't reach
+              chrome.storage — so switches and reveals don't respond.
+            </p>
+            <div class="popframe">
+              <iframe src="ambient-explainer-extension/popup.html" title="JustClarify popup"></iframe>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ Engine states ═══════════════════════════════════════════ -->
+        <section class="frame" data-name="Engine states" style="left:1580px; top:0; width:360px;">
+          <div class="frame-label">Engine card <small>what answers, and why</small></div>
+          <div class="frame-body">
+            <p class="note">
+              Chrome's built-in model needs 16GB RAM, 4GB VRAM and 22GB free disk —
+              all three — and reports a bare "unavailable" without saying which failed.
+              The blocked state names the bar and points at the fix.
+            </p>
+            <div class="engdemo">
+              <div class="engcard">
+                <div class="engtop"><span class="engdia"></span><span class="engname">On-device AI</span><span class="engstate ok">Ready</span></div>
+                <p class="engdetail">Answers run on this machine — free, private, works offline. Nothing is sent anywhere.</p>
+              </div>
+              <div class="engcard">
+                <div class="engtop"><span class="engdia"></span><span class="engname">On-device AI</span><span class="engstate">Downloading</span></div>
+                <p class="engdetail">Chrome is downloading the built-in model (about 4GB, one time).</p>
+                <div class="engbar"><i></i></div>
+              </div>
+              <div class="engcard blocked">
+                <div class="engtop"><span class="engdia"></span><span class="engname">This device can't run the built-in AI</span><span class="engstate off">Blocked</span></div>
+                <p class="engdetail">Chrome needs 16GB of RAM, 4GB of video memory and 22GB of free disk — all three — and doesn't say which one it failed on. Turn on “Use your own AI key” below and JustClarify works normally again.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ Fact-check: one claim ═══════════════════════════════════ -->
+        <section class="frame" data-name="Fact-check (claim)" style="left:0; top:700px; width:600px;">
+          <div class="frame-label">Fact-check — one claim <small>verdict in the selection panel</small></div>
+          <div class="frame-body">
+            <p class="note">
+              Evidence first: a free lookup against published ClaimReview rulings
+              (PolitiFact, Snopes, FactCheck.org…), then a search-grounded model only
+              for claims nobody has ruled on. Every verdict carries its sources.
+            </p>
+            <div class="fcdemo-panel is-factcheck" id="fc-one"></div>
+            <div class="ctrls">
+              <button data-fc="published">Published ruling</button>
+              <button data-fc="searched">Searched</button>
+              <button data-fc="unknown">Unverifiable</button>
+              <button data-fc="nokey">Free tier, no key</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ Fact-check: page / video ════════════════════════════════ -->
+        <section class="frame" data-name="Fact-check (page)" style="left:680px; top:700px; width:600px;">
+          <div class="frame-label">Fact-check — page, transcript, live <small>verdicts land as they resolve</small></div>
+          <div class="frame-body">
+            <p class="note">
+              Claims are extracted on-device for free, then verified in parallel — each
+              verdict appears the moment it resolves instead of waiting for the slowest.
+            </p>
+            <div class="fcdemo-stage" id="fc-stage"></div>
+            <div class="ctrls">
+              <button id="fc-run-page">Run page check</button>
+              <button id="fc-run-video">Run transcript check</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ Answer anatomy: key + topic ═════════════════════════════ -->
+        <section class="frame" data-name="Answer — key + topic" style="left:1300px; top:700px; width:440px;">
+          <div class="frame-label">Answer — key line + topic <small>[[KEY]] rule, [[TOPIC]] chip</small></div>
+          <div class="frame-body">
+            <p class="note">
+              A finished answer when the model marks its one load-bearing sentence
+              with <b>[[KEY]]</b> and tags the subject with <b>[[TOPIC]]</b>. The key
+              line gets the red rule; the topic becomes a chip. Malformed or unclosed
+              tags from a weak model are stripped, never shown raw.
+            </p>
+            <div class="jc-explain-panel is-open" style="position:relative; opacity:1; transform:none; width:360px; align-self:flex-start;">
+              <div class="popup-header"><h1 class="header-name"><span style="color:#FF0000">"</span>refine<span style="color:#FF0000">"</span></h1></div>
+              <div class="popup-divider"></div>
+              <span class="jc-panel-tag">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20.5 20.5-4-4"/></svg>
+                <span>Explanation</span>
+              </span>
+              <div class="jc-blocks">
+                <p class="jc-block jc-prose">Here, “refine” means improving the basic skills and techniques of your work.</p>
+                <div class="jc-block jc-key">It isn't about inventing something new — it's about perfecting what already exists.</div>
+                <p class="jc-block jc-prose">The goal is to make those foundational skills stronger and more polished.</p>
+              </div>
+              <div style="margin-top:14px; padding-top:12px; border-top:1px solid rgba(17,17,17,.08); display:flex; align-items:center; gap:7px;">
+                <span style="font:600 10px/1 'Inter',sans-serif; letter-spacing:.06em; text-transform:uppercase; color:#a49b95;">Topic</span>
+                <span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:rgba(255,0,0,.06); border:1px solid rgba(255,0,0,.2); color:#FF0000; font:600 12px/1 'Inter',sans-serif;">Craft &amp; Mastery</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ First run: consent + one-time download bar ══════════════ -->
+        <section class="frame" data-name="First run" style="left:1300px; top:1180px; width:420px;">
+          <div class="frame-label">First run <small>on-device consent, then the one-time download bar</small></div>
+          <div class="frame-body">
+            <p class="note">
+              The first time an answer would need Chrome's built-in model downloaded
+              (and no key is set), JustClarify asks first. Accept, and the one-time
+              ~4GB download shows as a labelled bar; after that, normal answers use
+              the dot loader.
+            </p>
+            <div style="display:flex; flex-direction:column; gap:16px;">
+              <div class="jc-explain-panel is-open" style="position:relative; opacity:1; transform:none; width:340px; align-self:flex-start;">
+                <div class="jc-consent">
+                  <span class="jc-consent-ico">
+                    <svg viewBox="0 0 24 24" style="width:28px;height:28px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;">
+                      <rect x="6" y="6" width="12" height="12" rx="2.5"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/>
+                      <path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>
+                    </svg>
+                  </span>
+                  <div class="jc-consent-title">Set up on-device AI?</div>
+                  <p class="jc-consent-body">JustClarify can answer right on your machine — free, private, and it works offline. Chrome downloads the built-in model once (about 4GB); after that it's instant. Nothing you highlight ever leaves your device.</p>
+                  <div class="jc-consent-actions">
+                    <button class="jc-consent-yes" type="button">Use on-device AI</button>
+                    <button class="jc-consent-no" type="button">Not now</button>
+                  </div>
+                </div>
+              </div>
+              <div class="jc-explain-panel is-open" style="position:relative; opacity:1; transform:none; width:340px; align-self:flex-start;">
+                <div class="jc-setup" style="margin-bottom:0;">
+                  <div class="jc-setup-row">
+                    <span class="jc-setup-ico">
+                      <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;">
+                        <rect x="6" y="6" width="12" height="12" rx="2.5"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/>
+                        <path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>
+                      </svg>
+                    </span>
+                    <span class="jc-setup-label">Setting up on-device AI — one-time download</span>
+                    <span class="jc-setup-pct">47%</span>
+                  </div>
+                  <div class="jc-setup-bar"><i style="width:47%"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ Capabilities ════════════════════════════════════════════ -->
+        <section class="frame" data-name="What it does" style="left:0; top:1560px; width:820px;">
+          <div class="frame-label">What JustClarify does <small>shipping surface area</small></div>
+          <div class="frame-body is-plain">
+            <div class="caps" id="caps"></div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <div id="hud">
+      <button id="z-out" title="Zoom out">−</button>
+      <button class="zoom" id="z-level">100%</button>
+      <button id="z-in" title="Zoom in">+</button>
+      <div class="div"></div>
+      <button id="z-fit">Fit</button>
+      <button id="z-reset">100%</button>
+      <div class="div"></div>
+      <span id="jumps" style="display:flex; gap:2px;"></span>
+    </div>
+
+    <script>
+      /* ═══ Canvas: pan + zoom ═══════════════════════════════════════════
+         The canvas transform is the single source of truth. Frames are laid
+         out in canvas coordinates and never move relative to each other —
+         panning and zooming only ever change this one transform. */
+      const viewport = document.getElementById('viewport');
+      const canvas = document.getElementById('canvas');
+      const zLevel = document.getElementById('z-level');
+
+      const MIN_K = 0.15, MAX_K = 3;
+      let k = 1, x = 60, y = 60;
+
+      function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
+
+      function apply() {
+        canvas.style.transform = `translate(${x}px, ${y}px) scale(${k})`;
+        zLevel.textContent = Math.round(k * 100) + '%';
+        // Dot grid tracks the canvas so the surface reads as one plane.
+        viewport.style.backgroundSize = `${24 * k}px ${24 * k}px`;
+        viewport.style.backgroundPosition = `${x}px ${y}px`;
+      }
+
+      // Zoom toward a screen point: keep whatever is under the cursor fixed.
+      function zoomAt(px, py, nextK) {
+        const k2 = clamp(nextK, MIN_K, MAX_K);
+        if (k2 === k) return;
+        x = px - (px - x) * (k2 / k);
+        y = py - (py - y) * (k2 / k);
+        k = k2;
+        apply();
+      }
+
+      viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const r = viewport.getBoundingClientRect();
+        if (e.ctrlKey || e.metaKey) {
+          // Trackpad pinch arrives as ctrl+wheel; exponential keeps it even.
+          zoomAt(e.clientX - r.left, e.clientY - r.top, k * Math.exp(-e.deltaY * 0.0022));
+        } else {
+          x -= e.deltaX;
+          y -= e.deltaY;
+          apply();
+        }
+      }, { passive: false });
+
+      // Panning: empty space with the left button, or anywhere with space held
+      // or the middle button. Starting a drag on a control leaves it alone, so
+      // the live demos stay clickable.
+      const INTERACTIVE = 'button, a, input, select, textarea, iframe, [contenteditable="true"]';
+      let panning = false, sx = 0, sy = 0, ox = 0, oy = 0, spaceDown = false;
+
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && !e.repeat && !e.target.closest(INTERACTIVE)) {
+          spaceDown = true;
+          viewport.classList.add('is-panning');
+          e.preventDefault();
+        }
+      });
+      window.addEventListener('keyup', (e) => {
+        if (e.code === 'Space') { spaceDown = false; viewport.classList.remove('is-panning'); }
+      });
+
+      viewport.addEventListener('pointerdown', (e) => {
+        const onControl = e.target.closest(INTERACTIVE);
+        const wantsPan = e.button === 1 || spaceDown || (e.button === 0 && !onControl);
+        if (!wantsPan) return;
+        panning = true;
+        sx = e.clientX; sy = e.clientY; ox = x; oy = y;
+        viewport.setPointerCapture(e.pointerId);
+        viewport.classList.add('is-panning');
+        e.preventDefault();
+      });
+
+      viewport.addEventListener('pointermove', (e) => {
+        if (!panning) return;
+        x = ox + (e.clientX - sx);
+        y = oy + (e.clientY - sy);
+        apply();
+      });
+
+      function endPan() {
+        panning = false;
+        if (!spaceDown) viewport.classList.remove('is-panning');
+      }
+      viewport.addEventListener('pointerup', endPan);
+      viewport.addEventListener('pointercancel', endPan);
+
+      // Fit every frame into view with a margin.
+      function fit() {
+        const frames = [...document.querySelectorAll('.frame')];
+        if (!frames.length) return;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        frames.forEach((f) => {
+          const left = parseFloat(f.style.left) || 0;
+          const top = parseFloat(f.style.top) || 0;
+          minX = Math.min(minX, left);
+          minY = Math.min(minY, top);
+          maxX = Math.max(maxX, left + f.offsetWidth);
+          maxY = Math.max(maxY, top + f.offsetHeight);
+        });
+        const pad = 70;
+        const kx = (viewport.clientWidth - pad * 2) / (maxX - minX);
+        const ky = (viewport.clientHeight - pad * 2) / (maxY - minY);
+        k = clamp(Math.min(kx, ky), MIN_K, MAX_K);
+        x = pad - minX * k + (viewport.clientWidth - pad * 2 - (maxX - minX) * k) / 2;
+        y = pad - minY * k + (viewport.clientHeight - pad * 2 - (maxY - minY) * k) / 2;
+        apply();
+      }
+
+      // Centre one frame at a comfortable reading zoom.
+      function focusFrame(frame) {
+        const left = parseFloat(frame.style.left) || 0;
+        const top = parseFloat(frame.style.top) || 0;
+        k = clamp(Math.min(
+          (viewport.clientWidth - 120) / frame.offsetWidth,
+          (viewport.clientHeight - 120) / frame.offsetHeight,
+        ), MIN_K, 1);
+        x = (viewport.clientWidth - frame.offsetWidth * k) / 2 - left * k;
+        y = (viewport.clientHeight - frame.offsetHeight * k) / 2 - top * k;
+        apply();
+      }
+
+      document.getElementById('z-in').addEventListener('click', () =>
+        zoomAt(viewport.clientWidth / 2, viewport.clientHeight / 2, k * 1.25));
+      document.getElementById('z-out').addEventListener('click', () =>
+        zoomAt(viewport.clientWidth / 2, viewport.clientHeight / 2, k / 1.25));
+      document.getElementById('z-fit').addEventListener('click', fit);
+      document.getElementById('z-reset').addEventListener('click', () => {
+        zoomAt(viewport.clientWidth / 2, viewport.clientHeight / 2, 1);
+      });
+
+      // Jump buttons, one per frame.
+      const jumps = document.getElementById('jumps');
+      document.querySelectorAll('.frame').forEach((f) => {
+        const b = document.createElement('button');
+        b.className = 'jump';
+        b.textContent = f.dataset.name;
+        b.addEventListener('click', () => focusFrame(f));
+        jumps.appendChild(b);
+      });
+
+      apply();
+      window.addEventListener('load', fit);
+    </script>
+
+    <script>
+      /* ═══ Frame 1 — action row demo ═══════════════════════════════════ */
+      const ICON = {
+        explain: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path class="open" d="m20 20-3.7-3.7M11 8v3.5M11 14.5h.01"/></svg>',
+        detailed:'<svg viewBox="0 0 24 24"><path class="open" d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>',
+        define:  '<svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+        eli5:    '<svg viewBox="0 0 24 24"><path d="M8 14a5 5 0 1 1 8 0c-.8.7-1.5 1.4-1.7 2.5H9.7C9.5 15.4 8.8 14.7 8 14Z"/><path class="open" d="M9 18h6M10 22h4"/></svg>',
+        example: '<svg viewBox="0 0 24 24"><path d="M9 14a5 5 0 1 1 6 0c-.7.6-1.3 1.3-1.5 2.5h-3C10.3 15.3 9.7 14.6 9 14Z"/><path class="open" d="M9 18h6M10 22h4"/></svg>',
+        factcheck:'<svg viewBox="0 0 24 24"><path class="open" d="M20 6 9 17l-5-5"/></svg>',
+      };
+      const TITLE = { explain:'Explanation', detailed:'Expanded', define:'Definition', eli5:'In simple terms', example:'Example', factcheck:'Fact-check' };
+      const ANSWER = {
+        explain:"Here the writer means they set structure aside and let the words come out unplanned — drafting freely without editing as they go.",
+        detailed:"In context, “just write” is shorthand for bypassing planning entirely: no outline, no editing mid-draft, just continuous output. It matters because it names a deliberate mode — generative, not corrective — the writer switches into when analysis would stall the work.",
+        define:"write — verb. To form letters or words on a surface, or to compose text. Here it means to compose freely, without stopping to plan or edit.",
+        eli5:"It means: don’t plan, don’t fix — just put words down and keep going.",
+        example:"Like a musician jamming instead of reading sheet music — you play and see what comes.",
+        factcheck:"Accurate as a description of free-writing, a well-known drafting technique.",
+      };
+      const PAGES = [
+        [['explain','Explain'],['detailed','Expand'],['define','Define']],
+        [['eli5','ELI5'],['example','Example'],['factcheck','Factcheck']],
+      ];
+
+      const row=document.getElementById('row'), pagesEl=document.getElementById('pages'),
+            marker=document.getElementById('marker'), panel=document.getElementById('panel'),
+            prevB=document.getElementById('prev'), nextB=document.getElementById('next');
+      let page=0, selKey=null, selBtn=null, timer=null;
+
+      function makeBtn([key,label]){
+        const b=document.createElement('button'); b.className='btn'; b.dataset.key=key;
+        b.innerHTML='<span class="icon">'+ICON[key]+'</span><span class="label">'+label+'</span>';
+        b.addEventListener('click',()=>onClick(b,key));
+        return b;
+      }
+      PAGES[0].forEach(v=>document.getElementById('p0').appendChild(makeBtn(v)));
+      PAGES[1].forEach(v=>document.getElementById('p1').appendChild(makeBtn(v)));
+
+      function moveMarker(btn){
+        const rowR=row.getBoundingClientRect(), lb=btn.querySelector('.label').getBoundingClientRect();
+        // getBoundingClientRect is post-transform, so divide the delta by the
+        // canvas scale to get a value in canvas units.
+        marker.style.left=((lb.left+lb.width/2-rowR.left)/k)+'px';
+        marker.classList.add('on');
+      }
+      function onClick(btn,key){
+        if(selKey===key){ deselect(); return; }
+        selKey=key; selBtn=btn;
+        document.querySelectorAll('.btn').forEach(b=>b.classList.toggle('sel',b===btn));
+        moveMarker(btn);
+        loadPanel(key);
+      }
+      function deselect(){
+        selKey=null; selBtn=null;
+        document.querySelectorAll('.btn').forEach(b=>b.classList.remove('sel'));
+        marker.classList.remove('on');
+        panel.classList.remove('on');
+        row.classList.remove('loading');
+        clearTimeout(timer);
+      }
+      function loadPanel(key){
+        row.classList.add('loading');
+        panel.style.width='270px';
+        panel.innerHTML='<div class="hd"><span class="q">"</span>just write.<span class="q">"</span></div><div class="rule"></div><div class="load"><b></b><b></b><b></b></div>';
+        panel.classList.add('on');
+        clearTimeout(timer);
+        timer=setTimeout(()=>{ row.classList.remove('loading'); fillPanel(key); },1000);
+      }
+      function fillPanel(key){
+        const txt=ANSWER[key], w=Math.round(Math.max(260,Math.min(430,250+txt.length*0.42)));
+        panel.style.width=w+'px';
+        panel.innerHTML='<div class="hd"><span class="q">"</span>just write.<span class="q">"</span></div><div class="rule"></div>'
+          +'<div class="tag">'+ICON[key].replace('<svg','<svg fill="none"').replace(/fill="rgba[^"]*"/g,'')+'<span>'+TITLE[key]+'</span></div>'
+          +'<div class="body">'+txt+'</div>';
+      }
+      function setPage(p){
+        page=p; pagesEl.style.transform='translateX('+(-100*p)+'%)';
+        prevB.disabled=p===0; nextB.disabled=p===PAGES.length-1;
+        if(selBtn && selBtn.closest('.page')===document.getElementById('p'+p)) moveMarker(selBtn);
+        else marker.classList.remove('on');
+      }
+      nextB.addEventListener('click',()=>{ if(page<PAGES.length-1) setPage(page+1); });
+      prevB.addEventListener('click',()=>{ if(page>0) setPage(page-1); });
+      requestAnimationFrame(()=>onClick(document.querySelector('.btn'),'explain'));
+    </script>
+
+    <script>
+      /* ═══ Frame 2 — ambient panel sequence ════════════════════════════
+         Replays exactly what content.js does: mount the card, stream into
+         it, then collapse back to chips. */
+      const apPanel = document.getElementById('jc-ambient-panel');
+      const apWrap = apPanel.querySelector('.jc-ap-livewrap');
+      const apStatus = apPanel.querySelector('.jc-ap-status');
+      const apThreads = apPanel.querySelector('.jc-ap-threads');
+      const AP_TEXT = "In this passage “just write” means dropping the plan entirely — no outline, no editing mid-draft. The writer is naming a mode, not giving advice.";
+      const AP_CHIPS = [['just write', 25], ['free-writing', 145], ['drafting modes', 255]];
+      let apTimers = [];
+
+      function apClear() { apTimers.forEach(clearTimeout); apTimers = []; }
+
+      function apChips() {
+        apThreads.innerHTML = AP_CHIPS.map(([t, h]) =>
+          `<button class="jc-ap-chip" style="--jc-chip-hue:${h}">${t}</button>`).join('');
+      }
+
+      function apCard(label, text) {
+        let card = apWrap.querySelector('.jc-ap-card');
+        if (!card) {
+          apWrap.innerHTML =
+            '<div class="jc-ap-card">' +
+              '<div class="jc-ap-card-head">' +
+                '<span class="jc-ap-engine-slot"><span class="jc-ap-engine-mark" style="background:#10a37f">O</span></span>' +
+                '<div class="jc-ap-card-titles">' +
+                  '<h1 class="header-name">"just write."</h1>' +
+                  '<span class="jc-ap-engine-name">OpenAI · gpt-4o-mini</span>' +
+                '</div>' +
+              '</div>' +
+              '<div class="jc-ap-card-divider"></div>' +
+              '<span class="content-label"></span>' +
+              '<div class="expl-text jc-ap-card-text"></div>' +
+            '</div>';
+          card = apWrap.querySelector('.jc-ap-card');
+          requestAnimationFrame(() => card.classList.add('is-open'));
+        }
+        card.querySelector('.content-label').textContent = label;
+        card.querySelector('.jc-ap-card-text').textContent = text;
+        return card;
+      }
+
+      function apAway() {
+        const card = apWrap.querySelector('.jc-ap-card');
+        if (!card) return;
+        card.classList.remove('is-open');
+        apTimers.push(setTimeout(() => (apWrap.innerHTML = ''), 320));
+      }
+
+      function apIdle() { apClear(); apAway(); apStatus.textContent = ''; apPanel.classList.remove('jc-ap-busy'); apChips(); }
+
+      function apPlay() {
+        apClear();
+        apWrap.innerHTML = '';
+        apPanel.classList.add('jc-ap-busy');
+        apStatus.textContent = 'thinking';
+        apCard('Thinking', '');
+        // Stream in word by word, the way progress messages arrive.
+        const words = AP_TEXT.split(' ');
+        apTimers.push(setTimeout(() => { apStatus.textContent = 'streaming'; }, 700));
+        words.forEach((_, i) => {
+          apTimers.push(setTimeout(() => {
+            apCard('Explanation', words.slice(0, i + 1).join(' '));
+          }, 700 + i * 55));
+        });
+        const end = 700 + words.length * 55;
+        apTimers.push(setTimeout(() => {
+          apPanel.classList.remove('jc-ap-busy');
+          apStatus.textContent = '';
+        }, end));
+        apTimers.push(setTimeout(() => { apAway(); apChips(); }, end + 1600));
+      }
+
+      function apBlocked() {
+        apClear();
+        apWrap.innerHTML = '';
+        apPanel.classList.remove('jc-ap-busy');
+        apStatus.textContent = '';
+        const card = apCard('Hit a snag', "This device can't run the built-in AI. Add your own key in the extension popup to keep going.");
+        card.querySelector('.jc-ap-engine-name').textContent = 'No engine';
+        card.querySelector('.jc-ap-engine-mark').style.background = '#ff0000';
+        card.querySelector('.jc-ap-engine-mark').textContent = '!';
+      }
+
+      document.querySelector('[data-ap="play"]').addEventListener('click', apPlay);
+      document.querySelector('[data-ap="idle"]').addEventListener('click', apIdle);
+      document.querySelector('[data-ap="blocked"]').addEventListener('click', apBlocked);
+      apChips();
+      apPlay();
+    </script>
+
+    <script>
+      /* ═══ Frames 4/5 — fact-check demos ═══════════════════════════════
+         Canned data rendered through the same markup content.js emits, so
+         these double as a visual test of the shipping fact-check CSS. */
+      const VERDICTS = {
+        TRUE:{label:'True',tone:'true'}, MOSTLY_TRUE:{label:'Mostly true',tone:'true'},
+        MIXED:{label:'Mixed',tone:'mixed'}, MOSTLY_FALSE:{label:'Mostly false',tone:'false'},
+        FALSE:{label:'False',tone:'false'}, UNVERIFIABLE:{label:'Unverified',tone:'unknown'},
+      };
+      const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+      function sources(list){
+        if(!list || !list.length) return '';
+        return '<ul class="jc-fc-refs">'+list.map(s=>{
+          let host='source'; try{ host=new URL(s.url).hostname.replace(/^www\./,''); }catch(_){}
+          const title = s.title && s.title!==host ? s.title : '';
+          return '<li><a href="'+esc(s.url)+'" target="_blank" rel="noopener noreferrer">'+
+            '<span class="jc-fc-refhost">'+esc(host)+'</span>'+
+            '<span class="jc-fc-reftitle">'+esc(title)+'</span></a></li>';
+        }).join('')+'</ul>';
+      }
+      function dateline(r){
+        const p=[];
+        if(r.origin==='published') p.push('Published ruling');
+        if(r.confidence) p.push(r.confidence+' confidence');
+        return p.join(' · ');
+      }
+      function card(r, showClaim){
+        const m = VERDICTS[r.verdict] || VERDICTS.UNVERIFIABLE;
+        const d = dateline(r);
+        return '<div class="jc-fc jc-fc--'+m.tone+'">'+
+          '<div class="jc-fc-verdict">'+
+            '<span class="jc-fc-mark" aria-hidden="true"></span>'+
+            '<span class="jc-fc-word">'+esc(m.label)+'</span>'+
+            (d?'<span class="jc-fc-meta">'+esc(d)+'</span>':'')+
+          '</div>'+
+          (showClaim?'<p class="jc-fc-quote">'+esc(r.claim)+'</p>':'')+
+          (r.summary?'<p class="jc-fc-body">'+esc(r.summary)+'</p>':'')+
+          sources(r.sources)+'</div>';
+      }
+
+      const ONE = {
+        published:{
+          sel:'the tax cut paid for itself',
+          verdict:'FALSE', confidence:'high', origin:'published',
+          claim:'The 2017 tax cuts paid for themselves.',
+          summary:'PolitiFact rated this "False" — federal revenue fell short of projections in the years that followed.',
+          sources:[
+            {title:'Did the tax cuts pay for themselves?',url:'https://www.politifact.com/factchecks/'},
+            {title:'Federal revenue after the TCJA',url:'https://www.factcheck.org/'},
+          ],
+        },
+        searched:{
+          sel:'renewables passed coal in 2024',
+          verdict:'MOSTLY_TRUE', confidence:'medium', origin:'searched',
+          claim:'Renewable generation overtook coal in the US in 2024.',
+          summary:'EIA data shows renewables generating more than coal across 2024, though the gap narrows in winter months.',
+          sources:[
+            {title:'Electric Power Monthly',url:'https://www.eia.gov/electricity/monthly/'},
+            {title:'US renewables top coal for the year',url:'https://www.reuters.com/'},
+          ],
+        },
+        unknown:{
+          sel:'this policy will destroy the middle class',
+          verdict:'UNVERIFIABLE', confidence:'low', origin:'searched',
+          claim:'This policy will destroy the middle class.',
+          summary:'A prediction about the future, not a checkable statement of fact. Nothing to verify.',
+          sources:[],
+        },
+        nokey:{
+          sel:'the bridge opened in 1993',
+          verdict:'UNVERIFIABLE', confidence:'low', origin:'no-key',
+          claim:'The bridge opened in 1993.',
+          summary:'No published fact-check covers this claim yet. Add an AI Gateway key in the JustClarify popup to check claims nobody has ruled on.',
+          sources:[],
+        },
+      };
+      function showOne(key){
+        const r = ONE[key];
+        document.getElementById('fc-one').innerHTML =
+          '<div class="popup-header"><h1 class="header-name">"'+esc(r.sel)+'"</h1></div>'+
+          '<div class="popup-divider"></div>'+
+          '<div class="explanation-body">'+card(r,false)+'</div>';
+      }
+      document.querySelectorAll('[data-fc]').forEach(b=>
+        b.addEventListener('click',()=>showOne(b.dataset.fc)));
+      showOne('published');
+
+      const RUNS = {
+        page:{ src:'Reuters — Energy transition in 2024', items:[
+          {claim:'Global solar capacity additions exceeded 500 GW in 2024.',
+           verdict:'TRUE',confidence:'high',origin:'searched',delay:1400,
+           summary:'IEA and BNEF both report 2024 additions above 500 GW.',
+           sources:[{title:'IEA — Renewables 2024',url:'https://www.iea.org/'}]},
+          {claim:'Coal use fell in every G20 country last year.',
+           verdict:'FALSE',confidence:'high',origin:'searched',delay:2600,
+           summary:'Coal generation rose in India and Indonesia in the same period.',
+           sources:[{title:'Ember — Global Electricity Review',url:'https://ember-energy.org/'}]},
+          {claim:'Battery storage costs dropped by 40% since 2023.',
+           verdict:'MIXED',confidence:'medium',origin:'searched',delay:900,
+           summary:'Pack prices fell sharply but the 40% figure depends on chemistry and region.',
+           sources:[{title:'BloombergNEF battery price survey',url:'https://about.bnef.com/'}]},
+        ]},
+        video:{ src:'YouTube transcript', items:[
+          {claim:'[2:14] Unemployment is at a fifty-year low.',
+           verdict:'MOSTLY_FALSE',confidence:'high',origin:'published',delay:1700,
+           summary:'It reached a 50-year low in 2023, but has risen since — the claim is out of date.',
+           sources:[{title:'Labor force statistics, monthly series',url:'https://www.bls.gov/'},
+                    {title:'Unemployment rate claim, rated',url:'https://www.politifact.com/'}]},
+          {claim:'[5:02] We spend more on defense than the next ten countries combined.',
+           verdict:'MOSTLY_TRUE',confidence:'medium',origin:'searched',delay:1100,
+           summary:'SIPRI data supports roughly the next nine to ten countries, depending on the year.',
+           sources:[{title:'Military Expenditure Database',url:'https://www.sipri.org/'}]},
+          {claim:'[8:41] This bill is the largest in American history.',
+           verdict:'UNVERIFIABLE',confidence:'low',origin:'searched',delay:2200,
+           summary:'"Largest" is unstated — nominal, inflation-adjusted, and share-of-GDP give different answers.',
+           sources:[]},
+        ]},
+      };
+      let fcTimers = [];
+      function stamp(claim){
+        const m = claim.match(/\[(\d+):(\d{2})\]/);
+        if(!m) return esc(claim);
+        return '<a class="jc-fc-stamp" href="#">'+esc(m[0])+'</a> '+esc(claim.replace(m[0],'').trim());
+      }
+      function run(kind){
+        fcTimers.forEach(clearTimeout); fcTimers = [];
+        const cfg = RUNS[kind];
+        const stage = document.getElementById('fc-stage');
+        stage.innerHTML =
+          '<div class="jc-fc-overlay">'+
+            '<div class="jc-fc-head">'+
+              '<div class="jc-fc-titles">'+
+                '<span class="jc-fc-kicker">Fact-check</span>'+
+                '<span class="jc-fc-src">'+esc(cfg.src)+'</span>'+
+              '</div>'+
+              '<button class="jc-fc-close" type="button" aria-label="Close fact-check">×</button>'+
+            '</div>'+
+            '<div class="jc-fc-scroll">'+
+              '<p class="jc-fc-status">Finding claims worth checking</p>'+
+              '<div class="jc-fc-list"></div>'+
+            '</div>'+
+          '</div>';
+        stage.querySelector('.jc-fc-close').addEventListener('click',()=>{ stage.innerHTML=''; });
+        const status = stage.querySelector('.jc-fc-status');
+        const list = stage.querySelector('.jc-fc-list');
+        fcTimers.push(setTimeout(()=>{
+          status.textContent = 'Checking '+cfg.items.length+' claims';
+          list.innerHTML = cfg.items.map((it,i)=>
+            '<div class="jc-fc-row is-pending" data-jc-fc="'+i+'">'+
+              '<p class="jc-fc-quote">'+stamp(it.claim)+'</p>'+
+              '<div class="jc-fc-slot"><span class="jc-fc-pending">Checking</span></div>'+
+            '</div>').join('');
+          let left = cfg.items.length;
+          cfg.items.forEach((it,i)=>{
+            fcTimers.push(setTimeout(()=>{
+              const r = list.querySelector('[data-jc-fc="'+i+'"]');
+              r.classList.remove('is-pending');
+              r.querySelector('.jc-fc-slot').innerHTML = card(it,false);
+              if(--left === 0) status.textContent = cfg.items.length+' claims checked';
+            }, it.delay));
+          });
+        }, 800));
+      }
+      document.getElementById('fc-run-page').addEventListener('click',()=>run('page'));
+      document.getElementById('fc-run-video').addEventListener('click',()=>run('video'));
+      run('video');
+    </script>
+
+    <script>
+      /* ═══ Frame 6 — capability list ═══════════════════════════════════
+         Kept as data so it stays easy to prune when something ships or dies.
+         `soon: true` marks anything specced but not in the shipping build. */
+      const CAPS = [
+        ['Reading a highlight', [
+          ['Explain', 'read in the context of the sentence around it'],
+          ['Expand', 'wider context, mechanism spelled out'],
+          ['Define', 'only offered for single-word selections'],
+          ['Summarize', 'only offered for long selections'],
+          ['Translate', 'only offered when the text looks non-English'],
+          ['ELI5', 'plain language, no jargon'],
+          ['Example', 'one concrete analogy'],
+          ['Follow-ups', 'restyle any answer; it stays one thread'],
+        ]],
+        ['How answers arrive', [
+          ['Theme-matched popup', "adopts the page's own colours and font"],
+          ['Smooth streaming', 'character-paced, not chunky'],
+          ['Morphing panel', 'width grows to fit the answer'],
+          ['Adaptive blocks', 'lists, steps, term:def, stat chips'],
+          ['Long-prose fold', 'collapses under its own summary'],
+          ['Key-takeaway pin', 'the model tags the one line that matters'],
+          ['Thinking disclosure', 'shown when the engine returns reasoning'],
+        ]],
+        ['Asking without highlighting', [
+          ['Double-shift ask box', 'opens at the cursor, carries any selection'],
+          ['Right-click menu', '“Explain with JustClarify”'],
+        ]],
+        ['Changing the page', [
+          ['Text tools', 'humanize, paraphrase, formal, casual, simplify, shorten, expand, fix grammar'],
+          ['Collapse context', 'folds surrounding blocks away, click to restore', 'parked'],
+          ['Reword in place', "swaps the page's sentence for a plainer one", 'parked'],
+          ['Expand inline', 'elaboration inserted beside the highlight', 'soon'],
+        ]],
+        ['Fact-checking', [
+          ['One claim', 'verdict card inside the selection panel'],
+          ['Whole page', 'every claim underlined, recoloured as verdicts land'],
+          ['Page tally', 'floating count that doubles as the off-switch'],
+          ['Video transcript', 'YouTube, with timestamps that seek'],
+          ['Live tab audio', 'transcribed and checked as it plays'],
+          ['Published rulings first', 'free ClaimReview lookup before any model call'],
+          ['Search-grounded fallback', 'only for claims nobody has ruled on'],
+          ['Refuses opinions', 'predictions and value claims come back unverifiable'],
+        ]],
+        ['Engine', [
+          ['On-device first', "Chrome's built-in model — free, private, offline"],
+          ['Your own key', 'any model via Vercel AI Gateway'],
+          ['Silent fallback', 'an on-device miss uses the key instead'],
+          ['Honest diagnostics', 'says why the built-in model is out of reach'],
+          ['Model attribution', 'every answer badges what produced it'],
+          ['Per-tab memory', 'last 12 messages, cleared when the browser closes'],
+        ]],
+        ['Where it lives', [
+          ['Selection popup', 'anchored to the highlight'],
+          ['Ambient panel', 'floating, streams progress live'],
+          ['Toolbar popup', 'every setting in one place'],
+          ['History page', 'questions, answers and layout changes'],
+          ['Normal-LLM view', 'the same session with only your raw prompts'],
+        ]],
+      ];
+
+      const capsEl = document.getElementById('caps');
+      capsEl.innerHTML = CAPS.map(([group, items]) =>
+        '<h3>' + group + '</h3><ul>' + items.map(([name, desc, flag]) =>
+          '<li' + (flag ? ' class="' + flag + '"' : '') + '><i></i><span><b>' + name + '</b> — ' + desc + '</span></li>'
+        ).join('') + '</ul>'
+      ).join('');
+    </script>
+  </body>
+</html>

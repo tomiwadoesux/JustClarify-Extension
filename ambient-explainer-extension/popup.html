@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JustClarify</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="jc-head">
+      <span class="jc-mark" aria-hidden="true">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="5" y="5" width="14" height="14" rx="3.5" transform="rotate(45 12 12)" fill="currentColor"/>
+          <rect x="9" y="9" width="6" height="6" rx="1.6" transform="rotate(45 12 12)" fill="var(--jc-bg, #fbf9f7)"/>
+        </svg>
+      </span>
+      <span class="jc-wordmark">JustClarify</span>
+      <span class="jc-head-engine" id="jc-head-engine">
+        <span class="jc-dot" id="jc-head-dot"></span><span id="jc-head-engine-text">Checking</span>
+      </span>
+    </header>
+
+    <main class="jc-body">
+      <!-- ── Engine ───────────────────────────────────────────────────────── -->
+      <h2 class="jc-sec">Engine</h2>
+
+      <div class="jc-engine" id="jc-engine">
+        <div class="jc-engine-top">
+          <span class="jc-diamond" aria-hidden="true"></span>
+          <span class="jc-engine-name" id="jc-engine-name">On-device AI</span>
+          <span class="jc-engine-state" id="jc-engine-state">Checking</span>
+        </div>
+        <!-- Replaced by renderEngine() as soon as the worker answers; this is
+             what shows for the frame or two before that. -->
+        <p class="jc-engine-detail" id="jc-engine-detail">Working out what will answer your next question.</p>
+        <div class="jc-progress" id="jc-engine-progress" hidden><i></i></div>
+      </div>
+
+      <div class="jc-row">
+        <div class="jc-row-text">
+          <span class="jc-row-label">Use your own AI key</span>
+          <span class="jc-row-hint">Any model, via Vercel AI Gateway</span>
+        </div>
+        <button id="jc-byok-switch" class="jc-switch" type="button" role="switch" aria-checked="false" aria-label="Use your own AI key">
+          <span class="jc-switch-knob"></span>
+        </button>
+      </div>
+
+      <div class="jc-reveal" id="jc-byok-fields" data-open="false">
+        <div class="jc-reveal-inner">
+          <input id="jc-byok-key" class="jc-input" type="password"
+                 placeholder="Gateway API key (vck_…)" autocomplete="off" spellcheck="false" />
+          <input id="jc-byok-model" class="jc-input" type="text" list="jc-byok-models"
+                 placeholder="Model — e.g. openai/gpt-4o-mini" autocomplete="off" spellcheck="false" />
+          <datalist id="jc-byok-models">
+            <option value="openai/gpt-4o-mini"></option>
+            <option value="anthropic/claude-sonnet-4.5"></option>
+            <option value="anthropic/claude-haiku-4.5"></option>
+            <option value="google/gemini-2.5-flash"></option>
+            <option value="meta/llama-3.3-70b"></option>
+            <option value="deepseek/deepseek-v3.1"></option>
+            <option value="alibaba/qwen3-32b"></option>
+          </datalist>
+          <button id="jc-byok-save" class="jc-btn jc-btn-dark" type="button">Save &amp; test key</button>
+          <p id="jc-byok-status" class="jc-status" hidden></p>
+          <p class="jc-note">Stored on this device only, sent only to ai-gateway.vercel.sh.</p>
+        </div>
+      </div>
+
+      <!-- ── This page ────────────────────────────────────────────────────── -->
+      <h2 class="jc-sec">This page</h2>
+
+      <button id="jc-rewrite-btn" class="jc-btn jc-btn-red" type="button">
+        <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        Text tools — humanize &amp; paraphrase
+      </button>
+
+      <!-- Fact-check disclosure: the head shows on rest; hovering (or focusing,
+           or clicking the head) reveals every fact-check target. -->
+      <div class="jc-fc-group" id="jc-fc-group">
+        <button id="jc-factcheck-head" class="jc-btn jc-fc-head" type="button" aria-expanded="false">
+          <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true">
+            <g fill="currentColor" stroke="none" opacity="0.2"><circle cx="12" cy="12" r="9"/></g>
+            <g fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.4 12.2 2.4 2.4 4.8-5.2"/></g>
+          </svg>
+          <span class="jc-fc-head-label">Fact-check</span>
+          <svg viewBox="0 0 24 24" class="jc-ico jc-fc-caret" aria-hidden="true"><g fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></g></svg>
+        </button>
+
+        <div class="jc-fc-options" role="group" aria-label="Fact-check targets">
+          <button id="jc-factcheck-btn" class="jc-btn jc-fc-opt" type="button">
+            <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true">
+              <g fill="currentColor" stroke="none" opacity="0.2"><rect x="5" y="3" width="14" height="18" rx="2.5"/></g>
+              <g fill="none" stroke="currentColor"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></g>
+            </svg>
+            This page
+          </button>
+
+          <button id="jc-factcheck-video-btn" class="jc-btn jc-fc-opt" type="button">
+            <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true">
+              <g fill="currentColor" stroke="none" opacity="0.2"><circle cx="12" cy="12" r="9"/></g>
+              <g fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M10 9.2 15 12l-5 2.8z"/></g>
+            </svg>
+            This video's transcript
+          </button>
+
+          <button id="jc-factcheck-live-btn" class="jc-btn jc-fc-opt" type="button">
+            <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true">
+              <g fill="currentColor" stroke="none" opacity="0.2"><rect x="9" y="2" width="6" height="12" rx="3"/></g>
+              <g fill="none" stroke="currentColor"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></g>
+            </svg>
+            Listen &amp; fact-check live
+          </button>
+        </div>
+      </div>
+
+      <div class="jc-reveal" id="jc-live-fields" data-open="false">
+        <div class="jc-reveal-inner">
+          <input id="jc-deepgram-key" class="jc-input" type="password"
+                 placeholder="Deepgram key — live audio only" autocomplete="off" spellcheck="false" />
+          <p class="jc-note">Transcription is a separate service, so it takes its own key.</p>
+        </div>
+      </div>
+
+      <input id="jc-factcheck-key" class="jc-input" type="password"
+             placeholder="Google Fact Check key (optional, free)" autocomplete="off" spellcheck="false" />
+      <p class="jc-note">Powers the free published-ruling lookup (PolitiFact, Snopes, FactCheck.org, AFP) directly from your own key. Leave blank to use JustClarify's shared lookup.</p>
+
+      <!-- ── Display ──────────────────────────────────────────────────────── -->
+      <h2 class="jc-sec">Display</h2>
+
+      <div class="jc-row">
+        <div class="jc-row-text">
+          <span class="jc-row-label">Ambient panel</span>
+          <span class="jc-row-hint">Floating card that streams what's happening</span>
+        </div>
+        <button id="jc-panel-switch" class="jc-switch" type="button" role="switch" aria-checked="false" aria-label="Ambient panel">
+          <span class="jc-switch-knob"></span>
+        </button>
+      </div>
+
+      <!-- ── Data ─────────────────────────────────────────────────────────── -->
+      <h2 class="jc-sec">Data</h2>
+
+      <button id="jc-history-btn" class="jc-btn" type="button">
+        <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Open history
+      </button>
+
+      <p class="jc-note jc-note-foot">Highlights, answers and history stay in this browser's local storage.</p>
+    </main>
+
+    <script src="brand.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

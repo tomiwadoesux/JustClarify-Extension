@@ -6,6 +6,7 @@ class ExplainRequest(BaseModel):
     context_window: str
     mode: Optional[str] = "default"
     followup_question: Optional[str] = None
+    force_ai: Optional[bool] = False  # skip dictionary fast-path
 
     # Optional hyper-context
     page_title: Optional[str] = None
@@ -18,6 +19,22 @@ class ExplanationResponse(BaseModel):
     ambiguity: bool
     suggested_questions: List[str]
     source: str = "ai"  # "dictionary" | "ai"
+
+class CollapseBlock(BaseModel):
+    id: int
+    text: str
+
+class CollapsePlanRequest(BaseModel):
+    highlighted_text: str
+    blocks: List[CollapseBlock]
+
+class TransformRequest(BaseModel):
+    text: str
+    mode: str  # humanize | paraphrase | formal | casual | simplify | shorten | expand | grammar
+
+class TransformResponse(BaseModel):
+    text: str
+    mode: str
 
 class CaptureEmailRequest(BaseModel):
     email: str

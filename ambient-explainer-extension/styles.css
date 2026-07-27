@@ -1,18 +1,17 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
-/* CSS Variables - Design System */
+/* CSS Variables - Clean Design System */
 :root {
-  /* New Theme Variables */
-  --accent: #4447a9;
+  --accent: oklch(0.58 0.08 16);
   --bg-color: #fafafa;
   --surface-color: #ffffff;
-  --border-color: #e0e0e0;
-  --text-primary: #2d2d2d;
-  --text-secondary: #2d2d2d;
+  --border-color: #e6e6e6;
+  --text-primary: #1a1a1a;
+  --text-secondary: #555555;
+
   --font-family:
     "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --content-font:
-    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --content-font: var(--font-family);
 
   /* Spacing rhythm - 8px base */
   --space-xs: 4px;
@@ -20,20 +19,14 @@
   --space-md: 16px;
   --space-lg: 24px;
 
-  --popup-border: 1px solid var(--accent);
-  --popup-shadow: 0 4px 0 rgba(68, 71, 169, 0.15);
-}
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-color: #0a0a0a;
-    --surface-color: #000000;
-    --border-color: #333333;
-    --text-primary: #f0f0f0;
-    --text-secondary: #aaaaaa;
-    --popup-border: 1px solid var(--accent);
-    --popup-shadow: 0 4px 0 rgba(68, 71, 169, 0.4);
-  }
+  --popup-border: 1px solid var(--border-color);
+  --popup-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
 #ambient-popup,
@@ -44,21 +37,18 @@
 #ambient-popup p,
 #ambient-popup span,
 #ambient-popup button,
-#ambient-popup div {
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif !important;
+#ambient-popup div,
+#ambient-popup input {
+  font-family: var(--font-family) !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Icon Blob */
 #ambient-blob {
   position: absolute;
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   cursor: pointer;
   z-index: 999999;
   display: flex;
@@ -66,7 +56,7 @@
   justify-content: center;
   transform-origin: top left;
   opacity: 0;
-  animation: blob-morph-reveal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: blob-morph-reveal 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes blob-morph-reveal {
@@ -105,27 +95,28 @@
 /* Popup */
 #ambient-popup {
   position: absolute;
-  width: 340px;
+  width: 520px;
   padding: 0;
-  border-radius: 0;
+  border-radius: var(--radius-lg);
+  /* iOS-style smooth corners (Figma "corner smoothing 100%") */
+  corner-shape: squircle;
 
   background: var(--surface-color);
-  border: 0.5px solid var(--border-color);
-  box-shadow: none;
+  border: var(--popup-border);
+  box-shadow: var(--popup-shadow);
 
   color: var(--text-primary);
   font-family: var(--font-family);
 
   opacity: 0;
-  transform: scale(0.85);
   transform-origin: top left;
 
+  /* Smooth, non-bouncing ease — circle fades in, then morphs into the panel. */
   transition:
-    opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-    max-width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-    max-height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-    border-radius 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    opacity 0.2s ease,
+    max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 999999;
 
   display: flex;
@@ -133,22 +124,24 @@
   overflow: hidden;
 }
 
-/* Loading state: compact pill */
+/* Loading state: a small circle that scales up, then morphs into the panel */
 #ambient-popup.is-loading {
-  max-width: 60px;
-  max-height: 36px;
-  border-radius: 18px;
+  max-width: min(356px, calc(100vw - 24px));
+  max-height: 150px;
+  border-radius: 14px;
+  border: 1px solid #101010;
+  box-shadow: var(--popup-shadow);
 }
 
 /* Loaded state: full width */
 #ambient-popup.is-loaded {
-  max-width: 340px;
+  max-width: 520px;
   max-height: 800px;
-  border-radius: 0;
+  border-radius: var(--radius-lg);
 }
 
 .popup-content {
-  padding: var(--space-lg);
+  padding: 8px var(--space-lg) 14px;
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
@@ -164,10 +157,11 @@
 
 .header-name {
   color: var(--accent) !important;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   margin: 0;
-  max-width: 280px;
+  max-width: 360px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -189,39 +183,41 @@
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
   padding: 2px 8px;
+  border-radius: 999px;
   font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: var(--space-sm);
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 .content-label {
   display: inline-block;
   background-color: var(--accent) !important;
   color: #ffffff;
-  padding: 2px 8px;
+  border-radius: 999px;
+  padding: 3px 10px;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-md);
   letter-spacing: 0.5px;
 }
 
 /* Reveal animation trigger */
 #ambient-popup.visible {
   opacity: 1;
-  transform: scale(1);
 }
 
 /* Loading State — minimal compact pill */
 .popup-content.loading {
-  display: flex;
+  display: grid;
+  grid-template-columns: 46px 1fr;
   align-items: center;
-  justify-content: center;
-  padding: 14px 24px;
-  min-height: 0;
+  gap: 12px;
+  padding: 17px 18px;
+  min-height: 92px;
 }
 
 /* Ready State — morph reveal */
@@ -233,11 +229,9 @@
 @keyframes morph-in {
   0% {
     opacity: 0;
-    transform: translateY(-4px);
   }
   100% {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -249,6 +243,60 @@
   background-color: var(--accent);
   animation: dot-breathe 1.4s ease-in-out infinite;
   display: block;
+}
+
+.jc-loading-mark {
+  width: 42px;
+  height: 42px;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.jc-loading-mark::before,
+.jc-loading-mark::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 1px solid #111;
+  border-radius: 50%;
+}
+.jc-loading-mark::after {
+  inset: 10px;
+  border-color: var(--accent);
+}
+.jc-loading-mark i,
+.jc-loading-mark b {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+  transform: rotate(45deg);
+  animation: jc-loading-orbit 1.1s linear infinite;
+}
+.jc-loading-mark i:first-child { animation-delay: -0.36s; }
+.jc-loading-mark i:last-child { animation-delay: -0.72s; }
+.jc-loading-mark b { width: 4px; height: 4px; background: #111; }
+@keyframes jc-loading-orbit {
+  from { transform: rotate(45deg) translateX(0) rotate(45deg); }
+  50% { transform: rotate(225deg) translateX(19px) rotate(-225deg); }
+  to { transform: rotate(405deg) translateX(0) rotate(-405deg); }
+}
+.jc-loading-copy { min-width: 0; }
+.jc-loading-kicker {
+  display: block;
+  color: var(--accent);
+  font: 700 9px/1.1 var(--font-family);
+  letter-spacing: 0.12em;
+}
+.jc-passive-wait {
+  margin: 4px 0 3px;
+  color: #111;
+  font: 600 14px/1.2 var(--font-family);
+}
+.jc-loading-detail {
+  display: block;
+  color: #707070;
+  font: 400 11px/1.35 var(--font-family);
 }
 
 .loader::before,
@@ -279,13 +327,8 @@
   font-weight: 400;
   color: var(--text-primary);
   margin: 0;
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+  font-family: var(--font-family) !important;
+  letter-spacing: -0.005em;
 }
 
 .expl-item {
@@ -303,15 +346,975 @@
 
 .expl-text {
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.55;
   font-weight: 400;
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+  font-family: var(--font-family) !important;
+}
+
+/* --- Adaptive layout blocks (detectBlocks / renderBlocks) ------------------ */
+/* Freeform answer text gets reshaped into typed blocks: lists, steps, number
+   chips, definitions, a pinned key takeaway, and foldable "more" sections. */
+.jc-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.jc-block {
+  margin: 0;
+}
+
+/* Pinned key takeaway — a clean emphasis rule, not a filled box. */
+.jc-key {
+  font-size: 15px;
+  line-height: 1.6;
+  font-weight: 560;
+  color: var(--text-primary);
+  padding: 1px 0 1px 15px;
+  border-left: 2px solid var(--accent);
+  background: transparent;
+  border-radius: 0;
+}
+
+/* Lists + steps */
+.jc-list {
+  margin: 0;
+  padding-left: 1.25em;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.jc-list li {
+  font-size: 15px;
+  line-height: 1.5;
+}
+.jc-list-num li::marker {
+  color: var(--accent);
+  font-weight: 600;
+}
+.jc-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: jc-step;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.jc-steps li {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+  font-size: 15px;
+  line-height: 1.5;
+  counter-increment: jc-step;
+}
+.jc-step-dot {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.jc-step-dot::before {
+  content: counter(jc-step);
+}
+
+/* Definition list */
+.jc-defs {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.jc-def {
+  display: flex;
+  gap: var(--space-sm);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.jc-def dt {
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.jc-def dd {
+  margin: 0;
+}
+
+/* Number chips lifted out of a number-heavy sentence */
+.jc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+}
+.jc-chip {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.jc-stats-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Foldable sections: [[MORE]] asides and auto-collapsed long prose — clean and
+   borderless; the ▸ marker alone signals it opens. */
+.jc-collapse,
+.jc-prose-long {
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+.jc-collapse > summary,
+.jc-prose-long > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+.jc-collapse > summary::-webkit-details-marker,
+.jc-prose-long > summary::-webkit-details-marker {
+  display: none;
+}
+.jc-collapse > summary::before,
+.jc-prose-long > summary::before {
+  content: "▸";
+  color: var(--accent);
+  font-size: 11px;
+  transition: transform 0.18s ease;
+  align-self: center;
+}
+.jc-collapse[open] > summary::before,
+.jc-prose-long[open] > summary::before {
+  transform: rotate(90deg);
+}
+.jc-collapse > summary {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.jc-prose-long > summary .jc-prose-head {
+  color: var(--text-primary);
+  font-size: 15px;
+}
+.jc-collapse-body,
+.jc-prose-rest {
+  margin-top: var(--space-sm);
+  font-size: 15px;
+  line-height: 1.5;
+  animation: jc-unfold 0.18s ease;
+}
+@keyframes jc-unfold {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.jc-block code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+/* Thinking — collapsible reasoning shown above the answer while/after streaming */
+.jc-thinking {
+  margin-bottom: var(--space-md);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+}
+
+.jc-thinking > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.jc-thinking > summary::-webkit-details-marker {
+  display: none;
+}
+
+.jc-thinking > summary::before {
+  content: "▸ ";
+  color: var(--accent);
+}
+
+.jc-thinking[open] > summary::before {
+  content: "▾ ";
+}
+
+.jc-thinking-text {
+  margin-top: var(--space-sm);
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.jc-answer-text {
+  white-space: pre-wrap;
+}
+
+/* Action menu (Explain / Collapse) shown when the blob is clicked */
+.jc-action-menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.jc-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.jc-action:hover {
+  border-color: var(--accent);
+}
+
+.jc-action-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.jc-action-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Make the "I don't understand this sentence" action read as the headline
+   choice — accent-tinted with a left rule so it stands out above the styles. */
+.jc-action-reword {
+  border-color: var(--accent);
+  border-left-width: 3px;
+}
+.jc-action-reword .jc-action-title {
+  color: var(--accent);
+}
+.jc-action-reword:hover {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+/* ============================================================================
+   Compact action bar — the horizontal, arrow-paged options pill shown on blob
+   click (replaces the old vertical menu). In `.is-menu` mode the popup shell
+   goes transparent so only the small gray toolbar shows. A ⌄ toggle reveals the
+   overflow options beneath it. Motion follows the ease-out / <200ms rules from
+   the Emil Kowalski animation guidance.
+   ============================================================================ */
+#ambient-popup.is-menu {
+  width: auto;
+  max-width: none;
+  max-height: none;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
+  border-radius: 0;
+}
+#ambient-popup.is-menu .popup-content {
+  padding: 0;
+  gap: 0;
+}
+/* The generic content morph-in is too slow here; the menu owns its entrance. */
+#ambient-popup.is-menu .popup-content.ready {
+  animation: none;
+  opacity: 1;
+}
+
+.jc-menu {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  transform-origin: top left;
+  animation: jc-menu-in 0.18s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+@keyframes jc-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.jc-bar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  background: #ececec;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+}
+
+/* Clips the sliding track so paged-out chips don't spill past the pill edges. */
+.jc-bar-view {
+  overflow: hidden;
+}
+
+.jc-bar-track {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.jc-bar-btn {
+  border: none;
+  background: transparent;
+  padding: 5px 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a1a;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+.jc-bar-btn:active {
+  transform: scale(0.96);
+}
+@media (hover: hover) and (pointer: fine) {
+  .jc-bar-btn:hover {
+    background: rgba(0, 0, 0, 0.08);
+  }
+}
+
+/* Five selectable action-surface studies. All share the landing page's white
+   field, technical black rule, red diamond signal, and deliberately small UI. */
+.jc-style-switcher {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 5px;
+  border: 1px solid rgba(17, 17, 17, 0.14);
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.13), 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.jc-style-step,
+.jc-style-current {
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: #111;
+  cursor: pointer;
+  font-family: var(--font-family);
+}
+.jc-style-step { width: 25px; font-size: 13px; }
+.jc-style-current { display: inline-flex; gap: 6px; align-items: center; padding: 0 8px; border-inline: 1px solid #111; }
+.jc-style-count { color: var(--accent); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+.jc-style-name { font-size: 10px; font-weight: 700; letter-spacing: .03em; }
+.jc-style-step:hover, .jc-style-current:hover { background: #111; color: #fff; }
+.jc-style-step:active, .jc-style-current:active { transform: scale(.96); }
+
+.jc-bar {
+  gap: 2px;
+  padding: 5px;
+  background: #fff;
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  border-radius: 12px;
+  corner-shape: squircle;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.13), 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.jc-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+.jc-bar-icon { color: var(--accent); font-size: 15px; line-height: 1; }
+.jc-bar-arrow { border-radius: 0; }
+.jc-bar-arrow:hover { background: #111; color: #fff; }
+.jc-bar-sep { width: 1px; height: 22px; background: #111; opacity: .22; }
+
+/* 01 Signal — direct, red north star. */
+.jc-menu--0 .jc-bar-btn:first-child { background: var(--accent); color: #fff; }
+.jc-menu--0 .jc-bar-btn:first-child .jc-bar-icon { color: #fff; }
+
+/* 02 Orbit — rounded technical instruments. */
+.jc-menu--1 .jc-style-switcher, .jc-menu--1 .jc-bar { border-radius: 999px; box-shadow: 0 4px 0 rgba(0,0,0,.12); }
+.jc-menu--1 .jc-bar { padding: 4px; }
+.jc-menu--1 .jc-bar-btn, .jc-menu--1 .jc-bar-arrow { border-radius: 999px; }
+.jc-menu--1 .jc-bar-btn:first-child { border-color: var(--accent); }
+.jc-menu--1 .jc-bar-btn:first-child::before { content: ""; width: 5px; height: 5px; background: var(--accent); border-radius: 50%; }
+
+/* 03 Index — architectural action grid. */
+.jc-menu--2 .jc-bar { display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 3px; }
+.jc-menu--2 .jc-bar-view { overflow: visible; }
+.jc-menu--2 .jc-bar-track { display: grid; grid-template-columns: repeat(3, minmax(74px, 1fr)); gap: 3px; }
+.jc-menu--2 .jc-bar-btn { flex-direction: column; justify-content: center; gap: 2px; min-height: 48px; font-size: 10px; border: 1px solid #d9d9d9; }
+.jc-menu--2 .jc-bar-btn:hover { border-color: #111; background: #fff; }
+.jc-menu--2 .jc-bar-btn:first-child { border-color: #111; box-shadow: inset 0 -3px 0 var(--accent); }
+
+/* 04 Studio — soft cards, editorial hierarchy. */
+.jc-menu--3 .jc-bar { border-radius: 12px 12px 2px 2px; padding: 7px; background: #f7f7f5; box-shadow: 6px 6px 0 #111; }
+.jc-menu--3 .jc-bar-btn { min-height: 45px; padding: 8px 11px; border: 1px solid #e1e1dc; border-radius: 8px; background: #fff; }
+.jc-menu--3 .jc-bar-btn:first-child { border-color: var(--accent); }
+.jc-menu--3 .jc-style-switcher { border-radius: 8px 8px 0 0; box-shadow: none; }
+
+/* 05 Field — lowest visual weight; a sharp reading tool. */
+.jc-menu--4 .jc-style-switcher { box-shadow: none; border-color: #d0d0d0; }
+.jc-menu--4 .jc-bar { padding: 2px 0; border-width: 0 0 1px; box-shadow: none; }
+.jc-menu--4 .jc-bar-btn { padding-inline: 8px; }
+.jc-menu--4 .jc-bar-btn:first-child { color: var(--accent); }
+.jc-menu--4 .jc-bar-icon { font-size: 13px; }
+
+/* -------------------------------------------------------------------------
+   Action menu redesign: five genuinely different compositions, not five
+   recolours. This block deliberately replaces the earlier toolbar treatment.
+   ------------------------------------------------------------------------- */
+#ambient-popup.is-menu .jc-menu {
+  width: min(346px, calc(100vw - 28px));
+  box-sizing: border-box;
+  gap: 0;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #111;
+  box-shadow: 7px 7px 0 var(--accent);
+  color: #111;
+  animation: none;
+}
+.jc-menu-heading { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid #111; }
+.jc-menu-brand { display: inline-flex; align-items: center; gap: 7px; color: #111; font: 650 13px/1 var(--font-family); letter-spacing: -.045em; }
+.jc-menu-brand > i { width: 11px; height: 11px; position: relative; display: inline-block; background: #111; transform: rotate(45deg); }
+.jc-menu-brand > i::after { content: ""; position: absolute; inset: 3px; background: #fff; }
+.jc-menu-brand > span > span { color: var(--accent); }
+.jc-menu-caption { color: #777; font: 500 11px/1 var(--font-family); }
+.jc-menu-actions { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 10px; }
+.jc-menu-actions .jc-bar-btn,
+.jc-more-track .jc-bar-btn {
+  position: relative;
+  min-height: 62px;
+  padding: 9px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: #111;
+  font: 650 12px/1 var(--font-family);
+  text-align: left;
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms cubic-bezier(.23,1,.32,1);
+}
+.jc-menu-actions .jc-bar-btn { border-right: 1px solid #d9d9d9; border-bottom: 1px solid #d9d9d9; }
+.jc-menu-actions .jc-bar-btn:nth-child(3n) { border-right: 0; }
+.jc-menu-actions .jc-bar-btn:nth-last-child(-n + 2) { border-bottom: 0; }
+.jc-menu-actions .jc-bar-icon, .jc-more-track .jc-bar-icon { order: -1; color: var(--accent); font-size: 18px; font-weight: 400; }
+@media (hover: hover) and (pointer: fine) {
+  .jc-menu-actions .jc-bar-btn:hover, .jc-more-track .jc-bar-btn:hover { background: #111; color: #fff; }
+  .jc-menu-actions .jc-bar-btn:hover .jc-bar-icon, .jc-more-track .jc-bar-btn:hover .jc-bar-icon { color: var(--accent); }
+}
+.jc-menu-actions .jc-bar-btn:active, .jc-more-track .jc-bar-btn:active { transform: scale(.97); }
+.jc-menu-more { display: flex; width: 100%; align-items: center; justify-content: space-between; margin-top: 9px; padding: 8px 0 0; border: 0; border-top: 1px solid #111; background: transparent; color: #111; cursor: pointer; font: 700 10px/1 var(--font-family); letter-spacing: .08em; text-transform: uppercase; }
+.jc-menu-more:active { transform: scale(.98); }
+.jc-more { overflow: hidden; max-height: 0; opacity: 0; transition: max-height 180ms cubic-bezier(.23,1,.32,1), opacity 120ms ease; }
+.jc-more[data-open="true"] { max-height: 180px; opacity: 1; }
+.jc-more-track { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 8px; border-top: 1px solid #d9d9d9; }
+.jc-more-track .jc-bar-btn { min-height: 52px; }
+.jc-skin-picker { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 12px; padding-top: 9px; border-top: 1px solid #111; }
+.jc-skin-choice { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 4px 2px; border: 0; background: transparent; color: #777; cursor: pointer; font: 600 9px/1 var(--font-family); text-align: left; transition: color 140ms ease, transform 140ms cubic-bezier(.23,1,.32,1); }
+.jc-skin-choice:active { transform: scale(.96); }
+.jc-skin-dot { width: 100%; height: 3px; background: #d8d8d8; transition: background-color 140ms ease, transform 140ms cubic-bezier(.23,1,.32,1); }
+.jc-skin-choice[aria-pressed="true"] { color: #111; }
+.jc-skin-choice[aria-pressed="true"] .jc-skin-dot { background: var(--accent); transform: scaleY(1.5); }
+
+/* Axis: deliberate rules, white field, black instruments. */
+.jc-menu--0 { box-shadow: none !important; }
+.jc-menu--0 .jc-menu-actions { grid-template-columns: repeat(4, 1fr); }
+.jc-menu--0 .jc-menu-actions .jc-bar-btn { min-height: 62px; padding: 8px 7px; border-top: 0; font-size: 10px; }
+.jc-menu--0 .jc-menu-actions .jc-bar-btn:nth-child(3n) { border-right: 1px solid #d9d9d9; }
+.jc-menu--0 .jc-menu-actions .jc-bar-btn:nth-child(4n) { border-right: 0; }
+.jc-menu--0 .jc-menu-actions .jc-bar-btn:nth-last-child(-n + 4) { border-bottom: 0; }
+.jc-menu--0 .jc-menu-actions .jc-bar-icon { color: #111; }
+.jc-menu--0 .jc-menu-actions .jc-bar-btn:first-child { background: #fff; color: #111; box-shadow: inset 0 -3px 0 var(--accent); }
+
+/* Margin: reading-room list, one choice per line. */
+.jc-menu--1 { box-shadow: 0 0 0 1px #111, 12px 0 0 var(--accent); }
+.jc-menu--1 .jc-menu-heading { padding-left: 10px; border-left: 3px solid var(--accent); }
+.jc-menu--1 .jc-menu-actions { display: block; margin-top: 8px; }
+.jc-menu--1 .jc-menu-actions .jc-bar-btn { min-height: 42px; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; padding: 0 8px; border: 0; border-bottom: 1px solid #e2e2e2; font-size: 13px; }
+.jc-menu--1 .jc-menu-actions .jc-bar-btn:last-child { border-bottom: 0; }
+.jc-menu--1 .jc-menu-actions .jc-bar-btn::after { content: "→"; margin-left: auto; color: var(--accent); opacity: 0; transform: translateX(-4px); transition: opacity 140ms ease, transform 140ms ease; }
+@media (hover: hover) and (pointer: fine) { .jc-menu--1 .jc-menu-actions .jc-bar-btn:hover::after { opacity: 1; transform: translateX(0); } }
+
+/* Index: framed reference cards, visibly different density. */
+.jc-menu--2 { padding: 0; border: 2px solid #111; box-shadow: 6px 6px 0 #111; }
+.jc-menu--2 .jc-menu-heading { padding: 12px; border: 0; background: #111; color: #fff; }
+.jc-menu--2 .jc-menu-brand { color: #fff; }
+.jc-menu--2 .jc-menu-brand > i { background: #fff; }
+.jc-menu--2 .jc-menu-brand > i::after { background: #111; }
+.jc-menu--2 .jc-menu-caption { color: #c8c8c8; }
+.jc-menu--2 .jc-menu-actions { padding: 7px; gap: 6px; }
+.jc-menu--2 .jc-menu-actions .jc-bar-btn { min-height: 72px; border: 1px solid #111; padding: 8px; }
+.jc-menu--2 .jc-menu-actions .jc-bar-btn:nth-child(n) { border: 1px solid #111; }
+.jc-menu--2 .jc-menu-actions .jc-bar-btn::before { content: "0" counter(jc-actions); counter-increment: jc-actions; color: #aaa; font-size: 9px; }
+.jc-menu--2 .jc-menu-actions { counter-reset: jc-actions; }
+.jc-menu--2 .jc-skin-picker { margin-inline: 10px; width: calc(100% - 20px); }
+
+/* Marker: one highlighter-like dominant action, then quiet companions. */
+.jc-menu--3 { border-radius: 14px 3px 14px 3px; box-shadow: 0 9px 20px rgba(0,0,0,.14); }
+.jc-menu--3 .jc-menu-heading { border-bottom: 0; }
+.jc-menu--3 .jc-menu-actions { grid-template-columns: 1.5fr 1fr 1fr; gap: 5px; }
+.jc-menu--3 .jc-menu-actions .jc-bar-btn { min-height: 58px; border: 1px solid #e1e1e1; border-radius: 8px; }
+.jc-menu--3 .jc-menu-actions .jc-bar-btn:nth-child(n) { border: 1px solid #e1e1e1; }
+.jc-menu--3 .jc-menu-actions .jc-bar-btn:first-child { grid-row: span 2; min-height: 121px; background: #fff4ef; border-color: var(--accent); }
+.jc-menu--3 .jc-menu-actions .jc-bar-btn:first-child::after { content: "Start here"; color: var(--accent); font-size: 10px; font-weight: 500; }
+
+/* Lens: quiet instrument panel; icon-first, no hard card shadow. */
+.jc-menu--4 { border: 1px solid #d5d5d5; box-shadow: 0 12px 30px rgba(0,0,0,.12); border-radius: 16px; }
+.jc-menu--4 .jc-menu-heading { border-bottom-color: #e9e9e9; }
+.jc-menu--4 .jc-menu-actions { grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.jc-menu--4 .jc-menu-actions .jc-bar-btn { align-items: center; justify-content: center; min-height: 62px; padding: 5px 3px; border: 0; border-radius: 12px; text-align: center; font-size: 10px; }
+.jc-menu--4 .jc-menu-actions .jc-bar-btn:nth-child(n) { border: 0; }
+.jc-menu--4 .jc-menu-actions .jc-bar-icon { width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid #d0d0d0; border-radius: 50%; }
+.jc-menu--4 .jc-menu-actions .jc-bar-btn:first-child .jc-bar-icon { border-color: var(--accent); background: var(--accent); color: #fff; }
+
+/* Answer surface — the harness panel: rounded, soft-shadowed, no hard border. */
+#ambient-popup[data-jc-skin="0"].is-loaded { border: 1px solid rgba(17,17,17,.08); border-radius: 13px; box-shadow: 0 14px 34px rgba(0,0,0,.16), 0 2px 6px rgba(0,0,0,.07); }
+#ambient-popup[data-jc-skin="0"] .content-label { border-radius: 999px; background: var(--accent) !important; }
+#ambient-popup[data-jc-skin="1"].is-loaded { border-left: 4px solid var(--accent); border-radius: 0 12px 12px 0; }
+#ambient-popup[data-jc-skin="1"] .popup-header { padding-left: 8px; }
+#ambient-popup[data-jc-skin="2"].is-loaded { border: 2px solid #111; border-radius: 0; box-shadow: 6px 6px 0 #111; }
+#ambient-popup[data-jc-skin="2"] .popup-header { margin-inline: calc(-1 * var(--space-lg)); padding: 12px var(--space-lg); background: #111; }
+#ambient-popup[data-jc-skin="2"] .header-name { color: #fff !important; }
+#ambient-popup[data-jc-skin="3"].is-loaded { border-color: var(--accent); border-radius: 16px 4px 16px 4px; box-shadow: 0 12px 34px rgba(0,0,0,.14); }
+#ambient-popup[data-jc-skin="3"] .content-label { background: #fff0e9 !important; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; }
+#ambient-popup[data-jc-skin="4"].is-loaded { border-color: #ddd; border-radius: 18px; box-shadow: 0 16px 44px rgba(0,0,0,.13); }
+#ambient-popup[data-jc-skin="4"] .content-label { background: transparent !important; color: var(--accent); padding: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .jc-menu *, #ambient-popup * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* Final compact selector: one horizontal row, no decoration competing with
+   the reading surface. Pagination keeps every action reachable without a
+   second menu or visible design controls. */
+#ambient-popup.is-menu .jc-menu,
+#ambient-popup.is-menu .jc-menu.jc-menu--0 {
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none !important;
+}
+.jc-action-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, .96);
+  border: 1px solid rgba(17, 17, 17, .10);
+  border-radius: 11px;
+  corner-shape: squircle;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .13), 0 1px 2px rgba(0, 0, 0, .08);
+}
+.jc-row-view { overflow: hidden; }
+.jc-row-track { display: flex; align-items: stretch; gap: 5px; }
+.jc-row-track .jc-bar-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 74px;
+  padding: 8px 12px 12px;
+  border: 0 !important;
+  border-radius: 8px;
+  corner-shape: squircle;
+  background: transparent;
+  color: #3a3a3a;
+  font: 600 11px/1 var(--font-family);
+  white-space: nowrap;
+  text-align: center;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.jc-bar-label { position: relative; display: inline-block; }
+.jc-row-track .jc-bar-icon {
+  position: relative;
+  color: #141414;
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  line-height: 0;
+  transform: scale(1);
+  transform-origin: center;
+  transition: transform 0.3s cubic-bezier(0.34, 1.45, 0.6, 1);
+}
+/* The diamond the icon morphs into while loading (hidden until then). */
+.jc-row-track .jc-bar-icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(45deg) scale(0);
+  transition: transform 0.22s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.16s ease;
+}
+.jc-row-track .jc-bar-icon svg {
+  transform-origin: center;
+  transition: opacity 0.18s ease, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.jc-lucide,
+.jc-row-track .jc-bar-icon svg,
+.jc-row-arrow svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Menu icons ride bigger (harness spec: 22px, duotone). */
+.jc-row-track .jc-bar-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.jc-row-arrow {
+  flex: 0 0 auto;
+  width: 30px;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  corner-shape: squircle;
+  background: transparent;
+  color: #4a4a4a;
+  cursor: pointer;
+  transition: opacity 120ms ease, background-color 140ms ease, color 140ms ease;
+}
+.jc-row-arrow:disabled { opacity: .23; cursor: default; }
+.jc-row-arrow:not(:disabled):active,
+.jc-row-track .jc-bar-btn:active { transform: scale(.96); }
+@media (hover: hover) and (pointer: fine) {
+  .jc-row-track .jc-bar-btn:hover { background: #f1f1ef; color: #111; }
+  .jc-row-track .jc-bar-btn:hover .jc-bar-icon { color: var(--accent); }
+  .jc-row-arrow:not(:disabled):hover { background: #f1f1ef; color: #111; }
+}
+
+/* The legacy Axis rule used to force the first button red. The action row is
+   now a neutral tool surface; the red brand signal belongs in the answer,
+   not in a random default action. */
+#ambient-popup.is-menu .jc-row-track .jc-bar-btn:first-child {
+  background: transparent;
+  color: #252525;
+  box-shadow: none;
+}
+#ambient-popup.is-menu .jc-row-track .jc-bar-btn:first-child .jc-bar-icon {
+  color: #111;
+}
+
+.jc-bar-arrow {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  color: #555;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+.jc-bar-arrow:active {
+  transform: scale(0.92);
+}
+@media (hover: hover) and (pointer: fine) {
+  .jc-bar-arrow:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+}
+.jc-bar-arrow:disabled {
+  opacity: 0.28;
+  cursor: default;
+  background: transparent;
+  transform: none;
+}
+
+/* Thin divider between the pager arrows and the ⌄ overflow toggle. */
+.jc-bar-sep {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 15px;
+  margin: 0 2px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* The caret flips when the overflow panel is open. */
+.jc-bar-more svg {
+  transition: transform 0.2s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+.jc-bar-more.is-open svg {
+  transform: rotate(180deg);
+}
+
+/* Overflow panel (Simplify / Example / Factcheck / …) revealed by the ⌄ toggle. */
+.jc-more {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    max-height 0.2s cubic-bezier(0.215, 0.61, 0.355, 1),
+    opacity 0.18s ease-out,
+    transform 0.2s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+.jc-more[data-open="true"] {
+  max-height: 48px;
+  opacity: 1;
+  transform: translateY(0);
+}
+.jc-more-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  background: #ececec;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+}
+
+/* Translate prompt — the bar swaps to a "Translate to […] →" input. */
+.jc-bar-form {
+  gap: 4px;
+  padding: 3px 3px 3px 8px;
+}
+.jc-bar-label {
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 500;
+  color: #555;
+  white-space: nowrap;
+}
+.jc-lang-input {
+  width: 118px;
+  border: none;
+  background: #fff;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-family: var(--font-family);
+  font-size: 13px;
+  color: #1a1a1a;
+  outline: none;
+  transition: box-shadow 0.15s ease;
+}
+.jc-lang-input::placeholder {
+  color: #9a9a9a;
+}
+.jc-lang-input:focus {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.jc-bar-go {
+  color: var(--accent, var(--accent));
+}
+
+/* Page swap: the incoming set slides in from the side of the arrow pressed. */
+.jc-bar-track.slide-from-right {
+  animation: jc-slide-right 0.18s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+.jc-bar-track.slide-from-left {
+  animation: jc-slide-left 0.18s cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+@keyframes jc-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes jc-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jc-menu,
+  .jc-bar-track.slide-from-right,
+  .jc-bar-track.slide-from-left {
+    animation: none;
+  }
+  .jc-more {
+    transition: none;
+  }
+  .jc-bar-more svg {
+    transition: none;
+  }
+}
+
+/* In-place reword swap — the reworded sentence is dropped into the page where
+   the original sat. It inherits the page's own font/color so it blends in, but
+   a brief highlight flashes so the reader's eye catches what just changed.
+   Lives in the page DOM, so guard the flash with !important against page CSS. */
+.jc-reworded {
+  border-radius: 3px !important;
+  transition: background-color 0.9s ease !important;
+}
+.jc-reworded-loading {
+  background-color: color-mix(in srgb, var(--accent) 8%, transparent) !important;
+  animation: jc-reworded-pulse 1.1s ease-in-out infinite !important;
+}
+.jc-reworded-show {
+  background-color: rgba(255, 224, 92, 0.6) !important;
+  animation: none !important;
+}
+@keyframes jc-reworded-pulse {
+  0%, 100% { background-color: color-mix(in srgb, var(--accent) 5%, transparent); }
+  50% { background-color: color-mix(in srgb, var(--accent) 16%, transparent); }
+}
+
+/* In-page collapse marker — sits where folded context was. Styled explicitly
+   (with !important) because it lives in the page DOM, not the popup, so page
+   CSS could otherwise bleed in. Red rectangle so it's easy to spot on scroll. */
+.jc-collapse-marker {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 6px 0 !important;
+  padding: 8px 12px 8px 16px !important;
+  border: none !important;
+  border-radius: 3px !important;
+  /* Red comes in strong on the left and fades out into the page bg, so the
+     marker reads as an accent band, not a detached box. */
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 13%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 4%, transparent) 45%,
+    color-mix(in srgb, var(--accent) 0%, transparent) 100%
+  ) !important;
+  cursor: pointer !important;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif !important;
+  font-size: 12px !important;
+  line-height: 1.3 !important;
+  color: #555 !important;
+  user-select: none !important;
+  box-sizing: border-box !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+/* Full-height accent bar that grows in when the marker appears — "comes in"
+   and runs the whole height, so the red feels longer and attached. */
+.jc-collapse-marker::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 4px !important;
+  background: var(--accent) !important;
+  transform: scaleY(0) !important;
+  animation: jc-accent-in 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+}
+
+@keyframes jc-accent-in {
+  to {
+    transform: scaleY(1) !important;
+  }
+}
+
+.jc-collapse-marker:hover {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 20%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 6%, transparent) 45%,
+    color-mix(in srgb, var(--accent) 0%, transparent) 100%
+  ) !important;
+}
+
+.jc-collapse-arrow {
+  color: var(--accent) !important;
+  font-size: 11px !important;
+  flex-shrink: 0 !important;
+}
+
+.jc-collapse-gist {
+  color: #555 !important;
+  font-style: italic !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.jc-collapse-marker.open {
+  opacity: 0.7 !important;
 }
 
 /* Buttons */
@@ -322,23 +1325,27 @@
 }
 
 .buttons button {
-  background: transparent;
+  background: var(--surface-color);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
 
-  padding: 6px 12px;
-  border-radius: 0;
-  font-size: 12px;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
   font-weight: 500;
-  font-family: var(--font-family);
+  font-family: var(--font-family) !important;
 
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
 }
 
 .buttons button:hover {
   border-color: var(--accent);
-  background: rgba(68, 71, 169, 0.05);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
   color: var(--accent);
 }
 
@@ -358,12 +1365,13 @@
   display: inline-block;
   background-color: var(--accent) !important;
   color: #ffffff;
-  padding: 2px 8px;
+  border-radius: 999px;
+  padding: 3px 10px;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: var(--space-sm);
+  margin-bottom: var(--space-md);
   margin-top: 0;
 }
 
@@ -378,18 +1386,18 @@
 }
 
 .footer-meta {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
   color: var(--text-secondary);
-  opacity: 0.5;
+  opacity: 0.6;
   letter-spacing: 0.5px;
 }
 
 .suggested .buttons button {
-  font-size: 11px;
+  font-size: 12px;
   border: 1px dashed var(--border-color);
-  padding: 5px 10px;
+  padding: 6px 11px;
 }
 
 .suggested .buttons button:hover {
@@ -397,39 +1405,901 @@
   border-color: var(--accent);
 }
 
-.email-gate {
+/* Hotkey ask box — text input + send button shown before a question is asked */
+.jc-ask-form {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  align-items: flex-start;
+  gap: var(--space-sm);
+  align-items: center;
+  margin-bottom: var(--space-md);
 }
 
-.gate-logo {
-  width: 42px;
-  height: 42px;
+.jc-ask-input {
+  flex: 1;
+  height: 40px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  corner-shape: squircle;
+  padding: 0 14px;
+  font-size: 15px;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.jc-ask-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.jc-ask-submit {
+  height: 40px;
+  min-width: 44px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+  border-radius: var(--radius-sm);
+  corner-shape: squircle;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    opacity 0.15s ease,
+    transform 0.1s ease;
+}
+
+.jc-ask-submit:hover {
+  opacity: 0.92;
+}
+
+.jc-ask-submit:active {
+  transform: translateY(1px);
+}
+
+/* ===========================================================================
+   Ambient panel (floating in-page workspace) + thread view
+   =========================================================================== */
+
+#jc-ambient-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 84px;
+  width: 252px;
+  z-index: 2147483646;
+  font-family: var(--font-family);
+  background: #ffffff;
+  color: #1a1a1a;
+  border: 1px solid #e6e6e6;
+  border-radius: 14px;
+  corner-shape: squircle;
+  box-shadow: 0 10px 32px rgba(20, 17, 15, 0.18);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#jc-ambient-panel.jc-ap-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#jc-ambient-panel.jc-ap-dragging {
+  transition: none;
+  user-select: none;
+}
+
+#jc-ambient-panel .jc-ap-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 10px 8px 12px;
+  cursor: grab;
+  touch-action: none;
+}
+
+#jc-ambient-panel.jc-ap-dragging .jc-ap-head {
+  cursor: grabbing;
+}
+
+#jc-ambient-panel .jc-ap-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  corner-shape: squircle;
+  background: var(--accent);
+  transform: rotate(45deg);
+  flex: none;
+}
+
+#jc-ambient-panel.jc-ap-busy .jc-ap-dot {
+  animation: jc-ap-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes jc-ap-pulse {
+  0%, 100% { transform: rotate(45deg) scale(1); opacity: 1; }
+  50% { transform: rotate(45deg) scale(1.35); opacity: 0.55; }
+}
+
+#jc-ambient-panel .jc-ap-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+#jc-ambient-panel .jc-ap-status {
+  font-size: 11px;
+  color: #999;
+  margin-left: auto;
+  font-style: italic;
+}
+
+#jc-ambient-panel .jc-ap-x {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #999;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+#jc-ambient-panel .jc-ap-x:hover {
+  background: #f2f0ee;
+  color: #1a1a1a;
+}
+
+/* The live card: a miniature of the real explain card (.jc-explain-panel) —
+   same surface, dark edge, squircle, and the same scale-out-from-top morph —
+   opening under the panel's header buttons. Sets the vars the shared card
+   classes (.header-name / .content-label / .expl-text) read. */
+#jc-ambient-panel .jc-ap-livewrap {
+  margin: 0 10px;
+}
+
+#jc-ambient-panel .jc-ap-card {
+  --accent: oklch(0.58 0.08 16);
+  --surface-color: #ffffff;
+  --text-primary: #1a1a1a;
+  --text-secondary: #555555;
+  --space-md: 8px;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  background: var(--surface-color);
+  border: 1px solid #141414;
+  border-radius: 13px;
+  corner-shape: squircle;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+  max-height: 240px;
+  overflow: hidden;
+  opacity: 0;
+  transform: scale(0.9);
+  transform-origin: center top;
+  transition:
+    opacity 0.2s ease,
+    transform 0.3s cubic-bezier(0.2, 0.85, 0.25, 1);
+}
+
+#jc-ambient-panel .jc-ap-card.is-open {
+  opacity: 1;
+  transform: scale(1);
+}
+
+#jc-ambient-panel .jc-ap-card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+/* The answering model's mark: the vendor's own SVG when icons/providers/<slug>.svg
+   exists, otherwise a lettered tile in the vendor's colour. */
+#jc-ambient-panel .jc-ap-engine-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  corner-shape: squircle;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  overflow: hidden;
+}
+
+#jc-ambient-panel .jc-ap-engine-mark img {
+  width: 20px;
+  height: 20px;
   object-fit: contain;
   display: block;
 }
 
-.gate-copy {
-  margin: 0;
+#jc-ambient-panel .jc-ap-card-titles {
+  min-width: 0;
+}
+
+#jc-ambient-panel .jc-ap-card .header-name {
+  font-size: 12.5px;
+  max-width: 100%;
+}
+
+#jc-ambient-panel .jc-ap-engine-name {
+  display: block;
+  font-size: 10px;
+  color: #a09a94;
+  line-height: 1.3;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#jc-ambient-panel .jc-ap-card-divider {
+  height: 1px;
+  background: rgba(17, 17, 17, 0.1);
+  margin: 0 0 10px;
+}
+
+#jc-ambient-panel .jc-ap-card .content-label {
+  font-size: 9px;
+  padding: 2px 8px;
+}
+
+#jc-ambient-panel .jc-ap-card-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-height: 132px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+#jc-ambient-panel .jc-ap-threads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 10px;
+}
+
+#jc-ambient-panel .jc-ap-empty {
+  font-size: 11.5px;
+  color: #a09a94;
+  padding: 2px 0 4px;
+}
+
+/* Topic chip: filled pill derived from the thread's OKLCH hue (same scheme
+   as .jc-tag), truncated to one line. */
+#jc-ambient-panel .jc-ap-chip {
+  max-width: 100%;
+  padding: 3px 10px;
+  border: 1px solid oklch(0.5 0.19 var(--jc-chip-hue, 25));
+  border-radius: 999px;
+  corner-shape: squircle;
+  background: oklch(0.57 0.18 var(--jc-chip-hue, 25));
+  color: #fff;
+  font-family: var(--font-family);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: filter 0.12s ease;
+}
+
+#jc-ambient-panel .jc-ap-chip:hover {
+  filter: brightness(1.09);
+}
+
+#jc-ambient-panel .jc-ap-ask {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 0 12px 12px;
+  padding: 7px 10px;
+  border: 1px dashed #ddd8d3;
+  border-radius: 10px;
+  corner-shape: squircle;
+  background: transparent;
+  color: #8a847e;
+  font-family: var(--font-family);
+  font-size: 12px;
+  text-align: left;
+  cursor: text;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+
+#jc-ambient-panel .jc-ap-ask:hover {
+  border-color: var(--accent);
+  color: #1a1a1a;
+}
+
+/* Topic tag: a FULL colored pill — fill, edge and white text all derived from
+   the thread's own OKLCH hue, so every chip stays vivid and legible no matter
+   which hue came up. */
+.jc-tag {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 11px;
+  border-radius: 999px;
+  corner-shape: squircle;
+  background: oklch(0.57 0.18 var(--jc-tag-hue, 25));
+  border: 1px solid oklch(0.5 0.18 var(--jc-tag-hue, 25));
+  color: #ffffff;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+
+/* Thread view: the popup, pinned by the dock in the bottom-right corner. */
+#ambient-popup.jc-thread-popup {
+  position: fixed !important;
+  right: 16px !important;
+  bottom: 76px !important;
+  left: auto !important;
+  top: auto !important;
+  width: min(520px, calc(100vw - 32px));
+  max-width: min(520px, calc(100vw - 32px));
+  max-height: min(70vh, 660px);
+  z-index: 2147483647;
+}
+
+.jc-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.jc-msg {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+.jc-msg .jc-msg-role {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin-bottom: 3px;
+}
+
+.jc-msg.user {
+  color: var(--text-secondary);
+}
+
+.jc-msg.user .jc-msg-role {
+  color: var(--text-secondary);
+}
+
+.jc-reply-form {
+  margin-top: 12px;
+}
+
+/* --- Rewrite box (text tools) ---------------------------------------------- */
+#jc-rw-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 17, 15, 0.45);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+#jc-rw-overlay.visible {
+  opacity: 1;
+}
+
+.jc-rw-panel {
+  width: min(560px, calc(100vw - 40px));
+  max-height: min(80vh, 640px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px 18px;
+  background: #ffffff;
+  color: #14110f;
+  border: 1px solid #ece7e3;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
+  transform: translateY(8px) scale(0.98);
+  transition: transform 0.18s ease;
+  overflow-y: auto;
+}
+
+#jc-rw-overlay.visible .jc-rw-panel {
+  transform: translateY(0) scale(1);
+}
+
+.jc-rw-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.jc-rw-title {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.jc-rw-title::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 8px;
+  vertical-align: 1px;
+}
+
+.jc-rw-close {
+  border: none;
+  background: transparent;
+  color: #7c736c;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.jc-rw-close:hover {
+  color: #14110f;
+  background: #f4efeb;
+}
+
+.jc-rw-input {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #ece7e3;
+  border-radius: 12px;
+  background: #fbf9f7;
+  color: #14110f;
+  font: inherit;
+  outline: none;
+}
+
+.jc-rw-input:focus {
+  border-color: #14110f;
+  background: #ffffff;
+}
+
+.jc-rw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.jc-rw-action {
+  padding: 7px 13px;
+  border: 1px solid #ece7e3;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #14110f;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.jc-rw-action:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.jc-rw-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.jc-rw-action.is-busy {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  opacity: 1;
+}
+
+.jc-rw-status {
+  font-size: 12.5px;
+  color: #7c736c;
+}
+
+.jc-rw-status.is-error {
+  color: #c62828;
+}
+
+.jc-rw-result {
+  border: 1px solid #ece7e3;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.jc-rw-result-label {
+  padding: 8px 12px 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.jc-rw-result-text {
+  padding: 6px 12px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.jc-rw-result-bar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid #ece7e3;
+  background: #fbf9f7;
+}
+
+.jc-rw-copy,
+.jc-rw-useinput {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.jc-rw-copy {
+  border: none;
+  background: #14110f;
+  color: #fff;
+}
+
+.jc-rw-copy:hover {
+  opacity: 0.88;
+}
+
+.jc-rw-useinput {
+  border: 1px solid #ece7e3;
+  background: #ffffff;
+  color: #14110f;
+}
+
+.jc-rw-useinput:hover {
+  border-color: #14110f;
+}
+
+/* ============================================================================
+   Persistent action row + explanation panel.
+   The action row (Explain / Expand …) no longer gets replaced by the answer —
+   it stays put and the answer scales out from center in a panel below it. The
+   whole menu popup is centered on the selection's right-most edge (see
+   clampPopupPosition), so both the row and the panel share that center.
+   ============================================================================ */
+
+/* Center the menu popup on its anchor point. left is set to the anchor x and
+   translateX(-50%) pulls the box back by half its (morphing) width, so the row
+   and the panel both stay centered on the selection's right edge as sizes change. */
+#ambient-popup.is-menu {
+  transform: translateX(-50%);
+  transition: left 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Stack the row and the panel, both centered on the anchor. */
+#ambient-popup.is-menu .jc-menu {
+  align-items: center;
+}
+
+/* The answer panel: hidden until an option is clicked, then it scales out from
+   its own center and morphs its width to the amount of content (set inline in
+   JS via jcMorphPanelWidth). */
+.jc-explain-panel {
+  align-self: center;
+  box-sizing: border-box;
+  width: 360px;
+  max-width: min(360px, calc(100vw - 24px));
+  margin-top: 9px;
+  padding: 16px 18px;
+  background: var(--surface-color, #fff);
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  border-radius: 13px;
+  corner-shape: squircle;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.07);
+  max-height: min(72vh, 640px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  opacity: 0;
+  transform: scale(0.9);
+  transform-origin: center top;
+  transition:
+    width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease,
+    transform 0.3s cubic-bezier(0.2, 0.85, 0.25, 1);
+}
+.jc-explain-panel.is-open {
+  opacity: 1;
+  transform: scale(1);
+}
+/* Panel internals. A subtle rule under the quoted header gives the box clear
+   structure; even, generous spacing keeps it composed. */
+.jc-explain-panel .popup-header {
+  margin-bottom: 10px;
+}
+.jc-explain-panel .popup-divider {
+  height: 1px;
+  background: rgba(17, 17, 17, 0.1);
+  margin: 0 0 12px;
+}
+.jc-explain-panel .explanation-body {
+  margin-bottom: 0;
+}
+.jc-explain-panel .explanation {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* The answer tag: a small red icon + a Title-case name (replaces the old
+   all-caps red pill). Light, technical, matches the brand red signal. */
+.jc-panel-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 11px;
+  color: var(--accent);
+  font: 600 12px/1 var(--font-family);
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+.jc-panel-tag svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Selected action: no fill. The icon turns red, the label goes BOLD UPPERCASE,
+   and a small red diamond — the brand signal — sits centered under the label
+   TEXT (not the icon+text). That's how the reader knows which one is showing. */
+#ambient-popup.is-menu .jc-row-track .jc-bar-btn.is-selected {
+  background: transparent;
+  color: #111;
+}
+#ambient-popup.is-menu .jc-row-track .jc-bar-btn.is-selected .jc-bar-icon {
+  color: #141414;
+  transform: scale(1.3);
+}
+#ambient-popup.is-menu .jc-row-track .jc-bar-btn.is-selected .jc-bar-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #111;
+}
+#ambient-popup.is-menu .jc-row-track .jc-bar-btn.is-selected .jc-bar-label::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 3px);
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+  transform: translateX(-50%) rotate(45deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  #ambient-popup.is-menu .jc-row-track .jc-bar-btn.is-selected:hover {
+    background: #f6f0ee;
+    color: #111;
+  }
+  #ambient-popup.is-menu .jc-row-track .jc-bar-btn.is-selected:hover .jc-bar-icon {
+    color: var(--accent);
+  }
+}
+
+/* Loading = the loader lives in the row. The row stops taking clicks and greys
+   out; the selected action's ICON morphs into a diamond that beams (scales) from
+   the icon's spot, while its label shimmers left→right. When the answer arrives
+   the class drops and the diamond morphs back into the icon. */
+.jc-action-row.jc-loading {
+  pointer-events: none;
+}
+.jc-action-row.jc-loading .jc-bar-btn:not(.is-selected),
+.jc-action-row.jc-loading .jc-row-arrow {
+  opacity: 0.32;
+}
+/* Icon → diamond: the glyph collapses as the diamond grows in its place. */
+.jc-action-row.jc-loading .jc-bar-btn.is-selected .jc-bar-icon svg {
+  opacity: 0;
+  transform: scale(0.2);
+}
+.jc-action-row.jc-loading .jc-bar-btn.is-selected .jc-bar-icon::after {
+  opacity: 1;
+  transform: translate(-50%, -50%) rotate(45deg) scale(1);
+  animation: jc-diamond-beam 1s ease-in-out infinite 0.18s;
+}
+/* The under-text selection diamond doesn't beam — it steps aside while the
+   icon-diamond is the loader. */
+.jc-action-row.jc-loading .jc-bar-btn.is-selected .jc-bar-label::after {
+  opacity: 0;
+}
+.jc-action-row.jc-loading .jc-bar-btn.is-selected .jc-bar-label {
+  background: linear-gradient(
+    90deg,
+    #c4c4c4 0%,
+    #c4c4c4 38%,
+    #141414 50%,
+    #c4c4c4 62%,
+    #c4c4c4 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: jc-label-shimmer 1.15s linear infinite;
+}
+@keyframes jc-label-shimmer {
+  from { background-position: 130% 0; }
+  to { background-position: -130% 0; }
+}
+@keyframes jc-diamond-beam {
+  0%, 100% { transform: translate(-50%, -50%) rotate(45deg) scale(1); opacity: 1; }
+  50% { transform: translate(-50%, -50%) rotate(45deg) scale(1.8); opacity: 0.5; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jc-action-row.jc-loading .jc-bar-btn.is-selected .jc-bar-label,
+  .jc-action-row.jc-loading .jc-bar-btn.is-selected .jc-bar-icon::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}
+
+/* --- Soft email ask — the old early-access gate art, demoted to a friendly,
+   dismissible card under the first answer. Never blocks anything. --- */
+.jc-email-card {
+  position: relative;
+  margin-top: var(--space-md);
+  padding: 10px 12px 12px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  animation: jc-email-in 0.35s ease both;
+}
+
+@keyframes jc-email-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.jc-email-card .gate-wave svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.jc-email-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.jc-email-close:hover {
+  color: var(--accent);
+}
+
+.gate-domain {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gate-domain a {
   color: var(--text-primary);
+  text-decoration: none;
+}
+
+.gate-domain a:hover {
+  text-decoration: underline;
+}
+
+.gate-domain-red {
+  color: var(--accent);
+}
+
+.email-gate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.email-gate--signin {
+  position: relative;
+  padding: 30px 70px;
+}
+
+.gate-circle {
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 58px;
+  height: 58px;
+}
+
+.gate-circle svg {
+  width: 100%;
+  height: 100%;
+  animation: jc-gate-spin 12s linear infinite;
+}
+
+@keyframes jc-gate-spin {
+  to { transform: rotate(360deg); }
+}
+
+.gate-triangle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 32px;
+}
+
+.gate-triangle svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .email-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: 6px;
+  width: 100%;
 }
 
 .email-input,
 .email-submit {
-  height: 40px;
-  border-radius: 0;
-  font-family: var(--font-family);
-  font-size: 14px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family) !important;
+  font-size: 13px;
 }
 
 .email-input {
@@ -437,20 +2307,19 @@
   background: var(--surface-color);
   color: var(--text-primary);
   padding: 0 12px;
-  outline: none;
 }
 
 .email-input:focus {
+  outline: none;
   border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .email-submit {
-  border: 1px solid var(--accent);
+  border: none;
   background: var(--accent);
-  color: #ffffff;
+  color: #fff;
+  font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s ease;
 }
 
 .email-submit:hover {
@@ -467,4 +2336,813 @@
   margin: 0;
   font-size: 12px;
   color: #c62828;
+}
+
+.gate-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.gate-footer-sep {
+  color: var(--border-color);
+}
+
+.gate-footer-mail {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.gate-footer-mail:hover {
+  text-decoration: underline;
+}
+
+.popup-footer--no-border {
+  border-top: none !important;
+  margin-top: var(--space-xs);
+  padding-top: 0;
+}
+
+.jc-email-thanks {
+  margin: 6px 0;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+/* --- Fact-check --------------------------------------------------------------
+   Ambient, not a dashboard. Three rules held the last version back and all
+   three are gone here:
+
+   1. RED WAS EVERYWHERE — kicker, diamond, timestamp, footnote numbers, all
+      var(--accent) at once. Red is the brand mark; it now appears ONCE per surface
+      (the masthead kicker). Verdict colour is its own palette and nothing else
+      borrows it.
+   2. RULES DID THE SPACING — a black hairline under every verdict banded the
+      column like a table. Space separates now; the only rule left is a whisper
+      between whole entries.
+   3. HIERARCHY WAS INVERTED — the claim was set larger than the ruling on it.
+      The verdict is the answer, so it is the largest thing in the entry, in
+      sentence case: uppercase at 11px reads as a status badge, 15px sentence
+      case reads as a judgement.
+
+   Vertical rhythm, deliberately uneven so the grouping is legible without
+   boxes: 9px inside a thought, 16px between thoughts, 26px between entries. */
+
+.jc-fc {
+  --fc: #6b645e;
+  font-family: var(--font-family);
+}
+
+/* Darkened from the badge palette: these now carry 15px text rather than sitting
+   on a white pill, so they have to hold contrast against #fff at weight 600. */
+.jc-fc--true { --fc: #0b6b2d; }
+.jc-fc--mixed { --fc: #8a5d00; }
+.jc-fc--false { --fc: #c00000; }
+.jc-fc--unknown { --fc: #6b645e; }
+
+.jc-fc-verdict {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  /* No wrap, ever: "Mostly false" breaking across two lines was the single
+     ugliest thing in the last pass. The dateline yields instead. */
+  flex-wrap: nowrap;
+}
+
+.jc-fc-mark {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: var(--fc);
+  align-self: center;
+}
+
+.jc-fc-word {
+  flex: 0 0 auto;
+  color: var(--fc);
+  font: 600 15px/1.2 var(--font-family);
+  letter-spacing: -0.022em;
+  white-space: nowrap;
+}
+
+/* Sentence case and quiet — provenance, not a second headline. Truncates
+   before it can ever push the verdict onto another line. */
+.jc-fc-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  color: #a49d97;
+  font: 400 10px/1 var(--font-family);
+  letter-spacing: 0;
+}
+
+.jc-fc-body {
+  margin: 9px 0 0;
+  color: #24211f;
+  font: 400 13px/1.6 var(--content-font);
+  letter-spacing: -0.006em;
+}
+
+/* The claim under examination: a quotation, so it reads as reported speech —
+   quiet, indented off a hairline, never louder than the ruling on it. */
+.jc-fc-quote {
+  margin: 0 0 11px;
+  padding-left: 10px;
+  /* The only ornament left in the entry, so it gets enough weight to read as
+     deliberate. Neutral on purpose — a verdict-coloured rule here would give
+     the ruling away above the line that states it. */
+  border-left: 1px solid rgba(17, 17, 17, 0.18);
+  color: #6b645e;
+  font: 400 12px/1.5 var(--content-font);
+  letter-spacing: -0.004em;
+}
+
+/* Sources: a whisper line. No numbers, no rule above — just hosts, which is
+   what anyone actually scans, with the headline trailing in grey. */
+.jc-fc-refs {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.jc-fc-refs li + li { margin-top: 4px; }
+
+.jc-fc-refs a {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 1px 6px;
+  text-decoration: none;
+  font: 400 11px/1.45 var(--font-family);
+}
+
+.jc-fc-refhost {
+  flex: 0 0 auto;
+  max-width: 100%;
+  color: #514b46;
+  font-weight: 500;
+  letter-spacing: -0.008em;
+}
+
+/* The title takes a full new row under the host (flex-basis 100% forces the
+   wrap) and wraps within the card rather than stretching its width. */
+.jc-fc-reftitle {
+  flex: 1 1 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: #b0a9a3;
+}
+
+.jc-fc-refs a:hover .jc-fc-refhost { color: #111; text-decoration: underline; }
+.jc-fc-refs a:hover .jc-fc-reftitle { color: #6b645e; }
+
+/* --- Results overlay (page / video / live) -------------------------------- */
+
+.jc-fc-overlay {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 2147483646;
+  width: 348px;
+  max-height: calc(100vh - 36px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-color);
+  /* Softer than the 1px black of the action row: this panel sits open for
+     minutes at a time, so it recedes instead of asserting an edge. */
+  border: 1px solid rgba(17, 17, 17, 0.14);
+  border-radius: var(--radius-lg);
+  corner-shape: squircle;
+  box-shadow: var(--popup-shadow);
+  font-family: var(--font-family);
+}
+
+.jc-fc-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px 10px;
+}
+
+.jc-fc-titles { flex: 1 1 auto; min-width: 0; }
+
+/* The one red on the surface. */
+.jc-fc-kicker {
+  display: block;
+  color: var(--accent);
+  font: 700 9px/1.1 var(--font-family);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.jc-fc-src {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #111;
+  font: 600 13px/1.25 var(--font-family);
+  letter-spacing: -0.025em;
+}
+
+.jc-fc-close {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  margin: -2px -4px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #b0a9a3;
+  font: 400 15px/1 var(--font-family);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.jc-fc-close:hover { background: #f4f2f0; color: #111; }
+
+.jc-fc-scroll {
+  overflow-y: auto;
+  padding: 0 16px 16px;
+}
+
+/* Sentence case, no tracking: a status line, not a section header. Sticky so a
+   long run keeps saying what it's doing. */
+.jc-fc-status {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 14px;
+  padding: 2px 0 9px;
+  background: linear-gradient(var(--surface-color) 72%, rgba(255, 255, 255, 0));
+  color: #a49d97;
+  font: 400 11px/1.4 var(--font-family);
+}
+
+/* Entries are separated by air first and a whisper of a rule second. */
+.jc-fc-row + .jc-fc-row {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(17, 17, 17, 0.07);
+}
+
+.jc-fc-row.is-pending .jc-fc-quote { opacity: 0.55; }
+
+.jc-fc-pending {
+  display: block;
+  color: #c4bdb7;
+  font: 400 11px/1.45 var(--font-family);
+}
+
+/* Grey, not red — the timestamp is a locator, not an alert. */
+.jc-fc-stamp {
+  color: #514b46;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.jc-fc-stamp:hover { color: var(--accent); }
+
+/* In the selection panel the verdict is the whole answer — it needs room under
+   the tag, not a surface of its own. */
+.jc-explain-panel .jc-fc { margin-top: 12px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .jc-fc-row .jc-fc { animation: jc-fc-in 0.26s cubic-bezier(0.23, 1, 0.32, 1) both; }
+}
+
+@keyframes jc-fc-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* --- Live audio ----------------------------------------------------------- */
+
+.jc-fc-overlay.is-listening .jc-fc-kicker::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .jc-fc-overlay.is-listening .jc-fc-kicker::after {
+    animation: jc-fc-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes jc-fc-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+/* Monospace so text landing mid-word doesn't reflow the line under the reader. */
+.jc-fc-heard {
+  margin: -6px 0 18px;
+  color: #c4bdb7;
+  font: 400 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  max-height: 50px;
+  overflow: hidden;
+}
+
+.jc-fc-heard.is-final { color: #6b645e; }
+
+/* In fact-check mode the verdict owns the colour. The quoted selection is
+   normally red (see .header-name), but red-on-red made a FALSE ruling read as
+   one undifferentiated block — so here the subject goes neutral and the signal
+   keeps the colour. */
+.is-factcheck .header-name {
+  color: #111 !important;
+}
+
+.is-factcheck .popup-divider {
+  margin-bottom: 14px;
+}
+
+/* ============================================================================
+   Inline claim map — verdict-colored underlines drawn on the page's own text,
+   a floating tally chip, and a click-through verdict card. Colors mirror the
+   .jc-fc--* verdict palette.
+   ============================================================================ */
+
+/* The claim underline. A wavy underline while pending, solid once ruled.
+   Marks are inline and inherit the page's own text color so only the underline
+   is ours — the sentence still reads as the page's. */
+mark.jc-claim {
+  background: transparent !important;
+  color: inherit !important;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  text-decoration-skip-ink: none;
+  transition: background-color 0.2s ease;
+}
+
+mark.jc-claim.is-pending {
+  text-decoration-style: dotted;
+  text-decoration-color: #9a938c;
+}
+
+mark.jc-claim--true { text-decoration-color: #0b6b2d; background: rgba(11, 107, 45, 0.09) !important; }
+mark.jc-claim--mixed { text-decoration-color: #8a5d00; background: rgba(138, 93, 0, 0.10) !important; }
+mark.jc-claim--false { text-decoration-color: #c00000; background: rgba(192, 0, 0, 0.09) !important; }
+mark.jc-claim--unknown { text-decoration-color: #6b645e; background: rgba(107, 100, 94, 0.08) !important; }
+
+mark.jc-claim:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Collapsed fallback overlay: kept in the DOM (so its message handlers stay
+   live) but out of sight while the inline marks are the primary surface. */
+.jc-fc-overlay.is-collapsed {
+  display: none;
+}
+
+/* Tally chip, bottom-right. The running score plus the off switch. */
+.jc-claim-chip {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(70vw, 460px);
+  padding: 10px 12px;
+  background: var(--surface-color, #fff);
+  color: var(--text-primary, #1a1a1a);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16);
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: 13px;
+  line-height: 1.3;
+  animation: jc-chip-in 0.28s ease both;
+}
+
+@keyframes jc-chip-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.jc-claim-chip-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #c00000;
+  box-shadow: 0 0 0 rgba(192, 0, 0, 0.5);
+  animation: jc-chip-pulse 1.3s ease-in-out infinite;
+}
+
+.jc-claim-chip.is-done .jc-claim-chip-dot {
+  background: #0b6b2d;
+  animation: none;
+}
+
+@keyframes jc-chip-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(192, 0, 0, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(192, 0, 0, 0); }
+}
+
+.jc-claim-chip-text {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.jc-claim-chip-x {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #666);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.jc-claim-chip-x:hover {
+  color: var(--accent, #c00000);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* Verdict card anchored under a clicked underline. Reuses the .jc-fc card
+   markup, so only the floating shell is defined here. */
+.jc-claim-card {
+  position: absolute;
+  z-index: 2147483647;
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  padding: 14px 16px;
+  background: var(--surface-color, #fff);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.2);
+  animation: jc-chip-in 0.2s ease both;
+}
+
+/* ============================================================================
+   Phosphor-style duotone icons — the fill silhouette rides at 0.2 opacity from
+   the inline <g>, so only sizing lives here. (.jc-lucide already sets 17px.)
+   ============================================================================ */
+.jc-ph { display: inline-block; vertical-align: middle; }
+
+/* ============================================================================
+   Text area — floating scratch editor morphed from the "Text area" action.
+   ============================================================================ */
+.jc-ta {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  pointer-events: none;
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+/* Full-page spotlight behind the card while expanded. */
+.jc-ta-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+  animation: jc-ta-fade 0.2s ease both;
+}
+
+@keyframes jc-ta-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* The card: a 16:9 rectangle, centered toward the top, resizable from the
+   corner. On-brand — white surface, 1px ink border, hard red drop shadow. */
+.jc-ta-card {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  width: min(720px, 84vw);
+  height: min(405px, 47.25vw); /* 16:9 of 720 */
+  min-width: 320px;
+  min-height: 200px;
+  max-width: 94vw;
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid rgba(17, 17, 17, 0.13);
+  border-radius: 14px;
+  corner-shape: squircle;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.07);
+  resize: both;
+  overflow: hidden;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+.jc-ta.visible .jc-ta-card {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Expanded: bigger, dead-centered, floating over the spotlight. */
+.jc-ta.is-expanded .jc-ta-card {
+  top: 50%;
+  width: min(1040px, 92vw);
+  height: min(640px, 84vh);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+}
+
+/* Minimized: card hidden, only the bubble remains. */
+.jc-ta.is-min .jc-ta-card { display: none; }
+/* Cancel belongs to the card; hidden while minimized (the bubble reopens). */
+.jc-ta.is-min .jc-ta-cancel { display: none; }
+
+/* External cancel — JS-pinned to the card's top-right corner, OUTSIDE the
+   card's overflow:hidden so it's never clipped. */
+.jc-ta-cancel {
+  position: absolute;
+  z-index: 5;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+  background: var(--accent, var(--accent));
+  color: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  transition: background 0.14s ease, transform 0.1s ease;
+}
+.jc-ta-cancel svg { width: 16px; height: 16px; }
+.jc-ta-cancel .jc-ph-fg { stroke-width: 2.4; }
+.jc-ta-cancel:hover { background: #111; }
+.jc-ta-cancel:active { transform: scale(0.92); }
+
+/* Text-tools row along the bottom of the card — the transforms, laid out as a
+   real, always-visible strip (not hidden on the bubble). */
+.jc-ta-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border-top: 1px solid #ececec;
+  scrollbar-width: thin;
+}
+.jc-ta-action {
+  flex: 0 0 auto;
+  padding: 7px 13px;
+  border: 1px solid #e0dcd8;
+  border-radius: 999px;
+  background: #fff;
+  color: #2a2a2a;
+  font: 600 12px/1 var(--font-family, sans-serif);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease, transform 0.1s ease;
+}
+.jc-ta-action:hover { background: #141414; color: #fff; border-color: #141414; }
+.jc-ta-action:active { transform: scale(0.96); }
+.jc-ta-action:disabled { opacity: 0.5; cursor: default; }
+.jc-ta-action.is-busy { background: var(--accent, #c00000); color: #fff; border-color: var(--accent, #c00000); }
+
+/* Toolbar, top-right inside the card. */
+.jc-ta-tools {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #ececec;
+}
+
+.jc-ta-tool {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  corner-shape: squircle;
+  background: transparent;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, transform 0.1s ease;
+}
+.jc-ta-tool svg { width: 19px; height: 19px; }
+.jc-ta-tool:hover { background: #f2f2f0; color: #111; }
+.jc-ta-tool:active { transform: scale(0.94); }
+.jc-ta-tool.is-ok { color: var(--accent, #c00000); }
+
+/* Download format menu. */
+.jc-ta-dl { position: relative; }
+.jc-ta-dl-menu {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  min-width: 148px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.16);
+}
+.jc-ta-dl-menu button {
+  text-align: left;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #222;
+  font-size: 13px;
+  cursor: pointer;
+}
+.jc-ta-dl-menu button:hover { background: #f2f2f0; }
+
+/* The editor itself. */
+.jc-ta-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 20px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #1a1a1a;
+  outline: none;
+}
+.jc-ta-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #b3aca6;
+}
+.jc-ta-editor p { margin: 0 0 0.9em; }
+
+.jc-ta-status {
+  padding: 6px 20px 10px;
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+}
+.jc-ta-status.is-error { color: #c62828; }
+
+/* The bubble only exists while minimized. */
+.jc-ta:not(.is-min) .jc-ta-bubble { display: none; }
+
+/* Minimized bubble, bottom-right. Small blob + its quick-rewrite chips. */
+.jc-ta-bubble {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2147483647;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: auto;
+  animation: jc-chip-in 0.24s ease both;
+}
+.jc-ta-bubble-open {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(17, 17, 17, 0.13);
+  border-radius: 16px;
+  corner-shape: squircle;
+  background: #fff;
+  color: var(--accent, #c00000);
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+  order: 2;
+}
+.jc-ta-bubble-open svg { width: 26px; height: 26px; }
+.jc-ta-bubble-open:hover { background: #faf7f7; }
+
+.jc-ta-bubble-actions {
+  order: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+.jc-ta-bubble-actions button {
+  padding: 6px 11px;
+  border: 1px solid #d9d9d9;
+  border-radius: 999px;
+  background: #fff;
+  color: #222;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+.jc-ta-bubble-actions button:hover {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
+/* ── On-device consent card (first-run) ─────────────────────────────────── */
+.jc-consent { text-align: center; padding: 6px 2px 2px; }
+.jc-consent-ico {
+  display: inline-grid; place-items: center;
+  width: 46px; height: 46px; margin: 2px auto 11px;
+  color: var(--accent, var(--accent));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: 12px; corner-shape: squircle;
+}
+.jc-consent-ico svg { width: 28px; height: 28px; }
+.jc-consent-title { font: 700 15px/1.3 var(--font-family); color: #111; margin-bottom: 7px; }
+.jc-consent-body {
+  font: 400 13px/1.55 var(--font-family);
+  color: var(--text-secondary, #555); margin: 0 0 15px;
+}
+.jc-consent-actions { display: flex; flex-direction: column; gap: 8px; }
+.jc-consent-yes {
+  padding: 11px 14px; border: 0; border-radius: 10px; corner-shape: squircle;
+  background: var(--accent, var(--accent)); color: #fff;
+  font: 700 13px/1 var(--font-family); cursor: pointer;
+  transition: background 0.14s ease, transform 0.1s ease;
+}
+.jc-consent-yes:hover { background: color-mix(in srgb, var(--accent), #000 12%); }
+.jc-consent-yes:active { transform: scale(0.98); }
+.jc-consent-no {
+  padding: 10px 14px; border: 1px solid var(--border-color, #e0dcd8);
+  border-radius: 10px; corner-shape: squircle; background: #fff; color: #333;
+  font: 600 13px/1 var(--font-family); cursor: pointer;
+  transition: background 0.14s ease;
+}
+.jc-consent-no:hover { background: #f5f4f2; }
+
+/* ── On-device one-time download bar ────────────────────────────────────── */
+.jc-setup { margin-bottom: 13px; }
+.jc-setup-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  font: 600 12px/1.3 var(--font-family); color: #333;
+}
+.jc-setup-ico { display: inline-grid; place-items: center; width: 18px; height: 18px; color: var(--accent, var(--accent)); flex: none; }
+.jc-setup-ico svg { width: 18px; height: 18px; }
+.jc-setup-label { flex: 1; min-width: 0; }
+.jc-setup-pct { flex: none; color: var(--accent, var(--accent)); font-variant-numeric: tabular-nums; }
+.jc-setup-bar { height: 4px; border-radius: 999px; background: #ece7e3; overflow: hidden; }
+.jc-setup-bar i {
+  display: block; height: 100%; width: 0%;
+  background: var(--accent, var(--accent)); border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+/* ── Progressive answer: skeleton shimmer → paragraph reveal ─────────────── */
+.jc-astream { display: flex; flex-direction: column; }
+.jc-astream-para {
+  margin: 0 0 10px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-primary, #1a1a1a);
+  animation: jc-para-in 0.3s ease both;
+}
+.jc-astream-para:last-child { margin-bottom: 0; }
+@keyframes jc-para-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Shimmering placeholder lines for the paragraph still being written. */
+.jc-skel { display: flex; flex-direction: column; gap: 9px; padding: 3px 0; }
+.jc-skel span {
+  display: block;
+  height: 11px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #ececea 0%, #ececea 40%, #f7f7f5 50%, #ececea 60%, #ececea 100%);
+  background-size: 220% 100%;
+  animation: jc-skel-shimmer 1.15s linear infinite;
+}
+@keyframes jc-skel-shimmer {
+  from { background-position: 130% 0; }
+  to { background-position: -130% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jc-skel span, .jc-astream-para { animation: none; }
 }

@@ -1,0 +1,329 @@
+:root {
+  --jc-red: var(--accent, oklch(0.58 0.08 16));
+  --jc-ink: #14110f;
+  --jc-muted: #7c736c;
+  --jc-line: #ece7e3;
+  --jc-bg: #fbf9f7;
+  --jc-card: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--jc-bg);
+  color: var(--jc-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* --- Header --------------------------------------------------------------- */
+.jc-hist-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--jc-bg);
+  border-bottom: 1px solid var(--jc-line);
+}
+
+.jc-hist-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.jc-pop-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.jc-pop-mark {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.jc-pop-titles {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.jc-pop-title {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.jc-pop-sub {
+  font-size: 11px;
+  color: var(--jc-muted);
+}
+
+.jc-hist-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Rich / normal view toggle */
+.jc-pop-toggle {
+  display: flex;
+  padding: 3px;
+  background: #f0ebe7;
+  border-radius: 9px;
+}
+
+.jc-seg {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--jc-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.jc-seg.is-active {
+  background: var(--jc-card);
+  color: var(--jc-ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* --- List ----------------------------------------------------------------- */
+.jc-pop-list {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jc-empty {
+  padding: 64px 16px;
+  text-align: center;
+  color: var(--jc-muted);
+}
+
+.jc-empty strong {
+  display: block;
+  color: var(--jc-ink);
+  margin-bottom: 4px;
+}
+
+.jc-conv {
+  background: var(--jc-card);
+  border: 1px solid var(--jc-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.jc-conv-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--jc-line);
+}
+
+.jc-conv-title {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.jc-conv-meta {
+  flex: none;
+  font-size: 11px;
+  color: var(--jc-muted);
+}
+
+.jc-conv-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Rich (with-extension) view */
+.jc-thread {
+  border-left: 3px solid
+    oklch(62% 0.18 var(--jc-tag-hue, 8));
+  padding-left: 9px;
+}
+
+.jc-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  margin-bottom: 5px;
+  color: oklch(38% 0.12 var(--jc-tag-hue, 8));
+  background: oklch(94% 0.05 var(--jc-tag-hue, 8));
+}
+
+.jc-msg {
+  margin: 3px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.jc-msg.user {
+  font-weight: 600;
+}
+
+.jc-msg.assistant {
+  color: #3a342f;
+}
+
+.jc-msg-role {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--jc-muted);
+  margin-right: 6px;
+  text-transform: uppercase;
+}
+
+/* Layout-change events */
+.jc-layout {
+  margin-top: 4px;
+  padding: 8px 11px;
+  background: var(--accent-wash, rgba(0,0,0,.03));
+  border: 1px solid var(--accent-line, var(--jc-line));
+  border-radius: 8px;
+}
+
+.jc-layout-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--jc-red);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.jc-layout-line {
+  font-size: 12px;
+  color: #5a514b;
+  margin-top: 2px;
+}
+
+/* Normal-LLM view */
+.jc-conv.normal .jc-prompt {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--jc-line);
+}
+
+.jc-conv.normal .jc-prompt:last-child {
+  border-bottom: none;
+}
+
+.jc-prompt::before {
+  content: "› ";
+  color: var(--jc-muted);
+}
+
+.jc-note {
+  font-size: 11px;
+  color: var(--jc-muted);
+  padding: 2px 0 8px;
+}
+
+
+
+/* --- Topic rows: label + an "i" that pops up the full exchange ------------- */
+.jc-topic {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 2px;
+}
+.jc-topic + .jc-topic { border-top: 1px solid var(--jc-line); }
+.jc-topic-dot {
+  flex: none;
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: oklch(62% 0.16 var(--jc-tag-hue, 8));
+}
+.jc-topic-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jc-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jc-info {
+  flex: none;
+  width: 20px; height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--jc-line);
+  border-radius: 50%;
+  background: var(--jc-card);
+  color: var(--jc-muted);
+  font: italic 700 11px/1 Georgia, "Times New Roman", serif;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease, transform 0.1s ease;
+}
+.jc-info:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.jc-info:active { transform: scale(0.9); }
+
+/* The floating "what is this topic?" popover. */
+.jc-info-pop {
+  position: absolute;
+  z-index: 20;
+  width: min(340px, calc(100vw - 24px));
+  max-height: 60vh;
+  overflow: auto;
+  padding: 12px 14px;
+  background: var(--jc-card);
+  border: 1px solid var(--jc-line);
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.07);
+  animation: jc-info-in 0.16s ease both;
+}
+@keyframes jc-info-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.jc-info-pop-head {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.jc-info-pop-body .jc-msg { margin: 5px 0; font-size: 12.5px; line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { .jc-info-pop { animation: none; } }

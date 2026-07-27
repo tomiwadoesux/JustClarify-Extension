@@ -1,0 +1,485 @@
+/* JustClarify toolbar popup.
+   Motion notes: this panel is opened many times a day, so it has NO entrance
+   animation — the content is simply there when it opens (the Raycast rule:
+   don't animate what people see constantly). Motion is spent only where it
+   carries meaning: a control acknowledging a press, a section revealing
+   itself, a download reporting progress. Everything is transform/opacity,
+   under 250ms, ease-out, and off under prefers-reduced-motion. */
+
+:root {
+  --jc-red: var(--accent, oklch(0.58 0.08 16));
+  --jc-ink: #14110f;
+  --jc-muted: #7c736c;
+  --jc-faint: #a8a09a;
+  --jc-line: #ece7e3;
+  --jc-bg: #fbf9f7;
+  --jc-card: #ffffff;
+  --jc-ok: #1a7f37;
+  --jc-warn: #b45309;
+
+  /* Easing — the built-in curves are too weak to read as intentional. */
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 320px;
+  background: var(--jc-bg);
+  color: var(--jc-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Header --------------------------------------------------------------- */
+.jc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--jc-line);
+}
+
+.jc-mark {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent);
+}
+
+.jc-wordmark {
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: -0.012em;
+}
+
+/* Live engine pill in the header — the one thing that tells you, at a glance,
+   whether this thing can actually answer right now. */
+.jc-head-engine {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 3px 8px 3px 7px;
+  border: 1px solid var(--jc-line);
+  border-radius: 999px;
+  background: var(--jc-card);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--jc-muted);
+  white-space: nowrap;
+}
+
+.jc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--jc-faint);
+  flex: none;
+}
+
+.jc-dot.is-ok { background: var(--jc-ok); }
+.jc-dot.is-warn { background: var(--jc-warn); }
+.jc-dot.is-off { background: var(--jc-red); }
+
+/* The only looping animation in the popup, and it runs only while a download
+   is genuinely in progress — motion here means "something is happening". */
+.jc-dot.is-busy {
+  background: var(--jc-red);
+  animation: jc-pulse 1.4s var(--ease-out-quad) infinite;
+}
+
+@keyframes jc-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(1.35); }
+}
+
+/* --- Layout --------------------------------------------------------------- */
+.jc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 14px;
+}
+
+.jc-sec {
+  margin: 8px 0 0;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--jc-faint);
+}
+
+.jc-sec:first-child {
+  margin-top: 0;
+}
+
+/* --- Engine card ---------------------------------------------------------- */
+.jc-engine {
+  padding: 11px 12px;
+  background: var(--jc-card);
+  border: 1px solid var(--jc-line);
+  border-radius: 11px;
+  corner-shape: squircle;
+}
+
+/* Blocked device: the card is the warning, so it earns the accent edge. */
+.jc-engine.is-blocked {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: #fffafa;
+}
+
+.jc-engine-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* The brand diamond, reused as the engine bullet. */
+.jc-diamond {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  background: var(--jc-red);
+  border-radius: 2px;
+  corner-shape: squircle;
+  transform: rotate(45deg);
+}
+
+.jc-engine-name {
+  font-weight: 650;
+  font-size: 12.5px;
+}
+
+.jc-engine-state {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--jc-muted);
+}
+
+.jc-engine-state.is-ok { color: var(--jc-ok); }
+.jc-engine-state.is-off { color: var(--jc-red); }
+
+.jc-engine-detail {
+  margin: 5px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--jc-muted);
+}
+
+/* scaleX beats animating width — it stays on the GPU. */
+.jc-progress {
+  margin-top: 9px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--jc-line);
+  overflow: hidden;
+}
+
+.jc-progress i {
+  display: block;
+  height: 100%;
+  background: var(--jc-red);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 240ms var(--ease-out-cubic);
+}
+
+/* --- Rows + switch -------------------------------------------------------- */
+.jc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--jc-card);
+  border: 1px solid var(--jc-line);
+  border-radius: 11px;
+  corner-shape: squircle;
+}
+
+.jc-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.jc-row-label {
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+.jc-row-hint {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--jc-muted);
+}
+
+.jc-switch {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #ded7d1;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease-out-quad);
+}
+
+.jc-switch.is-on {
+  background: var(--jc-red);
+}
+
+.jc-switch:focus-visible {
+  outline: 2px solid var(--jc-ink);
+  outline-offset: 2px;
+}
+
+.jc-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  /* Micro-interaction: 150ms is the upper bound before a toggle feels laggy. */
+  transition: transform 150ms var(--ease-out-quad);
+}
+
+.jc-switch.is-on .jc-switch-knob {
+  transform: translateX(16px);
+}
+
+/* --- Buttons -------------------------------------------------------------- */
+.jc-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--jc-line);
+  border-radius: 11px;
+  corner-shape: squircle;
+  background: var(--jc-card);
+  color: var(--jc-ink);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 150ms var(--ease-out-quad);
+}
+
+/* Hover only where hovering is real — touch devices fire it on tap. */
+@media (hover: hover) and (pointer: fine) {
+  .jc-btn:hover {
+    background: #f6f3f0;
+    border-color: #ded7d1;
+  }
+}
+
+/* The press is the feedback: instant, physical, no colour change needed. */
+.jc-btn:active {
+  transform: scale(0.975);
+}
+
+.jc-btn:focus-visible {
+  outline: 2px solid var(--jc-ink);
+  outline-offset: 2px;
+}
+
+.jc-btn-dark {
+  justify-content: center;
+  background: var(--jc-ink);
+  border-color: var(--jc-ink);
+  color: #fff;
+}
+
+.jc-btn-red {
+  background: var(--jc-red);
+  border-color: var(--jc-red);
+  color: #fff;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .jc-btn-dark:hover {
+    background: #2a2320;
+    border-color: #2a2320;
+  }
+  .jc-btn-red:hover {
+    background: #e00000;
+    border-color: #e00000;
+  }
+}
+
+.jc-ico {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.jc-btn-red .jc-ico,
+.jc-btn-dark .jc-ico {
+  stroke: #fff;
+}
+
+/* --- Reveal (BYOK fields, live-audio key) --------------------------------- */
+/* grid-template-rows 0fr→1fr is the one place this file animates something
+   that costs layout. It's the only way to transition to auto height, the
+   subtree is tiny, and the alternative (snapping open) reads as a glitch. */
+.jc-reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 220ms var(--ease-out-cubic),
+    opacity 160ms var(--ease-out-quad);
+}
+
+.jc-reveal[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.jc-reveal > .jc-reveal-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.jc-reveal-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 1px 0;
+}
+
+/* Collapsed content must not be tabbable or clickable. */
+.jc-reveal[data-open="false"] > .jc-reveal-inner {
+  visibility: hidden;
+}
+
+/* --- Inputs --------------------------------------------------------------- */
+.jc-input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--jc-line);
+  border-radius: 10px;
+  corner-shape: squircle;
+  background: var(--jc-card);
+  color: var(--jc-ink);
+  font-family: inherit;
+  font-size: 12px;
+  transition: border-color 150ms ease;
+}
+
+.jc-input::placeholder {
+  color: var(--jc-faint);
+}
+
+.jc-input:focus {
+  outline: none;
+  border-color: var(--jc-red);
+}
+
+/* --- Status + notes ------------------------------------------------------- */
+.jc-status {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  /* Enters with the result, so it gets the entrance curve. */
+  animation: jc-rise 160ms var(--ease-out-cubic);
+}
+
+.jc-status.is-ok { color: var(--jc-ok); }
+.jc-status.is-err { color: var(--jc-red); }
+
+@keyframes jc-rise {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.jc-note {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--jc-faint);
+}
+
+.jc-note-foot {
+  margin-top: 4px;
+  text-align: center;
+}
+
+/* --- Reduced motion ------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .jc-switch,
+  .jc-switch-knob,
+  .jc-btn,
+  .jc-input,
+  .jc-progress i,
+  .jc-reveal {
+    transition: none;
+  }
+  .jc-dot.is-busy,
+  .jc-status {
+    animation: none;
+  }
+}
+
+/* ── Fact-check disclosure — head at rest, all targets on hover/focus/click ── */
+.jc-fc-group { position: relative; }
+.jc-fc-head { width: 100%; }
+.jc-fc-caret {
+  margin-left: auto;
+  width: 14px;
+  height: 14px;
+  transition: transform 0.18s var(--ease-out-quad, ease);
+}
+.jc-fc-group:hover .jc-fc-caret,
+.jc-fc-group:focus-within .jc-fc-caret,
+.jc-fc-group.is-open .jc-fc-caret { transform: rotate(90deg); }
+
+.jc-fc-options {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  transition: max-height 0.24s var(--ease-out-cubic, ease),
+              opacity 0.18s ease, margin-top 0.18s ease;
+}
+.jc-fc-group:hover .jc-fc-options,
+.jc-fc-group:focus-within .jc-fc-options,
+.jc-fc-group.is-open .jc-fc-options {
+  max-height: 240px;
+  opacity: 1;
+  margin-top: 6px;
+}
+.jc-fc-opt + .jc-fc-opt { margin-top: 6px; }
+/* Nudge the options in a touch so they read as children of the head. */
+.jc-fc-opt { padding-left: 16px; }
