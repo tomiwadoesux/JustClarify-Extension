@@ -54,9 +54,13 @@ Rules:
 // Prefer the user's own Google API key when they've added one — that path works
 // with no JustClarify server at all, which matters for self-hosters. Otherwise
 // go through the proxy so the default install needs zero setup.
+// Returns { ok, results }. `ok:false` means the lookup could not run at all
+// (offline, proxy down, bad key) — which is NOT the same as running and finding
+// nothing, and the two need different words in the UI. Collapsing both to an
+// empty array made a broken lookup look identical to an unruled claim.
 async function factCheckLookup(claim) {
   const query = String(claim || "").trim().slice(0, 300);
-  if (!query) return [];
+  if (!query) return { ok: true, results: [] };
 
   const { jcGoogleFactKey } = await chrome.storage.local
     .get(["jcGoogleFactKey"])
@@ -68,22 +72,27 @@ async function factCheckLookup(claim) {
 
   try {
     const res = await fetch(url);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.warn("JustClarify: fact-check lookup failed", res.status, url.split("?")[0]);
+      return { ok: false, results: [] };
+    }
     const data = await res.json();
-    return (data.claims || []).flatMap((c) =>
-      (c.claimReview || []).map((r) => ({
-        claim: c.text || query,
-        claimant: c.claimant || "",
-        publisher: r.publisher?.name || "",
-        rating: r.textualRating || "",
-        title: r.title || "",
-        url: r.url || "",
-      })),
-    );
-  } catch (_) {
-    // No network, proxy down, quota — a missing free lookup is not an error,
-    // it just means we fall through to the search path.
-    return [];
+    return {
+      ok: true,
+      results: (data.claims || []).flatMap((c) =>
+        (c.claimReview || []).map((r) => ({
+          claim: c.text || query,
+          claimant: c.claimant || "",
+          publisher: r.publisher?.name || "",
+          rating: r.textualRating || "",
+          title: r.title || "",
+          url: r.url || "",
+        })),
+      ),
+    };
+  } catch (error) {
+    console.warn("JustClarify: fact-check lookup unreachable", error);
+    return { ok: false, results: [] };
   }
 }
 
@@ -207,7 +216,8 @@ async function factCheckOne(claim, context) {
   const text = String(claim || "").trim();
   if (!text) return null;
 
-  const published = await factCheckLookup(text);
+  const lookup = await factCheckLookup(text);
+  const published = lookup.results;
   const hasKey = !!(await gatewayGetSettings());
 
   if (published.length) {
@@ -235,10 +245,14 @@ async function factCheckOne(claim, context) {
       claim: text,
       verdict: "UNVERIFIABLE",
       confidence: "low",
-      summary:
-        "No published fact-check covers this claim yet. Add an AI Gateway key in the JustClarify popup to check claims nobody has ruled on.",
+      // Two different situations, two different sentences. Saying "nobody has
+      // ruled on this" when the lookup never actually ran is a lie the reader
+      // can't detect.
+      summary: lookup.ok
+        ? "No fact-checker has published a ruling on this. The free check covers claims PolitiFact, Snopes, FactCheck.org and others have formally ruled on — mostly political and widely-circulated claims, not ordinary sentences. Add an AI Gateway key in the JustClarify popup to check anything else."
+        : "Couldn't reach the fact-check lookup — check your connection and try again.",
       sources: [],
-      origin: "no-key",
+      origin: lookup.ok ? "no-key" : "lookup-failed",
     };
   }
 
