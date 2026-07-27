@@ -19,13 +19,8 @@ import { useEffect, useRef, useState } from "react";
 // the two surfaces read as one product. Server-rendered with the fixed value
 // and re-minted after mount — a random colour during SSR would mismatch on
 // hydration.
+// Fallback accent if the layout's brand script hasn't set --accent (SSR/no-JS).
 const ACCENT = "oklch(0.56 0.10 28)";
-function randomAccent() {
-  const l = (0.55 + Math.random() * 0.11).toFixed(3);
-  const c = (0.05 + Math.random() * 0.06).toFixed(3);
-  const h = Math.floor(Math.random() * 360);
-  return `oklch(${l} ${c} ${h})`;
-}
 const STORE_URL = "https://chromewebstore.google.com/detail/justclarify/ggeikfbifbojgkgcehebpelplhajfffj";
 const GITHUB_URL = "https://github.com/tomiwadoesux/JustClarify-Extension";
 
@@ -150,7 +145,8 @@ export default function DemoPage() {
   const [taTool, setTaTool] = useState(null); // which Text area tool has been applied
   const [taBusy, setTaBusy] = useState(false);
   const [barPage, setBarPage] = useState(0); // which page of the action bar is showing
-  const [accent, setAccent] = useState(ACCENT); // re-minted per reload, like the extension
+  // Accent comes from the site-wide random OKLCH set on :root by the layout's
+  // brand script (shared with the favicon + Safari status bar), via var(--accent).
   const [anchor, setAnchor] = useState(null); // {left, top} of the phrase's bottom, in stage coords
   const [stageMinH, setStageMinH] = useState(460); // stage grows to fit the floating popup so nothing clips
   const popRef = useRef(null);
@@ -210,11 +206,6 @@ export default function DemoPage() {
     const onResize = () => measureAnchor();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  // Fresh brand colour per reload, after mount so SSR and the client agree.
-  useEffect(() => {
-    setAccent(randomAccent());
   }, []);
 
   // The popup floats (absolute), so grow the "browser window" to contain it —
@@ -448,7 +439,7 @@ export default function DemoPage() {
               : "You never left the page. In the real extension this is generated on-device in ~1 second.";
 
   return (
-    <main className="jcd-root" style={{ "--a": accent }}>
+    <main className="jcd-root" style={{ "--a": `var(--accent, ${ACCENT})` }}>
       <style>{CSS.replace(/__ACCENT__/g, ACCENT)}</style>
 
       <header className="jcd-top">
@@ -943,11 +934,18 @@ const CSS = `
 .jcd-hl.is-live::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px;
   background: var(--a); border-radius: 2px; animation: jcd-underline 1.5s ease-in-out infinite; }
 @keyframes jcd-underline { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
-/* Selection sweep: a left→right wipe of "selection blue" (the accent). */
-.jcd-hl.is-sel { color: #14110f; }
-.jcd-hl.is-sel::before { content: ""; position: absolute; inset: -1px -2px; background: color-mix(in srgb, var(--a) 26%, transparent);
-  border-radius: 3px; z-index: -1; transform-origin: left; animation: jcd-sweep .5s cubic-bezier(.4,0,.2,1) both; }
-@keyframes jcd-sweep { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+/* Selection: an accent wash painted left→right on the text itself (as a
+   background, so the text stays on top and it's never hidden behind the page). */
+.jcd-hl.is-sel {
+  color: #14110f;
+  background-image: linear-gradient(color-mix(in srgb, var(--a) 42%, transparent), color-mix(in srgb, var(--a) 42%, transparent));
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 0% 100%;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--a) 22%, transparent);
+  animation: jcd-sweep 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes jcd-sweep { to { background-size: 100% 100%; } }
 
 /* Floats at the exact bottom of the highlighted phrase (JS-anchored), the way
    the extension anchors to the selection. Pinned to the stage's right edge too,
