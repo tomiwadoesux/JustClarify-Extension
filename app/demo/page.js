@@ -310,9 +310,10 @@ export default function DemoPage() {
     await wait(750);
     if (!alive()) return;
 
-    // Walk the paginated bar the way a person would: pick an action, read,
-    // then click the › arrow for the next page.
-    for (const [pageIdx, key] of [[0, "explain"], [1, "factcheck"], [2, "example"]]) {
+    // Walk the bar the way a person would: Explain on page one, then the ›
+    // arrow to page two for Fact-check — and Text area sits right beside it,
+    // which is where the tour goes next.
+    for (const [pageIdx, key] of [[0, "explain"], [1, "factcheck"]]) {
       if (!alive()) return;
       if (pageIdx > 0) {
         pointAt(nextArrRef.current);
@@ -337,6 +338,13 @@ export default function DemoPage() {
       await wait(2200);
       if (!alive()) return;
     }
+
+    // Text area is the neighbour of Fact-check on page two — click it there.
+    pointAt(btnRefs.current.textarea);
+    await wait(650);
+    if (!alive()) return;
+    clickPulse();
+    await wait(250);
 
     // The Text area — a second thing JustClarify does. Walk three of the four
     // tools so the differences between them are visible.
@@ -434,17 +442,8 @@ export default function DemoPage() {
             detour: open a tab, paste into a chatbot, lose your place. Or pay $10 a month for a
             sidebar that does the pasting for you.
           </p>
-          <p>
-            We think that&apos;s backwards. <b>The intelligence already lives on your machine</b> —
-            Chrome now ships an AI model inside the browser itself. Which means explaining what you
-            read can cost nothing, need no account, and never send a word of what you&apos;re reading
-            to anyone&apos;s server. So that&apos;s what we built. Then we{" "}
-            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">open-sourced all of it</a>,
-            so you don&apos;t have to take our word for any of this.
-          </p>
           <p className="jcd-hero-kicker">
-            Highlight. Read the answer where you stand. Keep going. That&apos;s the whole product —
-            try it below.
+            Here&apos;s the alternative. Highlight anything below.
           </p>
         </div>
       </section>
@@ -624,7 +623,23 @@ export default function DemoPage() {
         </p>
       </section>
 
-      {/* ── 3 · The convictions ──────────────────────────────────────── */}
+      {/* ── 3 · The turn: why it can be free ─────────────────────────── */}
+      <section className="jcd-turn">
+        <p>
+          We think the subscription model is backwards.{" "}
+          <b>The intelligence already lives on your machine</b> — Chrome now ships an AI model
+          inside the browser itself. Which means explaining what you read can cost nothing, need
+          no account, and never send a word of what you&apos;re reading to anyone&apos;s server.
+          So that&apos;s what we built. Then we{" "}
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">open-sourced all of it</a>,
+          so you don&apos;t have to take our word for any of this.
+        </p>
+        <p className="jcd-turn-kicker">
+          Highlight. Read the answer where you stand. Keep going. That&apos;s the whole product.
+        </p>
+      </section>
+
+      {/* ── 4 · The convictions ──────────────────────────────────────── */}
       <section className="jcd-creed">
         <div className="jcd-creed-item">
           <span className="jcd-creed-n">01</span>
@@ -657,7 +672,7 @@ export default function DemoPage() {
         </div>
       </section>
 
-      {/* ── 4 · The technical part, at the bottom on purpose ─────────── */}
+      {/* ── 5 · The technical part, at the bottom on purpose ─────────── */}
       <section className="jcd-tech">
         <p className="jcd-eyebrow">For the curious</p>
         <h2>How a highlight becomes an answer</h2>
@@ -679,9 +694,19 @@ export default function DemoPage() {
           </li>
           <li>
             <b>On-device answers first.</b> The prompt goes to Chrome&apos;s built-in Prompt API —
-            Gemini Nano, a model the browser downloads once and runs on your hardware. The answer
-            streams back into the page with no network round-trip. Turn your Wi-Fi off; it still
+            Gemini Nano, a model that runs on your own hardware. The first time you use it, Chrome
+            downloads that model once (about 4GB); JustClarify asks before it starts and shows the
+            progress rather than hanging on a silent spinner. After that one download, answers
+            stream into the page with no network round-trip at all. Turn your Wi-Fi off; it still
             works.
+          </li>
+          <li>
+            <b>Definitions don&apos;t go to a model at all.</b> Highlight a single word and Define
+            queries a real dictionary (the free, keyless Dictionary API) for the actual entry —
+            part of speech, senses, and the dictionary&apos;s own example sentence. A definition is
+            a lookup, not a generation; a model can only paraphrase what a dictionary already
+            states, and it can get it wrong. Only words with no entry — jargon, proper nouns,
+            coinages — fall back to a contextual explanation.
           </li>
           <li>
             <b>Your key, your models — strictly optional.</b> Want frontier-quality answers? Add your
@@ -698,7 +723,7 @@ export default function DemoPage() {
         </ol>
       </section>
 
-      {/* ── 5 · Close ────────────────────────────────────────────────── */}
+      {/* ── 6 · Close ────────────────────────────────────────────────── */}
       <section className="jcd-close">
         <p className="jcd-thesis">
           The web ships one version of every page to everyone. JustClarify recompiles it for what{" "}
@@ -979,6 +1004,13 @@ const CSS = `
 
 .jcd-caption { margin: 18px 2px 0; font-size: 13.5px; color: #5a524c; min-height: 20px; font-weight: 500; }
 .jcd-fine { margin: 6px 2px 0; font-size: 12px; color: #a39a92; }
+
+/* ── the turn (sits directly under the demo) ─────────────────────── */
+.jcd-turn { max-width: 760px; margin: 0 auto; padding: clamp(20px, 4vw, 36px) clamp(18px, 5vw, 28px) clamp(8px, 2vw, 16px); }
+.jcd-turn p { margin: 0 0 16px; font-size: clamp(15.5px, 2.2vw, 17.5px); line-height: 1.65; color: #3a342f; }
+.jcd-turn a { color: inherit; text-decoration-color: var(--a); text-underline-offset: 3px; }
+.jcd-turn a:hover { color: var(--a); }
+.jcd-turn-kicker { font-weight: 650; color: #14110f !important; }
 
 /* ── convictions ─────────────────────────────────────────────────── */
 .jcd-creed { max-width: 760px; margin: 0 auto; padding: clamp(24px, 5vw, 48px) clamp(18px, 5vw, 28px);

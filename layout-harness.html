@@ -332,7 +332,8 @@
             <p class="note">
               Highlight text → the diamond appears under it → click it and this bar opens
               on <b>Explain + Expand</b>. Highlight a <b>single word</b> and Define joins
-              that first page. The › arrow pages onward — <b>Fact-check + Text area</b>,
+              that first page — and Define is a real dictionary lookup, not a model
+              answer. The › arrow pages onward — <b>Fact-check + Text area</b>,
               then <b>Example</b> — and the highlight itself can invite more: Translate
               when the text isn't English, Summarize when it's long. Pick an action:
               the diamond slides under it, the label shimmers while it thinks, then the
@@ -728,12 +729,12 @@
         translate:'<svg viewBox="0 0 24 24"><path class="open" d="M3.5 5.5h9M8 3.5v2M11 5.5c-1.2 4.2-3.9 7.5-7.5 9.6M5 5.5c1 3.6 3.6 6.7 7 8.6"/><path class="open" d="m12.5 20.5 4-9.5 4 9.5M13.9 17.3h5.2"/></svg>',
         summarize:'<svg viewBox="0 0 24 24"><path class="open" d="M4 6h16M4 11h11M4 16h7"/></svg>',
       };
-      const TITLE = { explain:'Explanation', detailed:'Expanded', define:'Definition', example:'Example',
+      const TITLE = { explain:'Explanation', detailed:'Expanded', define:'Dictionary', example:'Example',
                       factcheck:'Fact-check', textarea:'Text area', translate:'Translation', summarize:'Summary' };
       const ANSWER = {
         explain:"Here the writer means they set structure aside and let the words come out unplanned — drafting freely without editing as they go.",
         detailed:"In context, “just write” is shorthand for bypassing planning entirely: no outline, no editing mid-draft, just continuous output. It matters because it names a deliberate mode — generative, not corrective — the writer switches into when analysis would stall the work.",
-        define:"refine — verb. To improve something by making small changes; to perfect the basics of a craft. “She spent a year refining her serve.”",
+        define:"<span style=\"color:#FF0000;font:600 11.5px/1.5 Inter,sans-serif;font-style:italic;\">verb</span> &nbsp;To improve something by making small changes so it is more accurate, effective, or polished.<span style=\"display:block;margin-top:5px;padding-left:10px;border-left:2px solid rgba(17,17,17,.12);color:#8b837c;font-style:italic;font-size:13px;\">“She spent a year refining her serve.”</span><span style=\"display:block;margin-top:12px;padding-top:9px;border-top:1px solid rgba(17,17,17,.08);color:#a49b95;font:500 10.5px/1.4 Inter,sans-serif;\">Free Dictionary — a real entry, not a generated one.</span>",
         example:"Like a musician jamming instead of reading sheet music — you play first and see what comes, then shape it after.",
         factcheck:"Accurate as a description of free-writing, a well-known drafting technique. In the real extension this verdict arrives with clickable sources.",
         translate:"“You just have to write.” — French → English. The real extension asks which language you want first, then streams the translation here.",
@@ -1168,7 +1169,7 @@
         ['Reading a highlight — the bar, two per page', [
           ['Explain', 'first page — read in the context of the sentence around it'],
           ['Expand', 'first page — wider context, mechanism spelled out'],
-          ['Define', 'joins the first page when a single word is highlighted'],
+          ['Define', 'joins the first page for single words — a real dictionary entry, never the model'],
           ['Fact-check', 'behind the › arrow — the evidence pipeline, never a model opinion'],
           ['Text area', 'behind the arrow — morphs the popup into a scratch editor'],
           ['Example', 'behind the arrow — one concrete analogy'],

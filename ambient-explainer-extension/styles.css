@@ -3146,3 +3146,57 @@ mark.jc-claim:hover {
 @media (prefers-reduced-motion: reduce) {
   .jc-skel span, .jc-astream-para { animation: none; }
 }
+
+/* ── Dictionary entry (Define) ─────────────────────────────────────────────
+   Define renders a real dictionary entry rather than a model answer, so it
+   gets a numbered-sense layout instead of the prose blocks an explanation
+   uses. See jcDefineRenderPanel in content.js. */
+.jc-dict-phonetic {
+  margin-bottom: 12px;
+  color: var(--muted, #8a817a);
+  font: 400 13px/1 var(--font-family);
+  letter-spacing: 0.01em;
+}
+.jc-dict-senses { margin: 0; padding: 0; list-style: none; counter-reset: none; }
+.jc-dict-sense {
+  display: flex;
+  gap: 10px;
+  padding: 0 0 12px;
+}
+.jc-dict-sense:last-child { padding-bottom: 0; }
+.jc-dict-num {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin-top: 2px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font: 700 10px/1 var(--font-family);
+}
+.jc-dict-pos {
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--accent);
+  font: 600 11.5px/1.5 var(--font-family);
+  font-style: italic;
+}
+.jc-dict-def { font: 400 14.5px/1.55 var(--font-family); }
+.jc-dict-eg {
+  display: block;
+  margin-top: 4px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(17, 17, 17, 0.12);
+  color: var(--muted, #8a817a);
+  font: 400 13px/1.5 var(--font-family);
+  font-style: italic;
+}
+.jc-dict-src {
+  margin-top: 13px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(17, 17, 17, 0.08);
+  color: var(--muted, #a49b95);
+  font: 500 10.5px/1.4 var(--font-family);
+}

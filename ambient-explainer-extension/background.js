@@ -173,6 +173,76 @@ async function liveAudioEnd() {
   liveAudioReset();
 }
 
+// ── Dictionary ────────────────────────────────────────────────────────────
+// Define answers from a real dictionary, not the model: the Free Dictionary
+// API (dictionaryapi.dev) is public, keyless and CC-licensed. A definition is
+// a lookup, not a generation — the model can only paraphrase what a dictionary
+// already states, and it can get it wrong. Returns { ok: false } for anything
+// that isn't a plain English word, or a word with no entry, and the caller
+// falls back to the model then.
+const JC_DICT_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
+
+// Mirrors the backend's is_single_word: no spaces, letters (hyphens allowed),
+// ordinary casing so code identifiers like useEffect never hit the dictionary.
+function jcIsDictionaryWord(text) {
+  const word = String(text || '').trim().replace(/^[.,;:!?"'“”‘’()[\]]+|[.,;:!?"'“”‘’()[\]]+$/g, '');
+  if (!word || /\s/.test(word)) return null;
+  if (!/^[\p{L}-]+$/u.test(word)) return null;
+  if (word.replace(/-/g, '').length < 2) return null;
+  const bare = word.replace(/-/g, '');
+  const ordinary = bare === bare.toLowerCase() || bare === bare.toUpperCase()
+    || bare === bare[0].toUpperCase() + bare.slice(1).toLowerCase();
+  return ordinary ? word : null;
+}
+
+async function lookupDictionary(rawWord) {
+  const word = jcIsDictionaryWord(rawWord);
+  if (!word) return { ok: false, error: 'not-a-word' };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  let data;
+  try {
+    const res = await fetch(JC_DICT_URL + encodeURIComponent(word.toLowerCase()), {
+      signal: controller.signal,
+    });
+    if (!res.ok) return { ok: false, error: 'not-found' };
+    data = await res.json();
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  } finally {
+    clearTimeout(timeout);
+  }
+  if (!Array.isArray(data) || !data.length) return { ok: false, error: 'not-found' };
+
+  // Flatten to at most three senses, each keeping its part of speech and the
+  // dictionary's own example sentence when it has one.
+  const senses = [];
+  for (const entry of data) {
+    for (const meaning of entry.meanings || []) {
+      for (const def of meaning.definitions || []) {
+        if (!def.definition) continue;
+        senses.push({
+          partOfSpeech: meaning.partOfSpeech || '',
+          definition: def.definition,
+          example: def.example || '',
+        });
+        if (senses.length >= 3) break;
+      }
+      if (senses.length >= 3) break;
+    }
+    if (senses.length >= 3) break;
+  }
+  if (!senses.length) return { ok: false, error: 'not-found' };
+
+  const phonetic = data.find((e) => e.phonetic)?.phonetic
+    || (data[0].phonetics || []).find((p) => p.text)?.text
+    || '';
+  const source = (data[0].sourceUrls || [])[0] || '';
+
+  return { ok: true, result: { word: data[0].word || word, phonetic, senses, source } };
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   jcRefreshBrand();
   chrome.contextMenus.removeAll(() => {
@@ -200,6 +270,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         // askEngine streams CLAUDE_PROGRESS messages to the origin tab from
         // whichever engine answers (on-device first, Gateway fallback).
         sendResponse(await askEngine(msg.prompt, msg.reqId, originTabId));
+      } catch (error) {
+        sendResponse({ ok: false, error: String(error) });
+      }
+    })();
+    return true;
+  }
+
+  // Define is a dictionary lookup, not a model answer: a real entry from the
+  // Free Dictionary API (dictionaryapi.dev — no key, no account). Fetched here
+  // rather than in the content script so a page's CSP can't block it. The
+  // caller falls back to the model when a word isn't in the dictionary.
+  if (msg.type === 'JC_DICTIONARY') {
+    (async () => {
+      try {
+        sendResponse(await lookupDictionary(msg.word));
       } catch (error) {
         sendResponse({ ok: false, error: String(error) });
       }

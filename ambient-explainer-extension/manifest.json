@@ -30,7 +30,8 @@
   "host_permissions": [
     "http://localhost:8000/*",
     "https://api.justclarify.ayotomcs.me/*",
-    "https://ai-gateway.vercel.sh/*"
+    "https://ai-gateway.vercel.sh/*",
+    "https://api.dictionaryapi.dev/*"
   ],
   "content_scripts": [
     {

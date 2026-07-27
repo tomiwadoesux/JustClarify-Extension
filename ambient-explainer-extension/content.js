@@ -621,8 +621,9 @@ function jcPrimaryActions(data) {
     { key: "default", label: "Explain", icon: "explain", kind: "style" },
     { key: "detailed", label: "Expand", icon: "expand", kind: "style" },
   ];
+  // Define is a dictionary lookup, not a model answer (kind: "define").
   if (jcSelectedWordCount(data) <= 1) {
-    primary.push({ key: "define", label: "Define", icon: "define", kind: "style" });
+    primary.push({ key: "define", label: "Define", icon: "define", kind: "define" });
   }
   return primary;
 }
@@ -733,6 +734,8 @@ function jcActionIcon(name) {
 function jcRunAction(popup, kind, key) {
   if (kind === "factcheck") {
     jcFactCheckSelection(popup);
+  } else if (kind === "define") {
+    jcDefineSelection(popup);
   } else if (kind === "textarea") {
     openTextArea(currentExplainData?.selectedText || "");
   } else if (kind === "style") {
@@ -2229,6 +2232,77 @@ function jcFcRenderPanel(popup, result) {
   `;
   panel.style.width = "420px";
   clampPopupPosition(popup);
+}
+
+// ── Define ────────────────────────────────────────────────────────────────
+// A definition is a lookup, not a generation. Define asks the Free Dictionary
+// API for the real entry — part of speech, senses, the dictionary's own example
+// — and only falls back to the model when a word has no entry (jargon, proper
+// nouns, coinages), where a contextual explanation beats nothing.
+function jcDefineRenderPanel(popup, entry) {
+  jcSetRowLoading(popup, false);
+  const panel = jcMenuPanel(popup);
+  if (!panel) return;
+  clearInterval(jcLoadingTimer);
+  panel.classList.remove("is-factcheck");
+
+  const senses = entry.senses
+    .map(
+      (s, i) => `
+      <li class="jc-dict-sense">
+        <span class="jc-dict-num">${i + 1}</span>
+        <div>
+          ${s.partOfSpeech ? `<span class="jc-dict-pos">${escapeHTML(s.partOfSpeech)}</span>` : ""}
+          <span class="jc-dict-def">${escapeHTML(s.definition)}</span>
+          ${s.example ? `<span class="jc-dict-eg">“${escapeHTML(s.example)}”</span>` : ""}
+        </div>
+      </li>`,
+    )
+    .join("");
+
+  panel.innerHTML = `
+    <div class="popup-header">
+      <h1 class="header-name">"${escapeHTML(entry.word)}"</h1>
+    </div>
+    <div class="popup-divider"></div>
+    <span class="jc-panel-tag">
+      ${jcActionIcon("define")}
+      <span>Dictionary</span>
+    </span>
+    <div class="explanation-body">
+      ${entry.phonetic ? `<div class="jc-dict-phonetic">${escapeHTML(entry.phonetic)}</div>` : ""}
+      <ol class="jc-dict-senses">${senses}</ol>
+      <div class="jc-dict-src">Free Dictionary — a real entry, not a generated one.</div>
+    </div>
+  `;
+  panel.style.width = "380px";
+  clampPopupPosition(popup);
+}
+
+function jcDefineSelection(popup) {
+  if (!popup || !currentExplainData) return;
+  const word = (currentExplainData.selectedText || "").trim();
+  if (!word) {
+    showPopupMessage(popup, "No text selected.");
+    return;
+  }
+  setPopupLoading(popup);
+
+  chrome.runtime.sendMessage({ type: "JC_DICTIONARY", word }, (resp) => {
+    // No entry (or the lookup failed) → the model explains it in context
+    // instead. Better a contextual explanation than a dead end.
+    if (chrome.runtime.lastError || !resp?.ok) {
+      fetchExplanation("define", true);
+      return;
+    }
+    jcDefineRenderPanel(popup, resp.result);
+    recordAsk({
+      question: `Define: ${word}`,
+      answer: resp.result.senses.map((s) => s.definition).join(" · "),
+      topic: "Definition",
+      url: location.href,
+    });
+  });
 }
 
 async function jcFactCheckSelection(popup) {
