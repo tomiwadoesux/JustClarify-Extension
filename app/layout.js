@@ -9,6 +9,7 @@ const interTight = Inter_Tight({
 });
 
 export const metadata = {
+  metadataBase: new URL("https://justclarify.xyz"),
   title: "JustClarify",
   description: "JustClarify – clear, structured answers.",
   icons: {
