@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JustClarify",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Understand anything you highlight — free on-device AI, no account, no setup",
   "icons": {
     "16": "icons/icon-16.png",
