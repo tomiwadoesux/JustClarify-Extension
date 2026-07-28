@@ -6,11 +6,16 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from app import errata as errata_store
+from app import factcheck as factcheck_engine
 from app.email_validation import normalize_email, validate_signup_email
 from app.schemas import (
     CaptureEmailRequest,
     CaptureEmailResponse,
     CollapsePlanRequest,
+    ErrataCheckRequest,
+    ErrataReportRequest,
+    ErrataResponse,
     ExplainRequest,
     ExplanationResponse,
     TransformRequest,
@@ -303,6 +308,113 @@ def factcheck_lookup(query: str, language: str = "en"):
         return {"claims": []}
 
     return {"claims": response.json().get("claims", [])}
+
+
+# ---------- Shared errata cache ----------
+#
+# The read path is free, keyless and fast; the write path is the only thing that
+# costs money, and it runs here rather than in the extension so a verdict is
+# computed once per article instead of once per reader.
+
+
+@app.get("/errata", response_model=ErrataResponse)
+def errata_read(url: str, content_hash: str):
+    """
+    Cached verdicts for an exact article revision. Never computes anything —
+    this is the path every reader hits on every page, so it has to stay cheap
+    enough to call speculatively.
+    """
+    if not errata_store.is_configured():
+        return ErrataResponse(hit=False, reason="unconfigured")
+
+    url_key = errata_store.normalize_url(url)
+    if not url_key or not content_hash:
+        return ErrataResponse(hit=False, reason="bad-request")
+
+    row = errata_store.fetch(url_key, content_hash)
+    if not row or row["stale"]:
+        # A stale row is deliberately not served. An out-of-date ruling reads as
+        # current to the reader, which is worse than showing nothing.
+        return ErrataResponse(
+            hit=False,
+            reason="stale" if row else "miss",
+            url_key=url_key,
+            content_hash=content_hash,
+        )
+
+    return ErrataResponse(
+        hit=True,
+        verdicts=row["verdicts"],
+        checked_at=row["checked_at"],
+        url_key=url_key,
+        content_hash=content_hash,
+    )
+
+
+@app.post("/errata/check", response_model=ErrataResponse)
+def errata_check(payload: ErrataCheckRequest):
+    """
+    Read-through: serve the cache when it's warm, otherwise run the full
+    pipeline on the server's key and store the result for everyone after.
+
+    Two readers arriving on a cold popular article can both start a check. The
+    upsert makes that harmless — same key, last write wins with identical
+    content — so it costs a duplicated call, not a corrupted row. Worth
+    revisiting with an advisory lock only if it shows up in the bill.
+    """
+    url_key = errata_store.normalize_url(payload.url)
+    text = (payload.text or "").strip()
+    if not url_key or len(text) < 40:
+        return ErrataResponse(hit=False, reason="bad-request", url_key=url_key or None)
+
+    chash = errata_store.content_hash(text)
+
+    if not payload.force:
+        row = errata_store.fetch(url_key, chash)
+        if row and not row["stale"]:
+            return ErrataResponse(
+                hit=True,
+                verdicts=row["verdicts"],
+                checked_at=row["checked_at"],
+                url_key=url_key,
+                content_hash=chash,
+            )
+
+    result = factcheck_engine.check_text(text)
+    if not result["ok"]:
+        return ErrataResponse(
+            hit=False, reason=result.get("reason") or "check-failed",
+            url_key=url_key, content_hash=chash,
+        )
+
+    errata_store.store(
+        url_key,
+        chash,
+        result["verdicts"],
+        model=factcheck_engine.SEARCH_MODEL,
+        title=payload.title or "",
+    )
+
+    # Return everything we found, including the verdicts too weak to cache —
+    # the reader who paid the wait should see the full picture even though the
+    # next reader won't inherit the shaky parts.
+    return ErrataResponse(
+        hit=False, verdicts=result["verdicts"], url_key=url_key, content_hash=chash,
+    )
+
+
+@app.post("/errata/report")
+def errata_report(payload: ErrataReportRequest):
+    """
+    Flag a cached verdict as wrong. A shared cache with no correction channel
+    leaves a confident mistake on a popular page until its TTL runs out.
+    """
+    url_key = errata_store.normalize_url(payload.url)
+    if not url_key or not payload.content_hash:
+        raise HTTPException(status_code=400, detail="url and content_hash are required.")
+
+    ok = errata_store.report(url_key, payload.content_hash, payload.claim, payload.reason or "")
+    return {"success": ok}
 
 
 @app.post("/capture-email", response_model=CaptureEmailResponse)

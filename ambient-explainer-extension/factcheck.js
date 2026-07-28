@@ -369,10 +369,114 @@ async function factCheckExtractClaims(text, limit = 6) {
   }
 }
 
+// ---------- Shared errata cache ----------
+//
+// A verdict belongs to the article, not to the reader who happened to trigger
+// the check. So before spending anything, ask whether this exact revision has
+// already been checked for somebody else. On a page anyone has read before this
+// is the whole flow: no key, no model call, no wait.
+
+const FC_ERRATA_READ = "https://api.justclarify.xyz/errata";
+const FC_ERRATA_CHECK = "https://api.justclarify.xyz/errata/check";
+
+// Must produce the same digest as errata.content_hash on the server, or the
+// two sides will never agree on a cache key. Normalizing away whitespace and
+// case first means a CMS re-wrapping a paragraph doesn't discard a good verdict.
+async function factCheckContentHash(text) {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(normalized),
+  );
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Returns the cached verdicts, or null for any reason at all — miss, stale,
+// server down, cache not configured. Every one of those means the same thing to
+// the caller ("nothing cached, do it yourself"), so they collapse on purpose.
+async function factCheckCacheRead(url, hash) {
+  try {
+    const res = await fetch(
+      `${FC_ERRATA_READ}?url=${encodeURIComponent(url)}&content_hash=${hash}`,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.hit && Array.isArray(data.verdicts) && data.verdicts.length
+      ? data.verdicts
+      : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Cold article: have the server run the check on its own key and keep the
+// result for the next reader. This is what lets someone with no API key check a
+// page that nobody has read yet.
+async function factCheckServerCheck(url, text, title) {
+  try {
+    const res = await fetch(FC_ERRATA_CHECK, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, text, title: title || "" }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data?.verdicts) && data.verdicts.length ? data.verdicts : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Push a finished set of verdicts to the page using the same message sequence a
+// live run emits, so the content script needs no idea where they came from.
+function factCheckDeliver(verdicts, tabId, runId) {
+  const claims = verdicts.map((v) => ({
+    claim: v.claim || v.quote || "",
+    quote: v.quote || v.claim || "",
+  }));
+
+  if (tabId != null) {
+    chrome.tabs.sendMessage(tabId, { type: "JC_FACTCHECK_CLAIMS", runId, claims }).catch(() => {});
+    verdicts.forEach((result, index) => {
+      chrome.tabs
+        .sendMessage(tabId, { type: "JC_FACTCHECK_RESULT", runId, index, result })
+        .catch(() => {});
+    });
+    chrome.tabs.sendMessage(tabId, { type: "JC_FACTCHECK_DONE", runId }).catch(() => {});
+  }
+  return { ok: true, claims, results: verdicts, cached: true };
+}
+
 // Check a body of text end to end: pull the claims worth checking, then verify
 // them concurrently, reporting each verdict to the page as it lands so a long
 // article fills in progressively instead of blocking on the slowest claim.
-async function factCheckText(text, tabId, runId, limit = 6) {
+//
+// `url` opts this run into the shared cache. Callers that pass none — live
+// audio, where the "text" is a rolling transcript rather than a stable
+// document — go straight to the local path, which is correct: a transcript
+// fragment isn't an article and must never be stored against a page URL.
+async function factCheckText(text, tabId, runId, limit = 6, url = "", title = "") {
+  if (url) {
+    const hash = await factCheckContentHash(text).catch(() => null);
+    if (hash) {
+      const cached = await factCheckCacheRead(url, hash);
+      if (cached) return factCheckDeliver(cached, tabId, runId);
+
+      // Nothing cached. Let the server check it — that keeps the cost one call
+      // per article rather than one per reader, and fills the cache for
+      // everyone after. Falls through to the local path if it can't.
+      const computed = await factCheckServerCheck(url, text, title);
+      if (computed) return factCheckDeliver(computed, tabId, runId);
+    }
+  }
+
+  return factCheckTextLocal(text, tabId, runId, limit);
+}
+
+// The original path: extract and verify here, on the reader's own key. Still
+// the fallback whenever the shared cache is unavailable, and still what live
+// audio uses.
+async function factCheckTextLocal(text, tabId, runId, limit = 6) {
   const claims = await factCheckExtractClaims(text, limit);
   if (!claims.length) {
     return { ok: true, claims: [], results: [] };

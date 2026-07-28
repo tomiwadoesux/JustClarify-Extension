@@ -42,3 +42,25 @@ class CaptureEmailRequest(BaseModel):
 class CaptureEmailResponse(BaseModel):
     success: bool
     provider: str = "resend"
+
+class ErrataCheckRequest(BaseModel):
+    url: str
+    text: str                      # the article body, as the reader sees it
+    title: Optional[str] = None
+    force: Optional[bool] = False  # re-check even on a fresh cache hit
+
+class ErrataResponse(BaseModel):
+    hit: bool                      # served from cache rather than computed
+    verdicts: List[dict] = []
+    checked_at: Optional[str] = None
+    content_hash: Optional[str] = None
+    url_key: Optional[str] = None
+    # Why there's nothing to show, when there's nothing to show. "miss" and
+    # "unconfigured" look identical to a reader but mean opposite things to us.
+    reason: Optional[str] = None
+
+class ErrataReportRequest(BaseModel):
+    url: str
+    content_hash: str
+    claim: str
+    reason: Optional[str] = ""

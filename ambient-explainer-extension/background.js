@@ -309,9 +309,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   // them. Verdicts stream back as JC_FACTCHECK_RESULT so the page fills in.
   if (msg.type === 'JC_FACTCHECK_TEXT') {
     const originTabId = _sender.tab?.id;
+    // The tab's own URL, never one supplied by the page — a content script on a
+    // hostile site could otherwise write its verdicts onto someone else's
+    // article in the shared cache. Only http(s) pages take part; a file:// or
+    // extension page isn't an address other readers can share.
+    const pageUrl = /^https?:/.test(_sender.tab?.url || '') ? _sender.tab.url : '';
     (async () => {
       try {
-        sendResponse(await factCheckText(msg.text, originTabId, msg.runId, msg.limit));
+        sendResponse(
+          await factCheckText(
+            msg.text, originTabId, msg.runId, msg.limit, pageUrl, _sender.tab?.title || '',
+          ),
+        );
       } catch (error) {
         sendResponse({ ok: false, error: String(error) });
       }

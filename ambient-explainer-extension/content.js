@@ -2565,11 +2565,47 @@ function jcClaimTextNodes() {
   return nodes;
 }
 
+// A CMS renders typographic punctuation; a model asked for a verbatim quote
+// tends to type the ASCII equivalent. Folding both sides onto one form is what
+// makes “we’ve — really” match "we've -- really".
+//
+// Every entry MUST be a single character. jcClaimLocate maps a match back to
+// (node, offset) through an index built one entry per character, so a fold that
+// changed length would slide every underline off its sentence.
+const JC_CLAIM_FOLD = {
+  "“": '"', "”": '"', "„": '"', "‟": '"', "«": '"', "»": '"',
+  "‘": "'", "’": "'", "‚": "'", "‛": "'", "′": "'", "´": "'",
+  "—": "-", "–": "-", "−": "-", "‐": "-", "‑": "-", "―": "-",
+};
+
+// Case-fold too — models routinely re-case the first word when they lift a
+// sentence out of a paragraph. toLowerCase is 1:1 for ordinary text but not
+// universally (İ expands to two chars), so anything that would change length
+// keeps its original character rather than corrupting the index map.
+function jcClaimFold(ch) {
+  const mapped = JC_CLAIM_FOLD[ch];
+  if (mapped) return mapped;
+  const lower = ch.toLowerCase();
+  return lower.length === 1 ? lower : ch;
+}
+
 // Whitespace in the DOM (newlines, indentation) never matches the single spaces
 // in an extracted quote, so both sides are collapsed to single spaces and the
 // match is mapped back to real (node, offset) positions through an index table.
 function jcClaimLocate(nodes, needle) {
-  const want = String(needle || "").replace(/\s+/g, " ").trim();
+  let want = String(needle || "").replace(/\s+/g, " ").trim();
+  // Models wrap the "verbatim" sentence in quotation marks that aren't on the
+  // page — the single most common reason a quote failed to locate at all.
+  // Stripping an outer pair is safe even when the sentence genuinely ends in a
+  // quote, because what's left is still a substring of the page.
+  want = want
+    .replace(/^["'“”‘’«]+/, "")
+    .replace(/["'“”‘’»]+$/, "")
+    .trim();
+  // "--" for an em dash is the one substitution that changes length, so it
+  // can't ride the 1:1 fold. Runs of dashes collapse to one on both sides
+  // instead — the same trick the whitespace pass below already uses.
+  want = Array.from(want, jcClaimFold).join("").replace(/-{2,}/g, "-");
   if (want.length < 8) return null;
 
   let full = "";
@@ -2588,16 +2624,21 @@ function jcClaimLocate(nodes, needle) {
   let norm = "";
   const nmap = [];
   let prevSpace = false;
+  let prevDash = false;
   for (let k = 0; k < full.length; k++) {
     if (/\s/.test(full[k])) {
       if (prevSpace) continue;
       norm += " ";
       nmap.push(k);
       prevSpace = true;
+      prevDash = false;
     } else {
-      norm += full[k];
+      const folded = jcClaimFold(full[k]);
+      if (folded === "-" && prevDash) continue;
+      norm += folded;
       nmap.push(k);
       prevSpace = false;
+      prevDash = folded === "-";
     }
   }
   const normTrimmed = norm.replace(/^ /, "");
