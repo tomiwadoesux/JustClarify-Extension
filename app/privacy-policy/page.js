@@ -1,10 +1,25 @@
 import Image from "next/image";
 import Link from "next/link";
 
+// "Privacy Policy" alone — the root layout's title template appends
+// " — JustClarify", so spelling out the brand here would double it.
 export const metadata = {
-  title: "Privacy Policy — JustClarify",
+  title: "Privacy Policy",
   description:
     "JustClarify Privacy Policy. Learn what information JustClarify collects, how it is used, what is stored, and what is shared with other users.",
+  alternates: { canonical: "/privacy-policy" },
+  // Next shallow-merges metadata, so declaring `openGraph` here replaces the
+  // root block wholesale — it has to be spelled out in full or this page would
+  // inherit the landing page's og:url and lose its image.
+  openGraph: {
+    title: "Privacy Policy — JustClarify",
+    description:
+      "What JustClarify collects, how it is used, what is stored, and what is shared with other users.",
+    url: "/privacy-policy",
+    siteName: "JustClarify",
+    type: "article",
+    images: [{ url: "/Images/OgImage.webp", width: 1200, height: 630, alt: "JustClarify" }],
+  },
 };
 
 export default function PrivacyPolicyPage() {
@@ -14,7 +29,7 @@ export default function PrivacyPolicyPage() {
       <header className="w-full px-4 md:px-10 py-5">
         <Link href="/" className="inline-flex items-center gap-2 group">
           <Image
-            src="/Images/logo.svg"
+            src="/diamond.svg"
             alt="JustClarify logo"
             width={32}
             height={32}

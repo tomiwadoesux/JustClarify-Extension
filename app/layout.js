@@ -8,40 +8,75 @@ const interTight = Inter_Tight({
   weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
 });
 
+const TITLE = "Explain Any Highlighted Text — JustClarify Chrome Extension";
+const DESCRIPTION =
+  "Highlight any word or sentence and get a plain-English explanation without leaving the page. Free Chrome extension, on-device AI, no account and no setup.";
+const OG_IMAGE = "/Images/OgImage.webp";
+
 export const metadata = {
   metadataBase: new URL("https://justclarify.xyz"),
-  title: "JustClarify",
-  description: "JustClarify – clear, structured answers.",
+  // `default` is the homepage title; every child route that sets its own title
+  // gets it suffixed via `template`, so no page is ever bare "JustClarify".
+  title: { default: TITLE, template: "%s — JustClarify" },
+  description: DESCRIPTION,
+  applicationName: "JustClarify",
+  alternates: { canonical: "/" },
+  robots: { index: true, follow: true },
   icons: {
     icon: [{ url: "/diamond.svg", type: "image/svg+xml" }],
     shortcut: "/diamond.svg",
     apple: "/diamond.svg",
   },
   openGraph: {
-    title: "JustClarify",
-    description: "JustClarify – clear, structured answers.",
+    title: TITLE,
+    description: DESCRIPTION,
+    // /demo, not / — `/` 308s here, so this is the canonical landing URL and
+    // og:url has to match the canonical tag or crawlers see conflicting signals.
+    url: "/demo",
+    siteName: "JustClarify",
     type: "website",
     images: [
       {
-        url: "/Images/OgImage.webp",
+        url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "JustClarify preview image",
+        alt: "JustClarify — highlight anything, understand it instantly",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "JustClarify",
-    description: "JustClarify – clear, structured answers.",
-    images: ["/Images/OgImage.webp"],
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [OG_IMAGE],
   },
 };
 
-// Default status-bar colour; the brand script overrides it per load with the
-// same random accent it paints the site with.
+// Structured data. `SoftwareApplication` is what earns a browser extension its
+// rich result — name, category, price and platform in one machine-readable
+// block. Kept in the root layout so every route inherits it.
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "JustClarify",
+  applicationCategory: "BrowserApplication",
+  operatingSystem: "Chrome",
+  description: DESCRIPTION,
+  url: "https://justclarify.xyz",
+  image: "https://justclarify.xyz" + OG_IMAGE,
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  featureList: [
+    "Explain highlighted text in place",
+    "On-device AI with no account required",
+    "Fact-check claims against published rulings",
+    "Reading focus mode",
+  ],
+};
+
+// Default status-bar colour: the canonical static accent, oklch(0.60 0.08 275).
+// The brand script overrides it per load with that load's random accent.
 export const viewport = {
-  themeColor: "#a75c53",
+  themeColor: "#727cb0",
 };
 
 // One dull, random OKLCH accent per page load, shared by every component — set
@@ -64,8 +99,8 @@ var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.creat
 var s=64,cv=document.createElement('canvas');cv.width=cv.height=s;var x=cv.getContext('2d');
 function rr(x,X,Y,W,H,r){x.beginPath();x.moveTo(X+r,Y);x.arcTo(X+W,Y,X+W,Y+H,r);x.arcTo(X+W,Y+H,X,Y+H,r);x.arcTo(X,Y+H,X,Y,r);x.arcTo(X,Y,X+W,Y,r);x.closePath();}
 x.translate(s/2,s/2);x.rotate(Math.PI/4);
-var d=s*0.62,X=-d/2;x.fillStyle=hex;rr(x,X,X,d,d,s*0.13);x.fill();
-var d2=d*0.42,X2=-d2/2;x.fillStyle='#fff';rr(x,X2,X2,d2,d2,s*0.07);x.fill();
+var d=s*0.6667,X=-d/2;x.fillStyle=hex;rr(x,X,X,d,d,d*0.225);x.fill();
+var d2=d*0.425,X2=-d2/2;x.fillStyle='#fff';rr(x,X2,X2,d2,d2,d2*0.2647);x.fill();
 var href=cv.toDataURL('image/png'),k=document.querySelector('link[rel="icon"]');
 if(!k){k=document.createElement('link');k.setAttribute('rel','icon');document.head.appendChild(k);}
 k.setAttribute('type','image/png');k.setAttribute('href',href);
@@ -76,6 +111,10 @@ export default function RootLayout({ children }) {
     <html lang="en" style={{ colorScheme: "light" }}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: BRAND_SCRIPT }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+        />
       </head>
       <body className={`${interTight.variable} antialiased`}>
         <SmoothScroll>{children}</SmoothScroll>

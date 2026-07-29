@@ -42,3 +42,8 @@ next-env.d.ts
 
 # extension build artifacts
 JustClarify-extension*.zip
+
+# local agent / skill config
+.claude/
+.agents/
+skills-lock.json

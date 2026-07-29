@@ -7,7 +7,7 @@
    under 250ms, ease-out, and off under prefers-reduced-motion. */
 
 :root {
-  --jc-red: var(--accent, oklch(0.58 0.08 16));
+  --jc-red: var(--accent, oklch(0.60 0.08 275));
   --jc-ink: #14110f;
   --jc-muted: #7c736c;
   --jc-faint: #a8a09a;

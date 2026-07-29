@@ -7,7 +7,10 @@
 const sharp = require("sharp");
 const path = require("path");
 
-// oklch(0.56 0.10 28) → sRGB, matching the demo accent (a dull terracotta).
+// oklch(0.60 0.08 275) → sRGB. The canonical static-asset accent: one fixed
+// point inside the same dull palette the runtime randomiser draws from, used
+// wherever a colour has to be baked in (these PNGs, diamond.svg, the OG image,
+// theme-color). Keep all four in sync — see BRAND_HEX in app/layout.js.
 function oklchToRgb(l, c, h) {
   const hr = (h * Math.PI) / 180;
   const a = c * Math.cos(hr);
@@ -27,7 +30,7 @@ function oklchToRgb(l, c, h) {
   });
 }
 
-const [r, g, b] = oklchToRgb(0.56, 0.1, 28);
+const [r, g, b] = oklchToRgb(0.6, 0.08, 275);
 const accent = `rgb(${r},${g},${b})`;
 
 // A diamond (rounded square rotated 45°) with a smaller inner diamond cut in

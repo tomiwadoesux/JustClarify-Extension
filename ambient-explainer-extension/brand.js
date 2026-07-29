@@ -18,20 +18,20 @@
   }
 
   function jcBrandCss(b) {
-    if (!b) return "oklch(0.58 0.08 16)";
+    if (!b) return "oklch(0.60 0.08 275)";
     return `oklch(${b.l} ${b.c} ${b.h})`;
   }
 
   // A translucent wash of the same colour, for soft fills, rings and rules.
   function jcBrandSoftCss(b, alpha) {
-    const x = b || { l: 0.58, c: 0.08, h: 16 };
+    const x = b || { l: 0.60, c: 0.08, h: 275 };
     return `oklch(${x.l} ${x.c} ${x.h} / ${alpha})`;
   }
 
   // OKLCH → sRGB, for the one place CSS can't reach: the canvas that draws the
   // toolbar icon.
   function jcBrandRgb(b) {
-    const x = b || { l: 0.58, c: 0.08, h: 16 };
+    const x = b || { l: 0.60, c: 0.08, h: 275 };
     const hr = (x.h * Math.PI) / 180;
     const a = x.c * Math.cos(hr);
     const bb = x.c * Math.sin(hr);
