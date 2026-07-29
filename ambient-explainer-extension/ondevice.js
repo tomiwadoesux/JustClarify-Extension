@@ -82,12 +82,30 @@ async function onDeviceBlockReason() {
 
 // Fire-and-forget: joins/starts Chrome's model download so the next ask can
 // run locally. Used when this ask is being answered by the Gateway anyway.
+//
+// Guarded by a module-level promise because askEngine calls this on EVERY ask
+// while availability is still 'downloadable'/'downloading' — which is the whole
+// time the download is running. Without the guard, each highlight fired another
+// LanguageModel.create(), so a user highlighting during a multi-GB download
+// stacked up a fresh session per highlight and the download appeared to restart
+// every time. One create, reused until it settles.
+let onDeviceWarmupPromise = null;
+
 function onDeviceWarmup() {
+  if (onDeviceWarmupPromise) return onDeviceWarmupPromise;
   try {
-    LanguageModel.create()
-      .then((s) => s.destroy && s.destroy())
-      .catch(() => {});
-  } catch (_) {}
+    onDeviceWarmupPromise = LanguageModel.create()
+      .then((s) => {
+        if (s && s.destroy) s.destroy();
+      })
+      .catch(() => {
+        // Let a later ask retry — a failed download shouldn't be permanent.
+        onDeviceWarmupPromise = null;
+      });
+  } catch (_) {
+    onDeviceWarmupPromise = null;
+  }
+  return onDeviceWarmupPromise;
 }
 
 // Chrome's built-in model, named for the UI's engine badge.
@@ -115,6 +133,14 @@ function onDeviceProgress(tabId, reqId, { answer = "", thinking = "", done = fal
 async function onDeviceAsk(prompt, reqId, tabId) {
   const { key: historyKey, messages: history } = await gatewayHistory(tabId ?? "global");
 
+  // Whether a download is genuinely pending, checked BEFORE create(). Chrome
+  // fires downloadprogress on a cached model too (0→100 instantly), so an
+  // unconditional monitor puts "one-time download…" on screen for every single
+  // ask once the model is already local — indistinguishable, to a user, from it
+  // re-downloading on every highlight. Only surface progress when there is
+  // actually something to download.
+  const needsDownload = (await onDeviceAvailability()) !== "available";
+
   let session;
   try {
     session = await LanguageModel.create({
@@ -123,6 +149,7 @@ async function onDeviceAsk(prompt, reqId, tabId) {
         ...history,
       ],
       monitor(m) {
+        if (!needsDownload) return;
         m.addEventListener("downloadprogress", (e) => {
           const pct = Math.round(((e.loaded || 0) / (e.total || 1)) * 100);
           onDeviceProgress(tabId, reqId, {
