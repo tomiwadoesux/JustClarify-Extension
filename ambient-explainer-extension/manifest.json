@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JustClarify",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Understand anything you highlight — explanations, fact-checks and voice control, no account, no setup",
   "icons": {
     "16": "icons/icon-16.png",
@@ -34,9 +34,7 @@
   "host_permissions": [
     "<all_urls>",
     "https://justclarify.xyz/*",
-    "http://localhost:8000/*",
     "https://api.justclarify.xyz/*",
-    "https://api.justclarify.ayotomcs.me/*",
     "https://ai-gateway.vercel.sh/*",
     "https://api.dictionaryapi.dev/*",
     "https://factchecktools.googleapis.com/*"
@@ -70,15 +68,5 @@
   ],
   "background": {
     "service_worker": "background.js"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "icons/providers/*.svg"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ]
+  }
 }
