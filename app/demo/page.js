@@ -51,6 +51,72 @@ function Icon({ name }) {
   return <svg viewBox="0 0 24 24" className="jcd-ico" aria-hidden="true" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
+// Glyphs for the prose below the demo. Separate set from the action Icons
+// above, because these stand for concepts (a key, a server, a dictionary), not
+// for buttons the extension actually has. Nothing here should read as clickable.
+const GLYPH = {
+  cursor: '<path d="M5.5 3.5 18 11l-5.2 1.4 2.9 5.1-2.6 1.5-2.9-5.1L6.4 17z"/>',
+  scroll: '<path d="M12 3.5v17M12 3.5 8.5 7M12 3.5 15.5 7M12 20.5 8.5 17M12 20.5 15.5 17"/>',
+  target: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2"/><path d="M12 1.8v3.2M12 19v3.2M1.8 12H5M19 12h3.2"/>',
+  mic: '<rect x="9" y="2.8" width="6" height="10" rx="3"/><path d="M5.5 10.8a6.5 6.5 0 0 0 13 0M12 17.3v3.9"/><circle cx="19.2" cy="4.6" r="2.4"/>',
+  cloud: '<path d="M17.4 19a4.5 4.5 0 0 0 .3-9 6 6 0 0 0-11.6 1.6A3.7 3.7 0 0 0 7 19z"/>',
+  chip: '<rect x="7" y="7" width="10" height="10" rx="2.2"/><path d="M4 10h3M4 14h3M17 10h3M17 14h3M10 4v3M14 4v3M10 17v3M14 17v3"/>',
+  chat: '<path d="M20.5 14.5a3 3 0 0 1-3 3H8.6L4 20.8V6.5a3 3 0 0 1 3-3h10.5a3 3 0 0 1 3 3z"/>',
+  key: '<circle cx="7.6" cy="12" r="3.9"/><path d="M11.5 12H21M18 12v3.4M14.8 12v2.6"/>',
+  server: '<rect x="3" y="4" width="18" height="7" rx="2.2"/><rect x="3" y="13" width="18" height="7" rx="2.2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+  book: '<path d="M4 4.6A1.6 1.6 0 0 1 5.6 3H19.5v14.6H5.6A1.6 1.6 0 0 0 4 19.2z"/><path d="M4 19.2a1.6 1.6 0 0 1 1.6-1.6H19.5V21H5.6A1.6 1.6 0 0 1 4 19.4z"/>',
+  brackets: '<path d="M8.5 3.6H5.4a1.4 1.4 0 0 0-1.4 1.4v14a1.4 1.4 0 0 0 1.4 1.4h3.1M15.5 3.6h3.1A1.4 1.4 0 0 1 20 5v14a1.4 1.4 0 0 1-1.4 1.4h-3.1"/><path d="M8.8 12h6.4"/>',
+  layers: '<path d="m12 3 8.6 4.6L12 12.2 3.4 7.6z"/><path d="m4.4 12.6 7.6 4.1 7.6-4.1"/>',
+  toggle: '<rect x="2.6" y="7" width="18.8" height="10" rx="5"/><circle cx="16.4" cy="12" r="2.9"/>',
+  shield: '<path d="m12 3 7.4 2.9v5.4c0 4.5-3 8.1-7.4 9.4-4.4-1.3-7.4-4.9-7.4-9.4V5.9z"/><path d="m8.9 11.9 2.2 2.2 4-4.2"/>',
+  badge: '<path d="m12 2.8 2.2 1.7 2.8-.3 1 2.6 2.4 1.6-1 2.6 1 2.6-2.4 1.6-1 2.6-2.8-.3L12 21.2l-2.2-1.7-2.8.3-1-2.6-2.4-1.6 1-2.6-1-2.6 2.4-1.6 1-2.6 2.8.3z"/><path d="m9.4 12.1 1.9 1.9 3.4-3.6"/>',
+  lock: '<rect x="3.8" y="10" width="16.4" height="10.2" rx="2.6"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  code: '<path d="m8.8 7.5-5 4.5 5 4.5M15.2 7.5l5 4.5-5 4.5"/>',
+  tag: '<path d="M12.4 3H21v8.6l-9.2 9.2a1.9 1.9 0 0 1-2.6 0l-6-6a1.9 1.9 0 0 1 0-2.6z"/><path d="M16.8 7.2h.01"/>',
+  translate: '<path d="M3.4 5.8h9.2M8 3.6v2.2M10.6 5.8c0 4.2-3 7.9-7.2 9M6 9.4c1.1 2.5 3.2 4.4 5.8 5.2"/><path d="m12.6 20.4 4-9 4 9M14 17.4h5.2"/>',
+  speaker: '<path d="M4 9.4h3.2L12 5.3v13.4L7.2 14.6H4z"/><path d="M15.4 9.6a4 4 0 0 1 0 4.8M18 7.2a7.4 7.4 0 0 1 0 9.6"/>',
+  tabs: '<rect x="3" y="5" width="18" height="14" rx="2.4"/><path d="M3 9.6h7V5"/>',
+  undo: '<path d="M4.2 9h9.3a5.6 5.6 0 0 1 0 11.2H8.4"/><path d="m8.2 4.8-4 4.2 4 4.2"/>',
+  search: '<circle cx="10.8" cy="10.8" r="6.6"/><path d="m20 20-4.6-4.6"/>',
+};
+function Glyph({ name }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="jcd-glyph"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      dangerouslySetInnerHTML={{ __html: GLYPH[name] || GLYPH.target }}
+    />
+  );
+}
+
+// A real key cap. When the copy says "hold Shift", the Shift key should be on
+// the page. Reading the word is slower than recognising the thing.
+function Kbd({ children, sym }) {
+  return (
+    <kbd className="jcd-kbd">
+      {sym && <span className="jcd-kbd-sym" aria-hidden="true">{sym}</span>}
+      {children}
+    </kbd>
+  );
+}
+
+// A spoken phrase or a capability, as a pill you can take in without reading a
+// sentence. `icon` picks from the demo's action set, `glyph` from the set above.
+function Chip({ icon, glyph, children }) {
+  return (
+    <span className="jcd-chip">
+      {icon ? <Icon name={icon} /> : <Glyph name={glyph} />}
+      <span>{children}</span>
+    </span>
+  );
+}
+
 // The bar is paged exactly like the real extension: page one is Explain +
 // Expand (Define joins when a single word is highlighted), the › arrow reveals
 // Fact-check + Text area, then Example.
@@ -70,27 +136,27 @@ const BAR_PAGES = [
 const ANSWERS = {
   explain: {
     paras: [
-      "Here, “technical debt” means the hidden cost of the shortcuts the team took earlier in the code — quick fixes that made shipping faster then, but now make every new change slower and riskier.",
+      "Here, “technical debt” means the hidden cost of the shortcuts the team took earlier in the code: quick fixes that made shipping faster then, but now make every new change slower and riskier.",
     ],
-    key: "It isn't a real loan — it's a metaphor for work you'll have to pay back later, with interest.",
+    key: "It isn't a real loan. It's a metaphor for work you'll have to pay back later, with interest.",
   },
   detailed: {
     paras: [
       "“Technical debt” describes what accumulates when a team repeatedly chooses the fast, expedient solution over the cleaner one. Each shortcut is small, but they compound: the code gets harder to read and every change ripples in unexpected ways.",
-      "The team here is arguing the balance has grown so large it's now the main thing slowing feature work — which is why they refactor before piling on more.",
+      "The team here is arguing the balance has grown so large it's now the main thing slowing feature work, which is why they refactor before piling on more.",
     ],
     key: "Left unpaid, technical debt turns a day's work into a week's, until progress crawls.",
   },
   example: {
     paras: [
-      "Like paying only the minimum on a credit card: you get what you want now, but the balance — and the interest — keeps growing until it crowds out everything else.",
+      "Like paying only the minimum on a credit card: you get what you want now, but the balance keeps growing, interest and all, until it crowds out everything else.",
     ],
   },
   factcheck: {
     paras: [
       "Accurate as a description of a well-known engineering concept. “Technical debt” was coined by Ward Cunningham in 1992 and is widely used for the compounding cost of expedient code.",
     ],
-    sources: [{ host: "wikipedia.org", title: "Technical debt — origin & definition" }],
+    sources: [{ host: "wikipedia.org", title: "Technical debt: origin & definition" }],
     verdict: "True",
   },
 };
@@ -104,7 +170,7 @@ const TA_TOOLS = [
   {
     key: "humanize",
     label: "Humanize",
-    note: "Humanized — same meaning, written like a person wrote it.",
+    note: "Humanized. Same meaning, written like a person wrote it.",
     paras: [
       "The team chose to refactor: the codebase had become difficult to work in, and even small changes were taking far longer than they should.",
     ],
@@ -112,13 +178,13 @@ const TA_TOOLS = [
   {
     key: "shorten",
     label: "Shorten",
-    note: "Shortened — 24 words down to 11.",
+    note: "Shortened. 24 words down to 11.",
     paras: ["The team refactored because the messy codebase was slowing every change down."],
   },
   {
     key: "expand",
     label: "Expand",
-    note: "Expanded — the reasoning spelled out.",
+    note: "Expanded. The reasoning spelled out.",
     paras: [
       "The team decided to refactor because the codebase had grown genuinely messy over time. Shortcuts taken during earlier sprints had accumulated, and the structure no longer matched what the product actually needed.",
       "The cost showed up in velocity: even trivial changes required touching several places at once, so work that should have taken an hour stretched across a day. Refactoring first was the faster path to everything that came after.",
@@ -127,7 +193,7 @@ const TA_TOOLS = [
   {
     key: "summarize",
     label: "Summarize",
-    note: "Summarized — the points, nothing else.",
+    note: "Summarized. The points, nothing else.",
     bullets: [
       "The codebase had become messy.",
       "Every small change was taking far too long.",
@@ -141,6 +207,7 @@ export default function DemoPage() {
   const [phase, setPhase] = useState("idle");
   const [sel, setSel] = useState(null);
   const [auto, setAuto] = useState(false);
+  const [mode, setMode] = useState("highlight");
   const [cursor, setCursor] = useState({ x: 0, y: 0, on: false, click: false });
   const [taTool, setTaTool] = useState(null); // which Text area tool has been applied
   const [taBusy, setTaBusy] = useState(false);
@@ -222,7 +289,7 @@ export default function DemoPage() {
       setStageMinH(Math.max(440, Math.round(p.bottom - s.top + 28)));
     });
     return () => cancelAnimationFrame(id);
-  }, [phase, sel, anchor, taTool, taBusy]);
+  }, [phase, sel, anchor, taTool, taBusy, mode]);
 
   function resetAll() {
     setPhase("idle");
@@ -420,6 +487,12 @@ export default function DemoPage() {
     }
   }
 
+  function chooseMode(nextMode) {
+    if (auto) stopAuto();
+    resetAll();
+    setMode(nextMode);
+  }
+
   const answer = sel ? ANSWERS[sel] : null;
   const action = sel ? ACTIONS.find((a) => a.key === sel) : null;
   const showRow = phase === "open" || phase === "loading" || phase === "answer";
@@ -427,15 +500,15 @@ export default function DemoPage() {
 
   const caption =
     phase === "idle"
-      ? "Click the highlighted phrase to select it — like you would while reading."
+      ? "Click the highlighted phrase to select it, like you would while reading."
       : phase === "selecting" || phase === "selected"
-        ? "Selected. The JustClarify diamond appears — click it to open."
+        ? "Selected. The JustClarify diamond appears. Click it to open."
         : phase === "open"
-          ? "Explain and Expand come first — the › arrow holds Fact-check, the Text area, and Example."
+          ? "Explain and Expand come first. The › arrow holds Fact-check, the Text area, and Example."
           : phase === "loading"
             ? "Reading the sentence around your highlight…"
             : phase === "textarea"
-              ? "The Text area: paste anything and reshape it — humanize, shorten, expand, summarize."
+              ? "The Text area: paste anything and reshape it. Humanize, shorten, expand, summarize."
               : "You never left the page. In the real extension this is generated on-device in ~1 second.";
 
   return (
@@ -457,7 +530,7 @@ export default function DemoPage() {
             Source
           </a>
           <a className="jcd-top-cta" href={STORE_URL} target="_blank" rel="noopener noreferrer">
-            Add to Chrome — free
+            Add to Chrome · Free
           </a>
         </div>
       </header>
@@ -471,13 +544,18 @@ export default function DemoPage() {
         </h1>
         <div className="jcd-hero-copy">
           <p>
-            Every day you read things you only half-understand — a term, a claim, a paragraph that
+            Every day you read things you only half-understand: a term, a claim, a paragraph that
             quietly assumes you know more than you do. The web has one fix for this, and it&apos;s a
             detour: open a tab, paste into a chatbot, lose your place. Or pay $10 a month for a
             sidebar that does the pasting for you.
           </p>
+          <p>
+            JustClarify&apos;s on-device engine and <b>Your LLM</b> option are free. Want a cloud
+            model? Bring your own API key (BYOK), or choose the optional hosted engine: 30 asks
+            free, then $3.99 a month. It never switches you there without you choosing it.
+          </p>
           <p className="jcd-hero-kicker">
-            Here&apos;s the alternative. Highlight anything below.
+            Here&apos;s the alternative. Highlight a phrase, or speak about anything in the article.
           </p>
         </div>
       </section>
@@ -485,14 +563,17 @@ export default function DemoPage() {
       {/* ── 2 · The demo ─────────────────────────────────────────────── */}
       <section className="jcd-demo" id="demo">
         <div className="jcd-demo-head">
-          <div className="jcd-steps">
-            <Step n="1" done={phase !== "idle"} active={phase === "idle"} label="Highlight" />
-            <Step n="2" done={showRow || phase === "textarea"} active={showBlob} label="Open JustClarify" />
-            <Step n="3" done={phase === "answer" || phase === "textarea"} active={phase === "open" || phase === "loading"} label="Read it in place" />
+          <div className="jcd-mode-switch" role="tablist" aria-label="Choose a demo mode">
+            <button type="button" role="tab" aria-selected={mode === "highlight"} className={"jcd-mode" + (mode === "highlight" ? " is-on" : "")} onClick={() => chooseMode("highlight")}>
+              Highlight
+            </button>
+            <button type="button" role="tab" aria-selected={mode === "voice"} className={"jcd-mode" + (mode === "voice" ? " is-on" : "")} onClick={() => chooseMode("voice")}>
+              Voice control
+            </button>
           </div>
-          <button type="button" className={"jcd-auto" + (auto ? " on" : "")} onClick={toggleAuto}>
+          {mode === "highlight" && <button type="button" className={"jcd-auto" + (auto ? " on" : "")} onClick={toggleAuto}>
             {auto ? "■ Stop" : "▶ Watch it drive itself"}
-          </button>
+          </button>}
         </div>
 
         <div className="jcd-stage" ref={stageRef} style={{ minHeight: stageMinH }} role="figure" aria-label="A webpage with JustClarify">
@@ -501,7 +582,7 @@ export default function DemoPage() {
             <span>a-long-article-you&apos;re-reading.com</span>
           </div>
 
-          {phase === "textarea" ? (
+          {mode === "voice" ? <VoiceDemo /> : phase === "textarea" ? (
             <TextArea
               tool={taTool}
               busy={taBusy}
@@ -515,7 +596,7 @@ export default function DemoPage() {
                 <h2>Why the team hit pause before the release</h2>
                 <p>
                   Late in the sprint, the engineers made an unusual call. Rather than cram in one more
-                  feature, they chose to refactor the legacy module first — arguing that the{" "}
+                  feature, they chose to refactor the legacy module first, arguing that the{" "}
                   <mark
                     ref={phraseRef}
                     className={
@@ -649,11 +730,13 @@ export default function DemoPage() {
           </span>
         </div>
 
-        <p className="jcd-caption">{caption}</p>
+        <p className="jcd-caption">{mode === "voice" ? "Voice control listens for a question about the page, finds the relevant text, and answers in place." : caption}</p>
         <p className="jcd-fine">
-          {auto
-            ? "Auto-play is running — click anything to take over."
-            : "This demo is scripted — every answer is pre-written and no AI is called. The real extension generates them live, on your device."}
+          {mode === "voice"
+            ? "This voice demo is scripted. It does not use your microphone or send audio anywhere."
+            : auto
+            ? "Auto-play is running. Click anything to take over."
+            : "This demo is scripted. Every answer is pre-written and no AI is called. The real extension generates them live, on the engine you picked."}
         </p>
       </section>
 
@@ -661,98 +744,283 @@ export default function DemoPage() {
       <section className="jcd-turn">
         <p>
           We think the subscription model is backwards.{" "}
-          <b>The intelligence already lives on your machine</b> — Chrome now ships an AI model
-          inside the browser itself. Which means explaining what you read can cost nothing, need
-          no account, and never send a word of what you&apos;re reading to anyone&apos;s server.
-          So that&apos;s what we built. Then we{" "}
+          <b className="jcd-hi">The intelligence already lives on your machine</b>. Chrome now
+          ships an AI model inside the browser itself, and if that isn&apos;t enough you almost
+          certainly already pay for ChatGPT, Claude or Gemini. Either way the answer can cost
+          nothing extra, need no account, and never send a word of what you&apos;re reading to a
+          server of ours. So that&apos;s what we built. Then we{" "}
           <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">open-sourced all of it</a>,
           so you don&apos;t have to take our word for any of this.
         </p>
         <p className="jcd-turn-kicker">
-          Highlight. Read the answer where you stand. Keep going. That&apos;s the whole product.
+          Highlight a phrase, or ask about the page out loud. Read the answer where you stand. Keep going.
         </p>
       </section>
 
       {/* ── 4 · The convictions ──────────────────────────────────────── */}
       <section className="jcd-creed">
         <div className="jcd-creed-item">
-          <span className="jcd-creed-n">01</span>
-          <h3>Free, because it costs us nothing.</h3>
+          <span className="jcd-creed-ico" aria-hidden="true"><Glyph name="tag" /></span>
+          <h3><span className="jcd-creed-n">01</span>Free where it costs us nothing.</h3>
+          <div className="jcd-chips">
+            <Chip glyph="chip">Device · Free forever</Chip>
+            <Chip glyph="chat">Your LLM · Based on your subscription</Chip>
+            <Chip glyph="key">BYOK · You pay your provider, not us</Chip>
+            <Chip glyph="cloud">Hosted · 30 asks free, then $3.99/mo</Chip>
+          </div>
           <p>
-            Tools like this charge subscriptions because every answer costs them server money.
-            JustClarify&apos;s answers are generated by your own computer, so our marginal cost is
-            zero — and when the cost is zero, we think the price should be too. No account, no trial,
-            no &quot;you&apos;ve used your 5 free credits.&quot;
+            Tools like this charge a subscription because every answer costs them server money.
+            Three of the four ways JustClarify can answer cost us nothing: your computer&apos;s own
+            model, the chatbot subscription you already pay for, or your own API key going straight
+            to Anthropic, OpenAI or Google. Those are{" "}
+            <span className="jcd-hi">free, forever, with no account and no credit counter</span>.
+            Only the hosted engine runs on our hardware, so only the hosted engine costs money. You
+            pick; nothing switches to a paid one behind your back.
           </p>
         </div>
         <div className="jcd-creed-item">
-          <span className="jcd-creed-n">02</span>
-          <h3>Private by architecture, not by promise.</h3>
+          <span className="jcd-creed-ico" aria-hidden="true"><Glyph name="lock" /></span>
+          <h3><span className="jcd-creed-n">02</span>Private by architecture, up to the line you draw.</h3>
           <p>
-            What you highlight never touches our servers, because there are no servers in the loop.
-            The model runs on your machine; airplane mode works. Most privacy policies ask for trust —
-            ours barely has anything to disclose.
+            On the on-device engine, what you highlight never touches our servers, because{" "}
+            <span className="jcd-hi">there are no servers in the loop</span>. The model runs on
+            your machine and airplane mode works. Choose the hosted engine and your text goes to our
+            server to be answered, because that is the only way that engine can exist. Fact-checks
+            always send the claim and the article&apos;s URL, so an article is checked once and the
+            verdict is served to everyone after you. The engine badge on every answer tells you
+            which of those just happened, and the <a href="/privacy-policy">privacy policy</a>{" "}
+            spells out the rest.
           </p>
         </div>
         <div className="jcd-creed-item">
-          <span className="jcd-creed-n">03</span>
-          <h3>Open source, so trust is optional.</h3>
+          <span className="jcd-creed-ico" aria-hidden="true"><Glyph name="code" /></span>
+          <h3><span className="jcd-creed-n">03</span>Open source, so trust is optional.</h3>
           <p>
-            The entire extension is <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">public code</a>.
-            Every answer is badged with the exact engine and model that wrote it, and fact-checks only
-            return a verdict with a source you can click. If we ever break these rules, you&apos;ll see
-            it in the diff.
+            The entire extension is{" "}
+            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">public code</a>. Every
+            answer is badged with the exact engine and model that wrote it, and fact-checks only
+            return a verdict with a source you can click.{" "}
+            <span className="jcd-hi">If we ever break these rules, you&apos;ll see it in the diff.</span>
           </p>
         </div>
       </section>
 
-      {/* ── 5 · The technical part, at the bottom on purpose ─────────── */}
+      {/* ── 5 · Voice ────────────────────────────────────────────────── */}
+      <section className="jcd-tech">
+        <p className="jcd-eyebrow">Also, without touching anything</p>
+        <h2>
+          Hold <Kbd sym="⇧">Shift</Kbd> and say it instead
+        </h2>
+        <p className="jcd-tech-lead">
+          Highlighting is one way in. The other is speaking: hold <Kbd sym="⇧">Shift</Kbd>, say what
+          you want, let go.{" "}
+          <span className="jcd-hi">Releasing the key is what ends the turn</span>. No wake word, no
+          open microphone, and nothing is ever captured unless a key is physically held down.
+        </p>
+        <ol className="jcd-pipe">
+          <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="cursor" /></span>
+            <b>It does the same things your mouse does.</b> Every spoken verb ends in the exact
+            function a click already reaches, so the two ways in can never drift apart.
+            <span className="jcd-chips">
+              <Chip icon="explain">&ldquo;Explain this&rdquo;</Chip>
+              <Chip icon="factcheck">&ldquo;Fact-check that&rdquo;</Chip>
+              <Chip icon="define">&ldquo;Define quantitative easing&rdquo;</Chip>
+              <Chip glyph="translate">&ldquo;Translate it&rdquo;</Chip>
+              <Chip glyph="speaker">&ldquo;Read it to me&rdquo;</Chip>
+            </span>
+          </li>
+          <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="scroll" /></span>
+            <b>And the things your mouse is slower at.</b> About sixty phrases, all of them things
+            you were going to do anyway.
+            <span className="jcd-chips">
+              <Chip glyph="search">&ldquo;Take me to the pricing bit&rdquo;</Chip>
+              <Chip glyph="scroll">&ldquo;Keep scrolling, wait, back&rdquo;</Chip>
+              <Chip glyph="tabs">&ldquo;Next tab&rdquo;</Chip>
+              <Chip glyph="cursor">&ldquo;Click the sign-up button&rdquo;</Chip>
+              <Chip glyph="undo">&ldquo;Undo that&rdquo;</Chip>
+            </span>
+          </li>
+          <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="target" /></span>
+            <b>&quot;This&quot; means what you&apos;d expect it to mean.</b> Say &quot;explain
+            this&quot; with nothing selected and it resolves the most recent thing you could
+            plausibly have meant (your last highlight, the paragraph under your cursor, the thing
+            you just asked about) as a real selection, so the answer arrives exactly where a click
+            would have put it.
+          </li>
+          <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="mic" /></span>
+            <b>Two microphones, because one of them can be switched off.</b> Speech recognition runs
+            in the page when the site allows it. Plenty of sites don&apos;t. A page can disable the
+            microphone outright, and http:// pages have none at all. So the extension can hold one
+            grant on its own origin and record there instead, which no website can veto.{" "}
+            <span className="jcd-hi">You grant it once and never see a permission prompt again.</span>
+          </li>
+          <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="cloud" /></span>
+            <b>Voice needs the hosted engine.</b> <span className="jcd-pill">Paid engine</span>{" "}
+            Turning a sentence into the right action is a harder job than explaining a paragraph,
+            and it&apos;s the one part that doesn&apos;t run on Chrome&apos;s built-in model yet.
+            Explaining, defining and fact-checking stay free on your own hardware.
+          </li>
+        </ol>
+      </section>
+
+      {/* ── 6 · The technical part, at the bottom on purpose ─────────── */}
       <section className="jcd-tech">
         <p className="jcd-eyebrow">For the curious</p>
         <h2>How a highlight becomes an answer</h2>
         <p className="jcd-tech-lead">
-          No magic, no hidden backend. Here is the actual pipeline, straight from the source code:
+          No magic, and no hidden backend. The one server we do run is named below. Here is the
+          actual pipeline, straight from the source code:
         </p>
-        <ol className="jcd-pipe">
+        <ol className="jcd-pipe jcd-pipe-steps">
           <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="brackets" /></span>
             <b>It reads around your selection, not just your selection.</b> When you highlight, the
             content script walks outward through the surrounding text and captures a{" "}
-            <i>semantic window</i> — about two full sentences on each side for Explain, up to six for
+            <i>semantic window</i>: about two full sentences on each side for Explain, up to six for
             Expand. That&apos;s why answers fit the article you&apos;re in, not a dictionary&apos;s
             idea of the phrase.
           </li>
           <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="layers" /></span>
             <b>The prompt is assembled on the page.</b> Your selection, the surrounding passage, the
             page title, the action you picked, and your density setting are built into a single prompt
-            locally, inside the tab. At this point, nothing has been sent anywhere.
+            locally, inside the tab.{" "}
+            <span className="jcd-hi">At this point, nothing has been sent anywhere.</span>
           </li>
           <li>
-            <b>On-device answers first.</b> The prompt goes to Chrome&apos;s built-in Prompt API —
-            Gemini Nano, a model that runs on your own hardware. The first time you use it, Chrome
-            downloads that model once (about 4GB); JustClarify asks before it starts and shows the
-            progress rather than hanging on a silent spinner. After that one download, answers
-            stream into the page with no network round-trip at all. Turn your Wi-Fi off; it still
-            works.
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="toggle" /></span>
+            <b>Then you choose who answers it.</b> Four ways to answer, picked in the popup, never
+            switched behind your back:
+            <span className="jcd-engines">
+              <span className="jcd-engine">
+                <span className="jcd-engine-ico" aria-hidden="true"><Glyph name="chip" /></span>
+                <span className="jcd-engine-body">
+                  <span className="jcd-engine-h">
+                    <span className="jcd-engine-name">Device</span>
+                    <span className="jcd-pill jcd-pill-soft">Free</span>
+                  </span>
+                  Chrome&apos;s built-in Prompt API, Gemini Nano, running on your own hardware.
+                  Chrome downloads that model once; JustClarify asks first and shows the progress
+                  rather than hanging on a silent spinner. After that, answers stream in with no
+                  network round-trip at all.
+                  <span className="jcd-specs">
+                    <span>~4GB one-time download</span>
+                    <span>~16GB RAM</span>
+                    <span>22GB free</span>
+                    <span>Works offline</span>
+                  </span>
+                </span>
+              </span>
+              <span className="jcd-engine">
+                <span className="jcd-engine-ico" aria-hidden="true"><Glyph name="chat" /></span>
+                <span className="jcd-engine-body">
+                  <span className="jcd-engine-h">
+                    <span className="jcd-engine-name">Your LLM</span>
+                    <span className="jcd-pill jcd-pill-soft">Based on your subscription</span>
+                  </span>
+                  The chat subscription you already pay for. JustClarify opens one tab of its own,
+                  parked in a collapsed group at the edge of the tab strip, asks ChatGPT, Claude or
+                  Gemini there, and reads the answer back. It never touches a tab you opened or a
+                  conversation you were having, and it costs nothing beyond the plan you already
+                  hold.
+                  <span className="jcd-specs">
+                    <span>ChatGPT</span>
+                    <span>Claude</span>
+                    <span>Gemini</span>
+                    <span>No extra bill</span>
+                  </span>
+                </span>
+              </span>
+              <span className="jcd-engine">
+                <span className="jcd-engine-ico" aria-hidden="true"><Glyph name="key" /></span>
+                <span className="jcd-engine-body">
+                  <span className="jcd-engine-h">
+                    <span className="jcd-engine-name">BYOK</span>
+                    <span className="jcd-pill jcd-pill-soft">You pay your provider, not us</span>
+                  </span>
+                  Bring your own API key. Paste a key from Anthropic, OpenAI, Google, Hugging Face
+                  or an AI Gateway, and the request goes straight from the extension to that
+                  company. The key is stored on your device, no JustClarify server sits in the
+                  middle, and we never see it or bill you for anything.
+                  <span className="jcd-specs">
+                    <span>Anthropic</span>
+                    <span>OpenAI</span>
+                    <span>Google Gemini</span>
+                    <span>Hugging Face</span>
+                    <span>AI Gateway</span>
+                  </span>
+                </span>
+              </span>
+              <span className="jcd-engine">
+                <span className="jcd-engine-ico" aria-hidden="true"><Glyph name="cloud" /></span>
+                <span className="jcd-engine-body">
+                  <span className="jcd-engine-h">
+                    <span className="jcd-engine-name">Hosted</span>
+                    <span className="jcd-pill">30 asks free, then $3.99/mo</span>
+                  </span>
+                  Our model on our server, for machines that can&apos;t run a local one and for
+                  people who would rather not manage a key at all. This is the only one of the four
+                  where your text leaves your machine for us, and the only one that costs money.
+                  <span className="jcd-specs">
+                    <span>No setup</span>
+                    <span>Voice control included</span>
+                  </span>
+                </span>
+              </span>
+            </span>
           </li>
           <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="book" /></span>
             <b>Definitions don&apos;t go to a model at all.</b> Highlight a single word and Define
-            queries a real dictionary (the free, keyless Dictionary API) for the actual entry —
-            part of speech, senses, and the dictionary&apos;s own example sentence. A definition is
-            a lookup, not a generation; a model can only paraphrase what a dictionary already
-            states, and it can get it wrong. Only words with no entry — jargon, proper nouns,
-            coinages — fall back to a contextual explanation.
+            queries a real dictionary (the free, keyless Dictionary API) for the actual entry:
+            part of speech, senses, and the dictionary&apos;s own example sentence.{" "}
+            <span className="jcd-hi">A definition is a lookup, not a generation.</span> Only words
+            with no entry (jargon, proper nouns, coinages) fall back to a contextual explanation.
           </li>
           <li>
-            <b>Your key, your models — strictly optional.</b> Want frontier-quality answers? Add your
-            own AI Gateway key in settings, and the same prompt routes through one OpenAI-compatible
-            endpoint to whichever model you choose — Claude, GPT, Llama, hundreds of others — and
-            streams straight back. The key lives in your browser&apos;s storage and is sent only to
-            the gateway. We never see it, and there is no JustClarify server in between.
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="key" /></span>
+            <b>BYOK: your key, your models, your bill.</b> Flip on &quot;use your own AI key&quot;
+            in settings, paste a key from Anthropic, OpenAI, Google, Hugging Face or an AI Gateway,
+            and the same prompt goes straight from the extension to that company. JustClarify reads
+            the prefix to know whose key it is and picks a sensible model unless you name one.{" "}
+            <span className="jcd-hi">
+              The key is stored on your device and sent only to the company it belongs to.
+            </span>{" "}
+            No JustClarify server sits in between, we never see the key, and we never charge you a
+            cent for using it.
           </li>
           <li>
-            <b>The badge never lies.</b> Every answer is stamped with the engine and model that
-            produced it, so an on-device reply and a gateway one can never be confused. Fact-checks
-            return a verdict plus a clickable source — or they don&apos;t return at all.
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="server" /></span>
+            <b>Without a key, the hosted model. It is a real server.</b>{" "}
+            <span className="jcd-pill">30 asks free, then $3.99/mo</span> Machines that can&apos;t
+            run Gemini Nano used to install this and get nothing. Now the prompt goes to
+            justclarify.xyz, which holds our API key server-side (a key shipped inside an extension
+            is a zip file anyone can unpack) and streams the answer back. It is last in the chain
+            because it is the only tier that costs us money and the only one where your text leaves
+            your machine for us.
+          </li>
+          <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="shield" /></span>
+            <b>Fact-checks are shared, on purpose.</b> A claim and the page&apos;s URL go to our
+            cache, which checks that article against published rulings once and serves the result to
+            everyone who reads it after you. It&apos;s the one part of the product that gets better
+            because other people used it, and{" "}
+            <span className="jcd-hi">the one place a URL you visited is stored</span>. Verdicts come
+            back with a source you can click, or they don&apos;t come back at all.
+          </li>
+          <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="badge" /></span>
+            <b>The badge never lies.</b> Every answer is stamped with the engine and the model that
+            produced it, so a reply from your own hardware, from your chat subscription and from our
+            server can never be mistaken for each other.{" "}
+            <span className="jcd-hi">
+              If you want to know where a sentence came from, it&apos;s written on the sentence.
+            </span>
           </li>
         </ol>
       </section>
@@ -765,7 +1033,7 @@ export default function DemoPage() {
         </p>
         <div className="jcd-close-row">
           <a className="jcd-cta" href={STORE_URL} target="_blank" rel="noopener noreferrer">
-            Add it to Chrome — free
+            Add it to Chrome · Free
           </a>
           <a className="jcd-cta-ghost" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
             Read the source
@@ -852,11 +1120,116 @@ function TextArea({ tool, busy, onTool, onReset, taBtnRefs }) {
         {busy
           ? "Rewriting…"
           : active
-            ? `${active.note}  ·  Try another tool — it always rewrites your original.`
-            : "Paste rough text, pick a tool — it rewrites in place. Try all four."}
+            ? `${active.note}  ·  Try another tool. It always rewrites your original.`
+            : "Paste rough text, pick a tool, and it rewrites in place. Try all four."}
       </p>
     </div>
   );
+}
+
+function VoiceDemo() {
+  const [state, setState] = useState("ready");
+  const [scenarioIndex, setScenarioIndex] = useState(0);
+  const [spoken, setSpoken] = useState("");
+  const timers = useRef([]);
+  const scenario = VOICE_SCENARIOS[scenarioIndex];
+
+  const clearTimers = () => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+  };
+
+  useEffect(() => () => clearTimers(), []);
+
+  function runVoiceDemo() {
+    clearTimers();
+    setState("listening");
+    setSpoken("");
+    const words = scenario.question.split(" ");
+    words.forEach((_, index) => {
+      timers.current.push(setTimeout(() => setSpoken(words.slice(0, index + 1).join(" ")), 260 * (index + 1)));
+    });
+    timers.current.push(setTimeout(() => {
+      setState("heard");
+      timers.current.push(setTimeout(() => {
+        setState("answer");
+      }, 1050));
+    }, 260 * words.length + 650));
+  }
+
+  function nextQuestion() {
+    clearTimers();
+    setScenarioIndex((index) => (index + 1) % VOICE_SCENARIOS.length);
+    setSpoken("");
+    setState("ready");
+  }
+
+  return (
+    <div className="jcd-voice" aria-live="polite">
+      <article className="jcd-article jcd-voice-article">
+        <h2>Why the team hit pause before the release</h2>
+        <p>
+          Late in the sprint, the engineers <mark className={"jcd-hl" + (scenario.target === "pause" && (state === "heard" || state === "answer") ? " is-sel" : "")}>hit pause before the release</mark>. Rather than cram in one more
+          feature, they chose to refactor the legacy module first, arguing that the{" "}
+          <mark className={"jcd-hl" + (scenario.target === "debt" && (state === "heard" || state === "answer") ? " is-sel" : "")}>
+            technical debt
+          </mark>{" "}
+          had grown untenable, and was quietly slowing every new change to a crawl.
+        </p>
+        <p>Nobody outside the team could see it, but <mark className={"jcd-hl" + (scenario.target === "shortcuts" && (state === "heard" || state === "answer") ? " is-sel" : "")}>each shortcut taken months earlier</mark> was now taxing everything built on top of it.</p>
+      </article>
+
+      <aside className={"jcd-voice-card is-" + state}>
+        <span className="jcd-voice-dot" aria-hidden="true"><VoiceIcon /></span>
+        {state === "ready" && <>
+          <p className="jcd-voice-kicker">Voice control</p>
+          <button type="button" className="jcd-voice-go" onClick={runVoiceDemo}>▶ Watch it listen</button>
+        </>}
+        {state === "listening" && <>
+          <p className="jcd-voice-kicker">Listening</p>
+          <h3>Say what you want to understand.</h3>
+          <p className="jcd-voice-prompt">“{spoken}”</p>
+          <span className="jcd-voice-safe">Or tell it to scroll, go back, click a button, or find something on the site.</span>
+        </>}
+        {state === "heard" && <>
+          <p className="jcd-voice-kicker">Heard</p>
+          <p className="jcd-transcript">“{scenario.question}”</p>
+          <p>Finding that idea in the article…</p>
+        </>}
+        {state === "answer" && <>
+          <p className="jcd-voice-kicker">Explanation</p>
+          <h3>“{scenario.label}”</h3>
+          <p>{scenario.answer}</p>
+          <button type="button" className="jcd-voice-again" onClick={nextQuestion}>Try another question</button>
+        </>}
+      </aside>
+    </div>
+  );
+}
+
+const VOICE_SCENARIOS = [
+  {
+    target: "debt",
+    question: "What does technical debt mean?",
+    label: "technical debt",
+    answer: "It means the future cost of earlier shortcuts in the code. They saved time at first, but now every change takes longer and carries more risk.",
+  },
+  {
+    target: "pause",
+    question: "Why did the team pause before the release?",
+    label: "hit pause before the release",
+    answer: "They paused because the legacy module had become a bottleneck. Refactoring it first would make the work that followed safer and faster.",
+  },
+  {
+    target: "shortcuts",
+    question: "What shortcuts are they talking about?",
+    label: "each shortcut taken months earlier",
+    answer: "They mean earlier quick fixes and expedient choices. Each one was small at the time, but together they made the code harder to change.",
+  },
+];
+
+function VoiceIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5a3 3 0 0 0-3 3v4a3 3 0 1 0 6 0v-4a3 3 0 0 0-3-3Z" /><path d="M6 11.5a6 6 0 0 0 12 0M12 17.5v3M9 20.5h6" /></svg>;
 }
 
 function Step({ n, label, done, active }) {
@@ -900,6 +1273,10 @@ const CSS = `
 /* ── demo ────────────────────────────────────────────────────────── */
 .jcd-demo { max-width: 860px; margin: 0 auto; padding: clamp(12px, 3vw, 24px) clamp(14px, 4vw, 28px) clamp(40px, 6vw, 64px); }
 .jcd-demo-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.jcd-mode-switch { display: inline-flex; gap: 3px; padding: 4px; border: 1px solid #e7e2dd; border-radius: 999px; background: #f4f1ee; }
+.jcd-mode { padding: 8px 12px; border: 0; border-radius: 999px; background: transparent; color: #6d645d; font: 700 12.5px/1 inherit; cursor: pointer; transition: background .16s ease-out, color .16s ease-out, box-shadow .16s ease-out, transform .1s ease-out; }
+.jcd-mode.is-on { background: #fff; color: #14110f; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+.jcd-mode:active, .jcd-voice-go:active, .jcd-voice-again:active { transform: scale(.97); }
 .jcd-steps { display: flex; gap: 8px; flex-wrap: wrap; }
 .jcd-step { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 999px;
   border: 1px solid #e7e2dd; background: #fff; font-size: 12px; color: #a39a92; transition: all .2s ease; }
@@ -919,6 +1296,24 @@ const CSS = `
 .jcd-fakebar { display: flex; align-items: center; gap: 6px; padding: 11px 14px; background: #f4f1ee; border-bottom: 1px solid #ece7e3; }
 .jcd-fakebar i { width: 10px; height: 10px; border-radius: 50%; background: #d8d2cc; }
 .jcd-fakebar span { margin-left: 10px; font-size: 12px; color: #a39a92; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Voice control is a separate entry point, not an agent: it hears an intent,
+   finds the relevant part of the current page, then puts the answer beside it. */
+.jcd-voice { min-height: 440px; padding-bottom: 22px; }
+.jcd-voice-article { padding-bottom: 8px; }
+.jcd-voice-article p, .jcd-voice-article .jcd-dim { color: #3a342f; }
+.jcd-voice-card { position: relative; margin: 16px clamp(16px, 4vw, 28px) 0; max-width: 490px; padding: 16px 18px 15px 58px; border: 1px solid rgba(17,17,17,.1); border-radius: 14px; background: rgba(255,255,255,.92); box-shadow: 0 14px 34px rgba(0,0,0,.12); backdrop-filter: blur(14px); transition: transform .22s cubic-bezier(.23,1,.32,1), opacity .22s ease-out; }
+.jcd-voice-dot { position: absolute; left: 17px; top: 17px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: color-mix(in srgb, var(--a) 16%, white); color: var(--a); }
+.jcd-voice-dot svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.jcd-voice-card.is-listening .jcd-voice-dot { animation: jcd-listen 1.2s ease-in-out infinite; }
+@keyframes jcd-listen { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--a) 15%, transparent); } }
+.jcd-voice-card h3 { margin: 0 0 5px; font-size: 16px; letter-spacing: -.015em; }
+.jcd-voice-card p { margin: 0; font-size: 13px; line-height: 1.55; color: #5a524c; }
+.jcd-voice-kicker { margin-bottom: 5px !important; color: var(--a) !important; font-size: 10px !important; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+.jcd-voice-prompt, .jcd-transcript { margin: 8px 0 !important; color: #14110f !important; font-weight: 650; }
+.jcd-voice-go, .jcd-voice-again { display: inline-flex; margin-top: 12px; padding: 8px 11px; border: 1px solid #14110f; border-radius: 999px; background: #14110f; color: #fff; font: 700 12px/1 inherit; cursor: pointer; transition: transform .1s ease-out, background .16s ease-out; }
+.jcd-voice-go:hover, .jcd-voice-again:hover { background: var(--a); border-color: var(--a); }
+.jcd-voice-safe { display: block; margin-top: 9px; font-size: 11px; color: #8f8780; }
 
 .jcd-article { padding: 26px clamp(16px, 3.5vw, 28px) 8px; }
 .jcd-article h2 { margin: 0 0 12px; font-size: clamp(17px, 2.6vw, 20px); font-weight: 700; letter-spacing: -0.02em; color: #14110f; }
@@ -1050,6 +1445,60 @@ const CSS = `
 .jcd-caption { margin: 18px 2px 0; font-size: 13.5px; color: #5a524c; min-height: 20px; font-weight: 500; }
 .jcd-fine { margin: 6px 2px 0; font-size: 12px; color: #a39a92; }
 
+@media (prefers-reduced-motion: reduce) {
+  .jcd-mode, .jcd-voice-card, .jcd-voice-go, .jcd-voice-again { transition-duration: .01ms; }
+  .jcd-voice-card.is-listening .jcd-voice-dot { animation: none; }
+}
+
+/* ── scan layer ──────────────────────────────────────────────────────
+   Everything below the demo is prose, and most people will not read prose.
+   These four primitives are what they read instead: the accent wash marks the
+   one clause per paragraph that carries the point, the key cap shows the key
+   rather than naming it, the pill carries a price or a caveat, and the chips
+   turn a sentence-shaped list back into a list. */
+
+/* The same accent wash the extension paints on a selection, so the page
+   highlights its own key phrases exactly the way the product highlights yours. */
+.jcd-hi { background-image: linear-gradient(color-mix(in srgb, var(--a) 30%, transparent), color-mix(in srgb, var(--a) 30%, transparent));
+  border-radius: 3px; padding: 0 3px; color: #14110f; font-weight: 650;
+  box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+
+/* Sized in em so the same cap works in a 34px h2 and in 15px body copy. */
+.jcd-kbd { display: inline-flex; align-items: baseline; gap: .28em; padding: .1em .42em .18em;
+  border: 1px solid #d8d2cc; border-bottom-width: 2px; border-radius: .32em; background: #fff;
+  box-shadow: 0 1px 0 rgba(0,0,0,.05); font: inherit; font-size: .82em; font-weight: 700; line-height: 1.3;
+  color: #14110f; white-space: nowrap; }
+.jcd-kbd-sym { font-size: 1.1em; line-height: 1; }
+
+.jcd-pill { display: inline-flex; align-items: center; padding: 2px 9px 3px; border-radius: 999px;
+  background: var(--a); color: #fff; font-size: .78em; font-weight: 750; white-space: nowrap;
+  vertical-align: baseline; }
+.jcd-pill-soft { background: color-mix(in srgb, var(--a) 14%, transparent); color: var(--a); }
+
+.jcd-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 11px 0 3px; }
+.jcd-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 9px;
+  border: 1px solid #e7e2dd; border-radius: 999px; background: #fff; font-size: 12.5px; font-weight: 600;
+  color: #3a342f; line-height: 1.25; }
+.jcd-chip .jcd-ico, .jcd-chip .jcd-glyph { flex: 0 0 auto; width: 15px; height: 15px; color: var(--a); }
+
+.jcd-glyph { width: 22px; height: 22px; }
+
+/* Engine cards: the four answer paths, which were a wall of <br>-separated prose.
+   BYOK is its own card because it is its own decision, not a footnote on the
+   hosted tier: the key goes straight to the provider and we never bill it. */
+.jcd-engines { display: grid; gap: 9px; margin: 13px 0 4px; }
+.jcd-engine { display: flex; gap: 12px; padding: 13px 15px 14px; border: 1px solid #ece7e3;
+  border-radius: 12px; background: #fff; }
+.jcd-engine-ico { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--a) 11%, transparent); color: var(--a); }
+.jcd-engine-ico .jcd-glyph { width: 17px; height: 17px; }
+.jcd-engine-body { display: block; font-size: 13.5px; line-height: 1.6; color: #3a342f; }
+.jcd-engine-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+.jcd-engine-name { font-size: 14.5px; font-weight: 750; color: #14110f; }
+.jcd-specs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.jcd-specs span { padding: 3px 9px 4px; border-radius: 999px; background: #f4f1ee; color: #6d645d;
+  font-size: 11px; font-weight: 600; }
+
 /* ── the turn (sits directly under the demo) ─────────────────────── */
 .jcd-turn { max-width: 760px; margin: 0 auto; padding: clamp(20px, 4vw, 36px) clamp(18px, 5vw, 28px) clamp(8px, 2vw, 16px); }
 .jcd-turn p { margin: 0 0 16px; font-size: clamp(15.5px, 2.2vw, 17.5px); line-height: 1.65; color: #3a342f; }
@@ -1060,9 +1509,17 @@ const CSS = `
 /* ── convictions ─────────────────────────────────────────────────── */
 .jcd-creed { max-width: 760px; margin: 0 auto; padding: clamp(24px, 5vw, 48px) clamp(18px, 5vw, 28px);
   border-top: 1px solid #ece7e3; display: flex; flex-direction: column; gap: clamp(28px, 5vw, 44px); }
-.jcd-creed-item { position: relative; padding-left: clamp(44px, 8vw, 64px); }
-.jcd-creed-n { position: absolute; left: 0; top: 2px; font-size: 13px; font-weight: 800; color: var(--a); letter-spacing: .04em; }
+.jcd-creed-item { position: relative; padding-left: clamp(48px, 8vw, 64px); }
+/* The number used to hold this column on its own; the glyph says what the
+   conviction is about before the heading has been read. */
+.jcd-creed-ico { position: absolute; left: 0; top: 0; width: 34px; height: 34px; border-radius: 11px;
+  display: grid; place-items: center; color: var(--a);
+  background: color-mix(in srgb, var(--a) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--a) 20%, transparent); }
+.jcd-creed-ico .jcd-glyph { width: 19px; height: 19px; }
+.jcd-creed-n { display: block; margin-bottom: 3px; font-size: 12px; font-weight: 800; color: var(--a); letter-spacing: .1em; }
 .jcd-creed-item h3 { margin: 0 0 8px; font-size: clamp(19px, 3vw, 23px); font-weight: 750; letter-spacing: -0.02em; }
+.jcd-creed-item .jcd-chips { margin: 0 0 12px; }
 .jcd-creed-item p { margin: 0; font-size: clamp(14.5px, 2vw, 16px); line-height: 1.65; color: #3a342f; }
 .jcd-creed-item a { color: inherit; text-decoration-color: var(--a); text-underline-offset: 3px; }
 .jcd-creed-item a:hover { color: var(--a); }
@@ -1073,12 +1530,21 @@ const CSS = `
 .jcd-tech h2 { margin: 0 0 12px; font-size: clamp(24px, 4vw, 34px); font-weight: 800; letter-spacing: -0.03em; }
 .jcd-tech-lead { margin: 0 0 24px; font-size: clamp(14.5px, 2vw, 16px); line-height: 1.6; color: #3a342f; }
 .jcd-pipe { margin: 0; padding: 0; list-style: none; counter-reset: pipe; display: flex; flex-direction: column; }
-.jcd-pipe li { counter-increment: pipe; position: relative; padding: 18px 0 18px clamp(44px, 8vw, 60px);
+.jcd-pipe li { counter-increment: pipe; position: relative; padding: 18px 0 18px clamp(48px, 8vw, 60px);
   font-size: clamp(14.5px, 2vw, 15.5px); line-height: 1.65; color: #3a342f; border-bottom: 1px solid #f0ece8; }
 .jcd-pipe li:last-child { border-bottom: 0; }
-.jcd-pipe li::before { content: counter(pipe, decimal-leading-zero); position: absolute; left: 0; top: 21px;
-  font-size: 13px; font-weight: 800; color: var(--a); letter-spacing: .04em; }
+/* The glyph is the marker now. On the pipeline (an actual sequence) the step
+   number keeps its job and sits under the glyph; the voice list isn't ordered,
+   so it gets the glyph alone. */
+.jcd-pipe-ico { position: absolute; left: 0; top: 18px; width: 32px; height: 32px; border-radius: 10px;
+  display: grid; place-items: center; color: var(--a);
+  background: color-mix(in srgb, var(--a) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--a) 20%, transparent); }
+.jcd-pipe-ico .jcd-glyph { width: 18px; height: 18px; }
+.jcd-pipe-steps li::before { content: counter(pipe, decimal-leading-zero); position: absolute; left: 0; top: 55px;
+  width: 32px; text-align: center; font-size: 10.5px; font-weight: 800; color: var(--a); letter-spacing: .06em; opacity: .75; }
 .jcd-pipe b { color: #14110f; }
+.jcd-pipe .jcd-chips { margin-bottom: 0; }
 
 /* ── close ───────────────────────────────────────────────────────── */
 .jcd-close { max-width: 760px; margin: 0 auto; padding: clamp(16px, 4vw, 32px) clamp(18px, 5vw, 28px) clamp(72px, 10vw, 110px); }

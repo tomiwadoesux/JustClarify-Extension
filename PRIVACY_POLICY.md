@@ -1,6 +1,6 @@
 # JustClarify Privacy Policy
 
-Last updated: July 28, 2026
+Last updated: August 5, 2026
 
 ## Overview
 
@@ -35,6 +35,21 @@ When you run a fact-check on a page, the extension sends the page's text, its we
 If you explicitly start live fact-checking, JustClarify captures audio from the current tab so that spoken claims can be transcribed and checked. This requires the `tabCapture` permission and an offscreen document, because Chrome does not allow service workers to access audio directly.
 
 Audio capture starts only when you start it and stops when you stop it. Audio is transcribed for the purpose of extracting claims. We do not retain audio recordings.
+
+### 5. Your voice — only while you hold Shift
+
+JustClarify has an optional voice control: hold the Shift key, say what you want, let go. The microphone is only active while the key is held.
+
+Turning what you say into text is done by **your browser's own speech service**. Depending on your platform and language, the browser may process that audio on its vendor's servers (for Chrome, Google's). That is a property of the browser, not something JustClarify controls, and it applies in every voice mode.
+
+What happens to the recognised text depends on whether it is a command:
+
+- **Recognised commands stay on your device.** Scrolling, tabs, opening a site, clicking a button, reading aloud and the rest are matched against a fixed list here in your browser. Nothing about them is sent to JustClarify or to any AI provider.
+- **Anything else is sent to an AI engine** to work out what you meant, together with a short list of the current page's buttons, links and headings (their labels — never the page's text). If it still can't be understood, the recording of that one hold may be uploaded to the JustClarify backend for more accurate transcription. Recordings are transcribed and discarded; we do not retain them. When correcting a misheard site name ("open …"), the request may also include the names of up to 60 sites from your browsing history, so the engine can tell which one sounds like what you said. Those names are used for that one answer and are not stored.
+
+While you hold the key, the extension also records that one stretch of audio locally, so a phrase it mishears can be re-read more accurately. That recording is discarded when the hold is understood, and only ever uploaded in the case described above.
+
+Voice commands can also read your browsing history locally — for example, to open a site you have visited before when you name it. That matching happens on your device, and JustClarify never stores your history.
 
 ## Shared fact-check results
 
@@ -92,6 +107,7 @@ Stored in our database, hosted with Supabase, as described in **Shared fact-chec
 - **Fact-check verdicts:** retained for up to 14 days, after which they expire and are re-checked or removed.
 - **Selected text and context:** not retained after your response is generated.
 - **Audio:** not retained.
+- **Voice recordings:** uploaded only when a phrase needs re-transcribing; transcribed and discarded, not retained.
 - **Email address:** retained while you remain on the early access list, until you ask us to delete it.
 
 ## Third-Party Services
@@ -104,8 +120,9 @@ JustClarify uses the following services, which may process the information neede
 | Vercel | Hosting for the JustClarify backend |
 | Hugging Face | AI-generated explanations |
 | Vercel AI Gateway | Routes AI requests to model providers |
+| Anthropic, OpenAI, Google Gemini, Hugging Face (your own key) | If you supply your own API key, requests go directly from your browser to the provider the key belongs to — never through a JustClarify server |
 | Perplexity | Web-grounded fact-check verdicts |
-| OpenAI | Identifying which sentences contain checkable claims |
+| OpenAI | Identifying which sentences contain checkable claims; transcribing voice recordings and generating read-aloud speech (via Vercel AI Gateway) |
 | Google Fact Check Tools | Retrieving fact-checks already published by organisations such as PolitiFact, Snopes and FactCheck.org |
 | DictionaryAPI | Dictionary lookups |
 | Resend | Storing email contacts and sending email |
@@ -121,7 +138,7 @@ JustClarify does not intentionally collect:
 - keystroke logs
 - a log of your general browsing activity
 
-To be precise about browsing data: we do **not** record the pages you visit. We **do** store the address of a page when you actively run a fact-check on it, as described above.
+To be precise about browsing data: we do **not** record the pages you visit. We **do** store the address of a page when you actively run a fact-check on it, as described above. Voice commands may read your browsing history locally to open a site you name, and may send site names (not full addresses) to an AI engine to correct a misheard name — but JustClarify never stores your history.
 
 ## Sharing of Information
 

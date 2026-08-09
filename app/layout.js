@@ -8,16 +8,16 @@ const interTight = Inter_Tight({
   weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
 });
 
-const TITLE = "Explain Any Highlighted Text — JustClarify Chrome Extension";
+const TITLE = "Explain Any Highlighted Text | JustClarify Chrome Extension";
 const DESCRIPTION =
-  "Highlight any word or sentence and get a plain-English explanation without leaving the page. Free Chrome extension, on-device AI, no account and no setup.";
+  "Highlight any word or sentence and get a plain-English explanation without leaving the page, or hold Shift and just say it. Free Chrome extension, on-device AI, no account and no setup.";
 const OG_IMAGE = "/Images/OgImage.webp";
 
 export const metadata = {
   metadataBase: new URL("https://justclarify.xyz"),
   // `default` is the homepage title; every child route that sets its own title
   // gets it suffixed via `template`, so no page is ever bare "JustClarify".
-  title: { default: TITLE, template: "%s — JustClarify" },
+  title: { default: TITLE, template: "%s | JustClarify" },
   description: DESCRIPTION,
   applicationName: "JustClarify",
   alternates: { canonical: "/" },
@@ -40,7 +40,7 @@ export const metadata = {
         url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "JustClarify — highlight anything, understand it instantly",
+        alt: "JustClarify: highlight anything, understand it instantly",
       },
     ],
   },
@@ -64,10 +64,17 @@ const JSON_LD = {
   description: DESCRIPTION,
   url: "https://justclarify.xyz",
   image: "https://justclarify.xyz" + OG_IMAGE,
+  // The extension installs free and stays free on the two engines that cost us
+  // nothing (on-device, and the user's own chat subscription), so price 0 is the
+  // honest entry price. The hosted engine's $3.99/month is an in-app upgrade,
+  // not the price of the application.
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
     "Explain highlighted text in place",
     "On-device AI with no account required",
+    "Answer using your existing ChatGPT, Claude or Gemini subscription",
+    "Bring your own API key (Anthropic, OpenAI, Google, Hugging Face) with no server in between",
+    "Hold-Shift voice control: explain, navigate, scroll and read aloud",
     "Fact-check claims against published rulings",
     "Reading focus mode",
   ],

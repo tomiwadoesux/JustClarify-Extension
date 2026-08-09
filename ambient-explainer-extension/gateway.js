@@ -24,12 +24,39 @@ const GATEWAY_SYSTEM_PROMPT =
   "You are JustClarify, an ambient reading assistant. Answer directly and follow the user's " +
   "formatting instructions exactly — no preamble, no markdown headers unless asked.";
 
+// fetch() has no default timeout, so a stalled connection here used to hang
+// forever: the worker never answered, the content script's await never settled,
+// and the voice chip pulsed on screen with no path to any other state. Every
+// "it just keeps loading" report ended at an unbounded fetch.
+//
+// The ceiling is on TIME TO RESPONSE, not time to finish — the timer is cleared
+// the instant headers arrive, so a long streamed answer is never cut off
+// mid-sentence. An abort surfaces as an ordinary network rejection, which every
+// caller here already handles.
+async function jcFetchBounded(url, options, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms || 30_000);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function gatewayGetSettings() {
   const res = await chrome.storage.local.get(GATEWAY_SETTINGS_KEYS);
   if (!res.jcByokEnabled || !res.jcByokKey) return null;
+  const apiKey = String(res.jcByokKey).trim();
+  // The key slot now holds ANY provider's key (providers.js), and this function
+  // must refuse the ones that aren't the Gateway's — an Anthropic key sent to
+  // ai-gateway.vercel.sh in a Bearer header is a leak to a third party, not a
+  // 401 to shrug at.
+  if (typeof jcDetectProvider === "function" && jcDetectProvider(apiKey) !== "vercel") {
+    return null;
+  }
   return {
     enabled: true,
-    apiKey: String(res.jcByokKey).trim(),
+    apiKey,
     model: (res.jcByokModel || "").trim() || GATEWAY_DEFAULT_MODEL,
   };
 }
@@ -74,6 +101,106 @@ function gatewayError(detail) {
   };
 }
 
+// Read an OpenAI-style SSE stream to completion, reporting the answer-so-far no
+// more than ~12 times a second. Shared by the BYOK path and the hosted one,
+// which speak the same wire format on purpose: hosted.js proxies this exact
+// format through justclarify.xyz, so neither tier needs its own parser.
+//
+// Never rejects. A stream that dies mid-answer returns what it managed to read
+// alongside the error, and the caller decides whether a partial answer is worth
+// showing (it usually is).
+async function gatewayReadStream(response, onGrow) {
+  let answer = "";
+  let lastEmit = 0;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop(); // keep the trailing partial line
+
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (payload === "[DONE]") continue;
+        try {
+          const delta = JSON.parse(payload).choices?.[0]?.delta?.content;
+          if (delta) answer += delta;
+        } catch (_) {
+          // partial/keepalive line — ignore
+        }
+      }
+
+      const now = Date.now();
+      if (answer && now - lastEmit > 80) {
+        onGrow(answer);
+        lastEmit = now;
+      }
+    }
+  } catch (error) {
+    return { answer, error: String(error).slice(0, 120) };
+  }
+
+  return { answer, error: null };
+}
+
+// A one-shot, non-streaming, history-free call that must return JSON.
+//
+// Deliberately separate from gatewayAsk: classification is not conversation.
+// Sharing the per-tab history would let a stray "scroll down" become context
+// for the next explanation, and the streaming/progress machinery exists to
+// paint prose into a popup that no classifier ever opens. Low temperature and
+// a small token cap because the answer is one short object.
+async function gatewayClassify(systemPrompt, userPrompt) {
+  const settings = await gatewayGetSettings();
+  if (!settings) return null;
+
+  let response;
+  try {
+    response = await jcFetchBounded(GATEWAY_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${settings.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: settings.model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        // NO response_format: the Gateway rejects the parameter itself with a
+        // 400, so sending it made every BYOK classification fail silently
+        // (this function returns null on !ok, so it looked like "the model had
+        // no idea" rather than "the request was malformed"). Temperature 0 and
+        // a prompt demanding JSON do the work; parseStep strips fences.
+        max_tokens: 120,
+        temperature: 0,
+      }),
+    });
+  } catch (_) {
+    return null;
+  }
+
+  if (!response.ok) return null;
+
+  let text;
+  try {
+    const data = await response.json();
+    text = data?.choices?.[0]?.message?.content || "";
+  } catch (_) {
+    return null;
+  }
+  return text.trim() || null;
+}
+
 async function gatewayAsk(prompt, reqId, tabId) {
   const settings = await gatewayGetSettings();
   if (!settings) return gatewayError("no API key saved. Add one in the extension popup.");
@@ -87,7 +214,7 @@ async function gatewayAsk(prompt, reqId, tabId) {
 
   let response;
   try {
-    response = await fetch(GATEWAY_URL, {
+    response = await jcFetchBounded(GATEWAY_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${settings.apiKey}`,
@@ -122,47 +249,14 @@ async function gatewayAsk(prompt, reqId, tabId) {
   }
 
   // Parse the OpenAI-style SSE stream, pushing partial answers as they grow.
-  let answer = "";
-  let lastEmit = 0;
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      const lines = buffer.split("\n");
-      buffer = lines.pop(); // keep the trailing partial line
-
-      for (const raw of lines) {
-        const line = raw.trim();
-        if (!line.startsWith("data:")) continue;
-        const payload = line.slice(5).trim();
-        if (payload === "[DONE]") continue;
-        try {
-          const delta = JSON.parse(payload).choices?.[0]?.delta?.content;
-          if (delta) answer += delta;
-        } catch (_) {
-          // partial/keepalive line — ignore
-        }
-      }
-
-      // Throttle progress a little so we don't flood the content script.
-      const now = Date.now();
-      if (answer && now - lastEmit > 80) {
-        gatewayProgress(tabId, reqId, answer, false, settings.model);
-        lastEmit = now;
-      }
-    }
-  } catch (e) {
-    if (!answer) return gatewayError(`stream failed (${String(e).slice(0, 120)}).`);
-    // Partial answer is better than none — fall through and return it.
+  const stream = await gatewayReadStream(response, (partial) =>
+    gatewayProgress(tabId, reqId, partial, false, settings.model),
+  );
+  if (stream.error && !stream.answer) {
+    return gatewayError(`stream failed (${stream.error}).`);
   }
-
-  answer = answer.trim();
+  // A partial answer is better than none — fall through and return it.
+  let answer = stream.answer.trim();
   if (!answer) return gatewayError("the model returned an empty answer.");
 
   await gatewaySaveHistory(historyKey, [

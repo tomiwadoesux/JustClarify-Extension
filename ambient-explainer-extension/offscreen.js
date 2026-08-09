@@ -421,6 +421,253 @@ function stopCapture(options) {
   if (notify) emit({ type: "JC_AUDIO_ENDED" });
 }
 
+// ------------------------------------------------------------------ the mic
+//
+// Push-to-talk capture, relocated here from the content script. A content
+// script inherits the PAGE's microphone permission, so voice died on every
+// site that blocks the mic with Permissions-Policy, on every http:// page, and
+// on every site the user had ever clicked Block on. This document runs on the
+// extension's own origin, which holds a single grant (collected once by
+// mic.html) that no website can override.
+//
+// The AUTHORITATIVE transcript still comes from the worker's hosted lane on
+// release — Web Speech mangles exactly the proper nouns spoken commands are
+// made of, which is why the accurate pass exists at all.
+//
+// Web Speech runs here anyway, for one job: the live echo. The note that used
+// to sit here said it was impossible in an offscreen document because it "needs
+// a window with a real permission affordance". That is true of the PROMPT, not
+// of the API — this document runs on the extension's own origin, which already
+// holds a standing grant collected once by mic.html, so there is nothing left
+// to prompt for. Without it this lane showed "Listening…" and then nothing at
+// all until the user let go, which reads as a freeze rather than as listening.
+
+let micStream = null;
+let micRecorder = null;
+let micChunks = [];
+let micSpeech = null;
+let micLevel = null;
+
+// The proof-of-hearing meter. Whether Web Speech produces an echo in an
+// offscreen document is a Chrome implementation detail; the microphone LEVEL
+// is not — the stream is right here. Ten cheap readings a second let the chip
+// move with the user's voice from the first syllable, so a hold never looks
+// frozen even when the word echo has nothing to show yet.
+function micLevelStart(stream) {
+  try {
+    const ctx = new AudioContext();
+    // No user gesture in an offscreen document; without this the context can
+    // come up suspended and the meter reads a flat zero.
+    ctx.resume().catch(() => {});
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    const data = new Uint8Array(analyser.fftSize);
+    const timer = setInterval(() => {
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / data.length);
+      // Speech RMS lives well under 0.25; ×4 spreads it over the chip's range.
+      emit({ type: "JC_VOICE_LEVEL", level: Math.min(1, rms * 4) });
+    }, 100);
+    micLevel = { ctx, timer };
+  } catch (_) {
+    // The meter is a courtesy; the recording above it is the product.
+  }
+}
+
+function micLevelStop() {
+  const m = micLevel;
+  micLevel = null;
+  if (!m) return;
+  clearInterval(m.timer);
+  try {
+    m.ctx.close();
+  } catch (_) {}
+}
+
+// Every failure here is silent by design. The recording is the real product of
+// this lane; the echo is a courtesy, and a lane that still works but shows no
+// words is strictly better than one that reports an error for a feature the
+// user never asked for by name.
+function micSpeechStart() {
+  const Recognition = self.SpeechRecognition || self.webkitSpeechRecognition;
+  if (!Recognition) {
+    // Silent to the user, findable to whoever is debugging it. Whether Web
+    // Speech runs in an offscreen document at all is a Chrome implementation
+    // detail with no spec behind it, so the one question worth being able to
+    // answer from a console is "did it even construct".
+    console.debug("[JustClarify mic] no SpeechRecognition here — echo disabled");
+    return;
+  }
+
+  let recognition;
+  try {
+    recognition = new Recognition();
+  } catch (error) {
+    console.debug("[JustClarify mic] recogniser wouldn't construct:", error);
+    return;
+  }
+
+  recognition.interimResults = true;
+  // The hold decides when this ends, not the recogniser's own idea of a pause.
+  recognition.continuous = true;
+  try {
+    recognition.lang = navigator.language || "en-US";
+  } catch (_) {}
+
+  recognition.onresult = (event) => {
+    // A later hold already owns the microphone; this one's results are stale.
+    if (micSpeech !== recognition) return;
+    let settled = "";
+    let interim = "";
+    for (let i = 0; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (result.isFinal) settled += result[0].transcript;
+      else interim += result[0].transcript;
+    }
+    const shown = (settled + interim).trim();
+    if (shown) emit({ type: "JC_VOICE_PARTIAL", text: shown.slice(0, 300) });
+  };
+
+  // Silence, a dropped connection, a browser that won't run this here — none of
+  // it is worth surfacing. The hold is still recording and the hosted
+  // transcript is still coming.
+  recognition.onerror = (event) => {
+    console.debug("[JustClarify mic] echo error:", event && event.error);
+  };
+  recognition.onend = () => {};
+
+  try {
+    recognition.start();
+    micSpeech = recognition;
+  } catch (error) {
+    console.debug("[JustClarify mic] recogniser wouldn't start:", error);
+    micSpeech = null;
+  }
+}
+
+function micSpeechStop() {
+  const recognition = micSpeech;
+  micSpeech = null;
+  if (!recognition) return;
+  try {
+    recognition.stop();
+  } catch (_) {}
+}
+
+async function micStart() {
+  if (micRecorder) return { ok: true, already: true };
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      // Speech, not music. Matches the constraints the content-script lane used.
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+      },
+    });
+  } catch (error) {
+    const name = (error && error.name) || "";
+    // NotAllowedError here means the extension origin has no standing grant —
+    // and this document cannot ask for one. mic.html is the only place that can.
+    if (name === "NotAllowedError" || name === "SecurityError") {
+      return { ok: false, needsGrant: true, error: "JustClarify hasn't been given the microphone yet." };
+    }
+    if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+      return { ok: false, error: "No microphone found." };
+    }
+    return { ok: false, error: `The microphone couldn't start (${name || "unknown"}).` };
+  }
+
+  micStream = stream;
+  micChunks = [];
+  try {
+    micRecorder = new MediaRecorder(stream);
+  } catch (error) {
+    micRelease();
+    return { ok: false, error: "This browser couldn't record from the microphone." };
+  }
+  micRecorder.ondataavailable = (event) => {
+    if (event.data && event.data.size) micChunks.push(event.data);
+  };
+  micRecorder.start();
+  // After the recorder, never before it: the recording is what this lane is
+  // for, and a recogniser that throws on its way up must not take it down.
+  micSpeechStart();
+  micLevelStart(stream);
+  return { ok: true };
+}
+
+function micRelease() {
+  micRecorder = null;
+  // Every teardown path comes through here, so the recogniser can never be
+  // left holding the microphone open after a failed or abandoned hold.
+  micSpeechStop();
+  micLevelStop();
+  if (micStream) {
+    micStream.getTracks().forEach((track) => {
+      try { track.stop(); } catch (_) {}
+    });
+    micStream = null;
+  }
+}
+
+async function micStop() {
+  if (!micRecorder) return { ok: false, error: "Nothing was being recorded." };
+
+  // Stopped first so the echo dies with the hold rather than trailing a word
+  // behind it while the accurate transcript is already being fetched.
+  micSpeechStop();
+
+  const recorder = micRecorder;
+  // The last chunk only arrives on the stop event, so wait for it rather than
+  // shipping a clipped recording.
+  const finished = new Promise((resolve) => {
+    recorder.addEventListener("stop", resolve, { once: true });
+    setTimeout(resolve, 1200); // a recorder that never fires stop must not hang the hold
+  });
+  try { recorder.stop(); } catch (_) {}
+  await finished;
+
+  const chunks = micChunks;
+  const mimeType = (chunks[0] && chunks[0].type) || "audio/webm";
+  micChunks = [];
+  micRelease();
+
+  if (!chunks.length) return { ok: false, error: "Nothing was recorded." };
+  const blob = new Blob(chunks, { type: mimeType });
+  // Matched to voice.js: 800 bytes rejected genuine one-word commands, which
+  // is most of what push-to-talk is used for. Below this really is a key
+  // brush rather than speech.
+  if (blob.size < 220) return { ok: false, error: "That was too short to hear — hold Shift a moment longer." };
+
+  // Base64 because extension messaging can't carry a Blob.
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return { ok: true, audioBase64: btoa(binary), mimeType: blob.type };
+}
+
+async function micStatus() {
+  try {
+    const status = await navigator.permissions.query({ name: "microphone" });
+    return { ok: true, state: status.state };
+  } catch (_) {
+    return { ok: true, state: "prompt" };
+  }
+}
+
 // -------------------------------------------------------------------- messages
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -452,6 +699,88 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  if (message.type === "JC_MODEL_WARMUP") {
+    jcModelWarmup(); // deliberately not awaited — this can run for minutes
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (message.type === "JC_MIC_START") {
+    micStart().then(sendResponse, (e) => {
+      micRelease();
+      sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) });
+    });
+    return true;
+  }
+
+  if (message.type === "JC_MIC_STOP") {
+    micStop().then(sendResponse, (e) => {
+      micRelease();
+      sendResponse({ ok: false, error: String((e && e.message) || e).slice(0, 160) });
+    });
+    return true;
+  }
+
+  if (message.type === "JC_MIC_STATUS") {
+    micStatus().then(sendResponse, () => sendResponse({ ok: true, state: "prompt" }));
+    return true;
+  }
+
   sendResponse({ ok: false, error: `Unknown offscreen message "${message.type}".` });
   return false;
 });
+
+
+// ---------------------------------------------------------------- model warmup
+//
+// The whole reason the Device engine works now. This document's lifetime is
+// managed by the extension, not by the 30-second service-worker idle reaper —
+// so a multi-GB model download started here actually reaches 100%. Progress
+// and outcome go to chrome.storage.local (jcDeviceModel), where the popup
+// reads them; no message round-trips to a worker that may be asleep.
+
+let jcWarmupRunning = false;
+
+async function jcModelWarmup() {
+  if (jcWarmupRunning) return; // one download, however many asks poke us
+  jcWarmupRunning = true;
+
+  const report = (state, pct) => {
+    try {
+      chrome.storage.local.set({ jcDeviceModel: { state, pct: pct ?? null, at: Date.now() } });
+    } catch (_) {}
+  };
+
+  try {
+    if (typeof LanguageModel === "undefined") {
+      report("unavailable");
+      return;
+    }
+    const availability = await LanguageModel.availability();
+    if (availability === "available") {
+      report("ready", 100);
+      return;
+    }
+    if (availability === "unavailable") {
+      report("unavailable");
+      return;
+    }
+
+    report("downloading", 0);
+    const session = await LanguageModel.create({
+      monitor(m) {
+        m.addEventListener("downloadprogress", (e) => {
+          const pct = Math.round(((e.loaded || 0) / (e.total || 1)) * 100);
+          report("downloading", pct);
+        });
+      },
+    });
+    try { session.destroy?.(); } catch (_) {}
+    report("ready", 100);
+  } catch (_) {
+    // Refused, out of disk, network died — let a later poke retry.
+    report("failed");
+  } finally {
+    jcWarmupRunning = false;
+  }
+}

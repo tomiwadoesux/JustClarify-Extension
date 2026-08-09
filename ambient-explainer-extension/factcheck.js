@@ -158,7 +158,23 @@ function factCheckParse(raw) {
 
 async function factCheckVerify(claim, context, published) {
   const settings = await gatewayGetSettings();
-  if (!settings) return null; // caller decides what the free tier shows
+
+  // No key of their own: JustClarify's hosted tier verifies instead. This used
+  // to `return null` here, which meant fact-checking — the feature the product
+  // is named after — silently did nothing for every user without an API key.
+  if (!settings) {
+    const answer = await hostedComplete(
+      [{ role: "user", content: factCheckPrompt(claim, context, published) }],
+      { maxTokens: 700 },
+    );
+    if (!answer) return { error: "the fact-check service is unavailable right now" };
+    const parsed = factCheckParse(answer);
+    // The hosted model has no web search, so it returns no citations. A verdict
+    // it can't source is one it shouldn't be trusted to rule on — factCheckParse
+    // already carries whatever sources the model named, and the caller shows
+    // UNVERIFIABLE when there are none.
+    return parsed || { error: "the model's answer couldn't be read as a verdict" };
+  }
 
   let res;
   try {
@@ -339,14 +355,13 @@ async function factCheckExtractClaims(text, limit = 6) {
   if (body.length < 40) return [];
   const prompt = factCheckExtractPrompt(body, limit);
 
-  if ((await onDeviceAvailability()) === "available") {
-    const local = await onDeviceAsk(prompt, null, null).catch(() => null);
-    const claims = factCheckParseClaims(local?.answer, limit);
-    if (claims.length) return claims;
-  }
-
   const settings = await gatewayGetSettings();
-  if (!settings) return [];
+  if (!settings) {
+    // Same reasoning as factCheckVerify: without this, a keyless user gets an
+    // empty claim list and a fact-check that appears to find nothing.
+    const answer = await hostedComplete([{ role: "user", content: prompt }], { maxTokens: 700 });
+    return factCheckParseClaims(answer, limit);
+  }
   try {
     const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
       method: "POST",

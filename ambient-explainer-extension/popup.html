@@ -4,6 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>JustClarify</title>
+    <!-- Inline and FIRST on purpose. Chrome sizes the popup window off the
+         document's earliest layout; if that happens before popup.css arrives,
+         the unstyled full-width document is what gets measured, and the panel
+         opens as a 336px column of content inside a much wider window of dead
+         space. Pinning the width before any external CSS means there is never
+         a layout at any other size for Chrome to remember. -->
+    <style>
+      html, body { width: 336px; min-width: 336px; max-width: 336px; overflow-x: hidden; }
+    </style>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -23,162 +32,230 @@
     <main class="jc-body">
       <!-- ── Engine ───────────────────────────────────────────────────────── -->
       <h2 class="jc-sec">Engine</h2>
-
-      <div class="jc-engine" id="jc-engine">
-        <div class="jc-engine-top">
-          <span class="jc-diamond" aria-hidden="true"></span>
-          <span class="jc-engine-name" id="jc-engine-name">On-device AI</span>
-          <span class="jc-engine-state" id="jc-engine-state">Checking</span>
-        </div>
-        <!-- Replaced by renderEngine() as soon as the worker answers; this is
-             what shows for the frame or two before that. -->
-        <p class="jc-engine-detail" id="jc-engine-detail">Working out what will answer your next question.</p>
-        <div class="jc-progress" id="jc-engine-progress" hidden><i></i></div>
-      </div>
-
-      <p class="jc-note">On-device AI is Chrome's built-in Gemini Nano: free, private, works offline. Chrome downloads it once, about 4GB.</p>
-
-      <div class="jc-row">
-        <div class="jc-row-text">
-          <span class="jc-row-label">Use your own AI key</span>
-          <span class="jc-row-hint">Optional. Unlocks stronger models and lets fact-checking rule on claims nobody has published yet.</span>
-        </div>
-        <button id="jc-byok-switch" class="jc-switch" type="button" role="switch" aria-checked="false" aria-label="Use your own AI key">
-          <span class="jc-switch-knob"></span>
-        </button>
-      </div>
-
-      <div class="jc-reveal" id="jc-byok-fields" data-open="false">
-        <div class="jc-reveal-inner">
-          <div class="jc-field">
-            <input id="jc-byok-key" class="jc-input" type="password"
-                   placeholder="Gateway API key (vck_…)" autocomplete="off" spellcheck="false" />
-            <p class="jc-note">Your Vercel AI Gateway key. Never required — without one, answers still run free on-device.</p>
+      <div class="jc-card">
+        <div class="jc-card-pad">
+          <div class="jc-seg jc-seg-3" id="jc-engine-pick" role="radiogroup" aria-label="Engine">
+            <!-- This slot was the on-device model; that code is commented out
+                 (see background.js) and the slot is Early access now: the
+                 hosted API, free until August 28. Same data-engine value so an
+                 existing stored choice keeps working. -->
+            <button class="jc-seg-btn" id="jc-eng-device" type="button" role="radio" aria-checked="false" data-engine="device">
+              <span class="jc-seg-label">Early access</span>
+              <span class="jc-seg-hint">Free until Aug 28</span>
+            </button>
+            <button class="jc-seg-btn" id="jc-eng-llm" type="button" role="radio" aria-checked="false" data-engine="llm">
+              <span class="jc-seg-label">Your LLM</span>
+              <span class="jc-seg-hint">ChatGPT &amp; co</span>
+            </button>
+            <button class="jc-seg-btn" id="jc-eng-api" type="button" role="radio" aria-checked="true" data-engine="api">
+              <span class="jc-seg-label">API</span>
+              <span class="jc-seg-hint">Voice included</span>
+            </button>
           </div>
-          <div class="jc-field">
-            <input id="jc-byok-model" class="jc-input" type="text" list="jc-byok-models"
-                   placeholder="Model — e.g. openai/gpt-4o-mini" autocomplete="off" spellcheck="false" />
-            <datalist id="jc-byok-models">
-              <option value="openai/gpt-4o-mini"></option>
-              <option value="anthropic/claude-sonnet-4.5"></option>
-              <option value="anthropic/claude-haiku-4.5"></option>
-              <option value="google/gemini-2.5-flash"></option>
-              <option value="meta/llama-3.3-70b"></option>
-              <option value="deepseek/deepseek-v3.1"></option>
-              <option value="alibaba/qwen3-32b"></option>
+
+          <!-- Rewritten by renderEngine() with the selected engine's live state. -->
+          <p class="jc-note" id="jc-engine-note">Checking…</p>
+        </div>
+
+        <div class="jc-field jc-card-pad jc-rule" id="jc-llm-row" hidden>
+          <select id="jc-llm-provider" class="jc-input"></select>
+          <p class="jc-note">Runs in a quiet tab on the account you're already signed into.</p>
+          <!-- ChatGPT only: its ask URL carries ?model= the same way it carries
+               the question. Other providers pick their model on their own site. -->
+          <div class="jc-field" id="jc-llm-model-field" hidden>
+            <input id="jc-llm-model" class="jc-input" type="text" list="jc-llm-models"
+                   placeholder="Model — blank uses ChatGPT's default" autocomplete="off" spellcheck="false" />
+            <datalist id="jc-llm-models">
+              <option value="gpt-5"></option>
+              <option value="gpt-5-thinking"></option>
+              <option value="gpt-4o"></option>
+              <option value="o3"></option>
             </datalist>
-            <p class="jc-note">Type any model id the Gateway supports — the list is only a shortlist of suggestions.</p>
+            <p class="jc-note">Applies when a new ChatGPT window opens. A name ChatGPT doesn't recognize is simply ignored.</p>
           </div>
-          <div class="jc-field">
-            <button id="jc-byok-save" class="jc-btn jc-btn-dark" type="button">Save &amp; test key</button>
-            <p id="jc-byok-status" class="jc-status" hidden></p>
-            <p class="jc-note">Saves the key to this device and checks it now, so a bad key fails here.</p>
-          </div>
-          <p class="jc-note">Stored on this device only, sent only to ai-gateway.vercel.sh — never to a JustClarify server.</p>
         </div>
+
+        <div class="jc-row jc-rule jc-row-byok">
+          <div class="jc-row-text">
+            <span class="jc-row-label">Use your own AI key</span>
+            <span class="jc-row-hint">Anthropic, OpenAI, Gemini, Hugging Face — or an AI Gateway key.</span>
+          </div>
+          <button id="jc-byok-switch" class="jc-switch" type="button" role="switch" aria-checked="false" aria-label="Use your own AI key">
+            <span class="jc-switch-knob"></span>
+          </button>
+        </div>
+
+        <!-- Accent, because this is state. -->
+        <p class="jc-note jc-note-trial">Early access is on a free API key until August 28.</p>
+
+        <div class="jc-reveal" id="jc-byok-fields" data-open="false">
+          <div class="jc-reveal-inner jc-card-pad">
+            <!-- A SAVED key is shown as this row and nothing else: provider,
+                 masked tail, Delete. Never an editable field — a key can be
+                 deleted or replaced whole, not fiddled with character by
+                 character (an edited key is a broken key every time). -->
+            <div class="jc-field" id="jc-byok-saved" hidden>
+              <div class="jc-row jc-byok-saved-row">
+                <div class="jc-row-text">
+                  <span class="jc-row-label" id="jc-byok-saved-label">Key saved</span>
+                  <span class="jc-row-hint" id="jc-byok-saved-hint"></span>
+                </div>
+                <button id="jc-byok-delete" class="jc-btn-dark jc-btn-danger" type="button">Delete</button>
+              </div>
+              <p class="jc-note">To change it, delete this key and paste the new one.</p>
+            </div>
+
+            <div id="jc-byok-entry">
+              <div class="jc-field">
+                <input id="jc-byok-key" class="jc-input" type="password"
+                       placeholder="API key — sk-ant-…, sk-…, AIza…, hf_…, or vck_…"
+                       autocomplete="off" spellcheck="false" />
+                <p class="jc-note">The prefix says whose key it is — paste it and JustClarify routes it to the right company.</p>
+              </div>
+              <div class="jc-field">
+                <input id="jc-byok-model" class="jc-input" type="text" list="jc-byok-models"
+                       placeholder="Model — optional, a sensible default is picked"
+                       autocomplete="off" spellcheck="false" />
+                <datalist id="jc-byok-models">
+                  <option value="claude-haiku-4-5"></option>
+                  <option value="claude-sonnet-5"></option>
+                  <option value="gpt-5.4-nano"></option>
+                  <option value="gemini-2.5-flash-lite"></option>
+                  <option value="openai/gpt-oss-120b:cheapest"></option>
+                  <option value="openai/gpt-4o-mini"></option>
+                </datalist>
+              </div>
+              <div class="jc-field">
+                <button id="jc-byok-save" class="jc-btn-dark" type="button">Save &amp; test key</button>
+              </div>
+            </div>
+            <p id="jc-byok-status" class="jc-status" hidden></p>
+            <p class="jc-note">Stored on this device only, and sent only to the company the key belongs to — never to a JustClarify server.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Voice ────────────────────────────────────────────────────────── -->
+      <h2 class="jc-sec">Voice</h2>
+      <div class="jc-card">
+        <p class="jc-note jc-card-pad" id="jc-voice-note">Hold <b>Shift</b>, speak, let go. Commands run on this device; anything else asks the AI on whichever engine is picked.</p>
+
+        <!-- Shown only while the extension has no microphone of its own. Websites
+             each control their own mic access and many refuse it outright, so
+             this is what makes hold-to-talk work the same on every site. -->
+        <button id="jc-mic-btn" class="jc-btn jc-rule" type="button" hidden>
+          <span class="jc-chip" aria-hidden="true">
+            <svg viewBox="0 0 24 24" class="jc-ico">
+              <g fill="none" stroke="currentColor"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></g>
+            </svg>
+          </span>
+          <span class="jc-btn-text">
+            <span class="jc-btn-label">Set up the microphone</span>
+            <span class="jc-btn-hint">One click, then voice works on sites that block it.</span>
+          </span>
+        </button>
       </div>
 
       <!-- ── This page ────────────────────────────────────────────────────── -->
       <h2 class="jc-sec">This page</h2>
-
-      <button id="jc-rewrite-btn" class="jc-btn jc-btn-red jc-btn-stack" type="button">
-        <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-        <span class="jc-btn-text">
-          <span class="jc-btn-label">Text tools — humanize &amp; paraphrase</span>
-          <span class="jc-btn-hint">Opens the scratch editor to humanize, shorten, expand, summarize or fix grammar.</span>
-        </span>
-      </button>
-
-      <!-- Fact-check disclosure: the head shows on rest; hovering (or focusing,
-           or clicking the head) reveals every fact-check target. -->
-      <div class="jc-fc-group" id="jc-fc-group">
-        <button id="jc-factcheck-head" class="jc-btn jc-fc-head jc-btn-stack" type="button" aria-expanded="false">
-          <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true">
-            <g fill="currentColor" stroke="none" opacity="0.2"><circle cx="12" cy="12" r="9"/></g>
-            <g fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.4 12.2 2.4 2.4 4.8-5.2"/></g>
-          </svg>
-          <span class="jc-btn-text">
-            <span class="jc-btn-label jc-fc-head-label">Fact-check</span>
-            <span class="jc-btn-hint">Pulls the checkable claims out of what you're reading or watching and verifies each one.</span>
+      <div class="jc-card">
+        <button id="jc-rewrite-btn" class="jc-btn" type="button">
+          <span class="jc-chip jc-chip-accent" aria-hidden="true">
+            <svg viewBox="0 0 24 24" class="jc-ico"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </span>
-          <svg viewBox="0 0 24 24" class="jc-ico jc-fc-caret" aria-hidden="true"><g fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></g></svg>
+          <span class="jc-btn-text">
+            <span class="jc-btn-label">Text tools</span>
+            <span class="jc-btn-hint">Humanize, shorten, expand, summarize, fix grammar.</span>
+          </span>
         </button>
 
-        <div class="jc-fc-options" role="group" aria-label="Fact-check targets">
-          <button id="jc-factcheck-btn" class="jc-btn jc-fc-opt jc-btn-stack" type="button">
-            <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true">
-              <g fill="currentColor" stroke="none" opacity="0.2"><rect x="5" y="3" width="14" height="18" rx="2.5"/></g>
-              <g fill="none" stroke="currentColor"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></g>
-            </svg>
-            <span class="jc-btn-text">
-              <span class="jc-btn-label">This page</span>
-              <span class="jc-btn-hint">Extracts the claims from the article you're reading and checks every one.</span>
+        <!-- Fact-check disclosure: click the head to reveal the targets. -->
+        <div class="jc-fc-group jc-rule" id="jc-fc-group">
+          <button id="jc-factcheck-head" class="jc-btn jc-fc-head" type="button" aria-expanded="false">
+            <span class="jc-chip jc-chip-accent" aria-hidden="true">
+              <svg viewBox="0 0 24 24" class="jc-ico">
+                <g fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.4 12.2 2.4 2.4 4.8-5.2"/></g>
+              </svg>
             </span>
+            <span class="jc-btn-text">
+              <span class="jc-btn-label jc-fc-head-label">Fact-check</span>
+              <span class="jc-btn-hint">Checks the claims in what you're reading or watching.</span>
+            </span>
+            <svg viewBox="0 0 24 24" class="jc-ico jc-fc-caret" aria-hidden="true"><g fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></g></svg>
           </button>
 
-          <button id="jc-factcheck-video-btn" class="jc-btn jc-fc-opt jc-btn-stack" type="button">
-            <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true">
-              <g fill="currentColor" stroke="none" opacity="0.2"><circle cx="12" cy="12" r="9"/></g>
-              <g fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M10 9.2 15 12l-5 2.8z"/></g>
-            </svg>
-            <span class="jc-btn-text">
-              <span class="jc-btn-label">This video's transcript</span>
-              <span class="jc-btn-hint">Checks a YouTube transcript's claims, with timestamps that jump the video to the moment.</span>
-            </span>
-          </button>
+          <div class="jc-fc-options" role="group" aria-label="Fact-check targets">
+            <div class="jc-fc-inner">
+            <button id="jc-factcheck-btn" class="jc-btn jc-fc-opt" type="button">
+              <span class="jc-chip" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="jc-ico">
+                  <g fill="none" stroke="currentColor"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></g>
+                </svg>
+              </span>
+              <span class="jc-btn-text">
+                <span class="jc-btn-label">This page</span>
+                <span class="jc-btn-hint">The article you're reading.</span>
+              </span>
+            </button>
 
-          <button id="jc-factcheck-live-btn" class="jc-btn jc-fc-opt jc-btn-stack" type="button">
-            <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true">
-              <g fill="currentColor" stroke="none" opacity="0.2"><rect x="9" y="2" width="6" height="12" rx="3"/></g>
-              <g fill="none" stroke="currentColor"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></g>
-            </svg>
-            <span class="jc-btn-text">
-              <span class="jc-btn-label">Listen &amp; fact-check live</span>
-              <span class="jc-btn-hint">Transcribes the tab's audio as it plays and checks claims as they're spoken. Needs a Deepgram key.</span>
-            </span>
-          </button>
-        </div>
-      </div>
+            <button id="jc-factcheck-video-btn" class="jc-btn jc-fc-opt" type="button">
+              <span class="jc-chip" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="jc-ico">
+                  <g fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M10 9.2 15 12l-5 2.8z"/></g>
+                </svg>
+              </span>
+              <span class="jc-btn-text">
+                <span class="jc-btn-label">This video's transcript</span>
+                <span class="jc-btn-hint">A YouTube transcript, with timestamps.</span>
+              </span>
+            </button>
 
-      <div class="jc-reveal" id="jc-live-fields" data-open="false">
-        <div class="jc-reveal-inner">
-          <div class="jc-field">
-            <input id="jc-deepgram-key" class="jc-input" type="password"
-                   placeholder="Deepgram key — live audio only" autocomplete="off" spellcheck="false" />
-            <p class="jc-note">Only the live-audio option needs this: speech-to-text is a separate service from the AI models.</p>
+            <button id="jc-factcheck-live-btn" class="jc-btn jc-fc-opt" type="button">
+              <span class="jc-chip" aria-hidden="true">
+                <svg viewBox="0 0 24 24" class="jc-ico">
+                  <g fill="none" stroke="currentColor"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></g>
+                </svg>
+              </span>
+              <span class="jc-btn-text">
+                <span class="jc-btn-label">Listen &amp; fact-check live</span>
+                <span class="jc-btn-hint">Live tab audio. Needs a Deepgram key.</span>
+              </span>
+            </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="jc-field">
-        <input id="jc-factcheck-key" class="jc-input" type="password"
-               placeholder="Google Fact Check key (optional, free)" autocomplete="off" spellcheck="false" />
-        <p class="jc-note">Optional and free: looks up published rulings (PolitiFact, Snopes, FactCheck.org, AFP) on your own quota. Leave blank to use JustClarify's shared lookup.</p>
-      </div>
-
-      <!-- ── Display ──────────────────────────────────────────────────────── -->
-      <h2 class="jc-sec">Display</h2>
-
-      <div class="jc-row">
-        <div class="jc-row-text">
-          <span class="jc-row-label">Ambient panel</span>
-          <span class="jc-row-hint">Optional floating card at the page edge that streams answers in, so nothing covers the text.</span>
+        <div class="jc-reveal" id="jc-live-fields" data-open="false">
+          <div class="jc-reveal-inner jc-card-pad">
+            <div class="jc-field">
+              <input id="jc-deepgram-key" class="jc-input" type="password"
+                     placeholder="Deepgram key — live audio only" autocomplete="off" spellcheck="false" />
+              <p class="jc-note">Only live listening needs this.</p>
+            </div>
+          </div>
         </div>
-        <button id="jc-panel-switch" class="jc-switch" type="button" role="switch" aria-checked="false" aria-label="Ambient panel">
-          <span class="jc-switch-knob"></span>
-        </button>
+
+        <div class="jc-field jc-card-pad jc-rule">
+          <input id="jc-factcheck-key" class="jc-input" type="password"
+                 placeholder="Google Fact Check key (optional, free)" autocomplete="off" spellcheck="false" />
+          <p class="jc-note">Your own quota for published rulings. Blank uses the shared lookup.</p>
+        </div>
       </div>
 
       <!-- ── Data ─────────────────────────────────────────────────────────── -->
       <h2 class="jc-sec">Data</h2>
-
-      <button id="jc-history-btn" class="jc-btn jc-btn-stack" type="button">
-        <svg viewBox="0 0 24 24" class="jc-ico" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        <span class="jc-btn-text">
-          <span class="jc-btn-label">Open history</span>
-          <span class="jc-btn-hint">The log of past questions, answers and page changes, in a full tab.</span>
-        </span>
-      </button>
+      <div class="jc-card">
+        <button id="jc-history-btn" class="jc-btn" type="button">
+          <span class="jc-chip" aria-hidden="true">
+            <svg viewBox="0 0 24 24" class="jc-ico"><g fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g></svg>
+          </span>
+          <span class="jc-btn-text">
+            <span class="jc-btn-label">Open history</span>
+            <span class="jc-btn-hint">Past questions and answers, in a full tab.</span>
+          </span>
+          <svg viewBox="0 0 24 24" class="jc-ico jc-caret" aria-hidden="true"><g fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></g></svg>
+        </button>
+      </div>
 
       <p class="jc-note jc-note-foot">Highlights, answers and history stay in this browser's local storage.</p>
     </main>

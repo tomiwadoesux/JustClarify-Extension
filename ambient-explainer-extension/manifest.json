@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "JustClarify",
   "version": "0.5.0",
-  "description": "Understand anything you highlight — free on-device AI, no account, no setup",
+  "description": "Understand anything you highlight — explanations, fact-checks and voice control, no account, no setup",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -15,7 +15,11 @@
     "storage",
     "tabs",
     "tabCapture",
-    "offscreen"
+    "offscreen",
+    "sessions",
+    "history",
+    "scripting",
+    "tabGroups"
   ],
   "action": {
     "default_title": "JustClarify — conversations & focus mode",
@@ -28,6 +32,8 @@
     }
   },
   "host_permissions": [
+    "<all_urls>",
+    "https://justclarify.xyz/*",
     "http://localhost:8000/*",
     "https://api.justclarify.xyz/*",
     "https://api.justclarify.ayotomcs.me/*",
@@ -37,9 +43,29 @@
   ],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["lib/gsap.min.js", "brand.js", "content.js"],
-      "css": ["styles.css"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "lib/gsap.min.js",
+        "brand.js",
+        "content.js",
+        "commands.js",
+        "voice.js"
+      ],
+      "css": [
+        "styles.css"
+      ]
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "voice-frame.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
     }
   ],
   "background": {
@@ -47,8 +73,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/providers/*.svg"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "icons/providers/*.svg"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

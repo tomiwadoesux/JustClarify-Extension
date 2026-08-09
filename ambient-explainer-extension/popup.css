@@ -1,21 +1,31 @@
 /* JustClarify toolbar popup.
+   Design notes: settings-style grouped cards — one card per section, rows
+   divided by inset hairlines — instead of a stack of individually boxed
+   controls, which read as noise. The accent (a random muted hue from brand.js)
+   is spent only on state: the switch when on, the two primary action chips,
+   the status dot, focus rings. Everything else is ink on paper.
+
    Motion notes: this panel is opened many times a day, so it has NO entrance
    animation — the content is simply there when it opens (the Raycast rule:
    don't animate what people see constantly). Motion is spent only where it
    carries meaning: a control acknowledging a press, a section revealing
-   itself, a download reporting progress. Everything is transform/opacity,
-   under 250ms, ease-out, and off under prefers-reduced-motion. */
+   itself. Everything is transform/opacity, under 250ms, ease-out, and off
+   under prefers-reduced-motion. */
 
 :root {
-  --jc-red: var(--accent, oklch(0.60 0.08 275));
+  --jc-accent: var(--accent, oklch(0.6 0.08 275));
+  --jc-accent-soft: var(--accent-soft, oklch(0.6 0.08 275 / 0.1));
   --jc-ink: #14110f;
   --jc-muted: #7c736c;
   --jc-faint: #a8a09a;
   --jc-line: #ece7e3;
+  --jc-line-soft: #f1ede9;
   --jc-bg: #fbf9f7;
   --jc-card: #ffffff;
+  --jc-track: #f3efeb;
   --jc-ok: #1a7f37;
   --jc-warn: #b45309;
+  --jc-err: #b3261e;
 
   /* Easing — the built-in curves are too weak to read as intentional. */
   --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
@@ -26,6 +36,12 @@
   box-sizing: border-box;
 }
 
+/* JS toggles visibility with the hidden attribute; without this, any display
+   set by a class below would quietly win over the UA's [hidden] rule. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -33,7 +49,10 @@ body {
 }
 
 body {
-  width: 320px;
+  /* The width is ALSO pinned inline in popup.html — that copy is the one that
+     matters for the window's size (it applies before this file has loaded). */
+  width: 336px;
+  overflow-x: hidden;
   background: var(--jc-bg);
   color: var(--jc-ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
@@ -48,30 +67,30 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 14px;
+  padding: 13px 16px;
   border-bottom: 1px solid var(--jc-line);
 }
 
 .jc-mark {
   display: inline-flex;
   flex: none;
-  color: var(--accent);
+  color: var(--jc-accent);
 }
 
 .jc-wordmark {
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: 14px;
   letter-spacing: -0.012em;
 }
 
-/* Live engine pill in the header — the one thing that tells you, at a glance,
-   whether this thing can actually answer right now. */
+/* Live engine pill — the one thing that tells you, at a glance, whether this
+   thing can actually answer right now. */
 .jc-head-engine {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   margin-left: auto;
-  padding: 3px 8px 3px 7px;
+  padding: 3px 9px 3px 8px;
   border: 1px solid var(--jc-line);
   border-radius: 999px;
   background: var(--jc-card);
@@ -91,12 +110,12 @@ body {
 
 .jc-dot.is-ok { background: var(--jc-ok); }
 .jc-dot.is-warn { background: var(--jc-warn); }
-.jc-dot.is-off { background: var(--jc-red); }
+.jc-dot.is-off { background: var(--jc-err); }
 
 /* The only looping animation in the popup, and it runs only while a download
    is genuinely in progress — motion here means "something is happening". */
 .jc-dot.is-busy {
-  background: var(--jc-red);
+  background: var(--jc-accent);
   animation: jc-pulse 1.4s var(--ease-out-quad) infinite;
 }
 
@@ -109,93 +128,38 @@ body {
 .jc-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 12px 14px 14px;
 }
 
 .jc-sec {
-  margin: 8px 0 0;
-  font-size: 9.5px;
+  margin: 14px 2px 5px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--jc-faint);
 }
 
 .jc-sec:first-child {
-  margin-top: 0;
+  margin-top: 2px;
 }
 
-/* --- Engine card ---------------------------------------------------------- */
-.jc-engine {
-  padding: 11px 12px;
+/* One card per section. Rows inside divide with inset hairlines (.jc-rule)
+   instead of each carrying its own box. */
+.jc-card {
   background: var(--jc-card);
   border: 1px solid var(--jc-line);
-  border-radius: 11px;
+  border-radius: 12px;
   corner-shape: squircle;
-}
-
-/* Blocked device: the card is the warning, so it earns the accent edge. */
-.jc-engine.is-blocked {
-  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
-  background: #fffafa;
-}
-
-.jc-engine-top {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-/* The brand diamond, reused as the engine bullet. */
-.jc-diamond {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  background: var(--jc-red);
-  border-radius: 2px;
-  corner-shape: squircle;
-  transform: rotate(45deg);
-}
-
-.jc-engine-name {
-  font-weight: 650;
-  font-size: 12.5px;
-}
-
-.jc-engine-state {
-  margin-left: auto;
-  font-size: 11px;
-  font-weight: 650;
-  color: var(--jc-muted);
-}
-
-.jc-engine-state.is-ok { color: var(--jc-ok); }
-.jc-engine-state.is-off { color: var(--jc-red); }
-
-.jc-engine-detail {
-  margin: 5px 0 0;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--jc-muted);
-}
-
-/* scaleX beats animating width — it stays on the GPU. */
-.jc-progress {
-  margin-top: 9px;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--jc-line);
   overflow: hidden;
 }
 
-.jc-progress i {
-  display: block;
-  height: 100%;
-  background: var(--jc-red);
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform 240ms var(--ease-out-cubic);
+.jc-card-pad {
+  padding: 11px 12px;
+}
+
+.jc-rule {
+  border-top: 1px solid var(--jc-line-soft);
 }
 
 /* --- Rows + switch -------------------------------------------------------- */
@@ -205,10 +169,6 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  background: var(--jc-card);
-  border: 1px solid var(--jc-line);
-  border-radius: 11px;
-  corner-shape: squircle;
 }
 
 .jc-row-text {
@@ -229,6 +189,49 @@ body {
   color: var(--jc-muted);
 }
 
+/* BYOK, resting. Most installs never need a key, so the row sits at reduced
+   opacity until it's hovered, focused, or actually on. */
+.jc-row-byok {
+  opacity: 0.55;
+  transition: opacity 150ms var(--ease-out-quad);
+}
+
+.jc-row-byok:not(.is-locked):hover,
+.jc-row-byok:not(.is-locked):focus-within,
+.jc-row-byok:not(.is-locked):has(.jc-switch.is-on) {
+  opacity: 1;
+}
+
+/* Locked: out of focus and out of reach, but still legible enough to read as a
+   thing that exists. It doesn't wake on hover — there's nothing to wake to. */
+.jc-row-byok.is-locked {
+  opacity: 0.5;
+  filter: blur(1.6px);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Why the row above is asleep. The accent is spent on state, and this is the
+   one piece of state a user on the free run needs to know. */
+/* The saved-key row: a fact with a Delete button, deliberately not a form. */
+.jc-byok-saved-row {
+  padding: 0;
+}
+
+.jc-btn-danger {
+  background: #b3261e;
+}
+
+.jc-btn-danger:hover {
+  background: #9a1f18;
+}
+
+.jc-note-trial {
+  padding: 0 12px 11px;
+  color: var(--jc-accent);
+  font-weight: 600;
+}
+
 .jc-switch {
   position: relative;
   flex: none;
@@ -243,7 +246,7 @@ body {
 }
 
 .jc-switch.is-on {
-  background: var(--jc-red);
+  background: var(--jc-accent);
 }
 
 .jc-switch:focus-visible {
@@ -268,75 +271,42 @@ body {
   transform: translateX(16px);
 }
 
-/* --- Buttons -------------------------------------------------------------- */
+/* --- Buttons (list rows) --------------------------------------------------- */
+/* Buttons are rows in the card, not boxes of their own. The press feedback is
+   a background wash, not a scale — a full-width row shrinking reads as the
+   whole card wobbling. */
 .jc-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--jc-line);
-  border-radius: 11px;
-  corner-shape: squircle;
-  background: var(--jc-card);
+  border: 0;
+  background: transparent;
   color: var(--jc-ink);
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 600;
   text-align: left;
   cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    border-color 150ms ease,
-    transform 150ms var(--ease-out-quad);
+  transition: background-color 120ms var(--ease-out-quad);
 }
 
 /* Hover only where hovering is real — touch devices fire it on tap. */
 @media (hover: hover) and (pointer: fine) {
   .jc-btn:hover {
-    background: #f6f3f0;
-    border-color: #ded7d1;
+    background: #f8f5f2;
   }
 }
 
-/* The press is the feedback: instant, physical, no colour change needed. */
 .jc-btn:active {
-  transform: scale(0.975);
+  background: #f1ece8;
 }
 
 .jc-btn:focus-visible {
   outline: 2px solid var(--jc-ink);
-  outline-offset: 2px;
-}
-
-.jc-btn-dark {
-  justify-content: center;
-  background: var(--jc-ink);
-  border-color: var(--jc-ink);
-  color: #fff;
-}
-
-.jc-btn-red {
-  background: var(--jc-red);
-  border-color: var(--jc-red);
-  color: #fff;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .jc-btn-dark:hover {
-    background: #2a2320;
-    border-color: #2a2320;
-  }
-  .jc-btn-red:hover {
-    background: #e00000;
-    border-color: #e00000;
-  }
-}
-
-/* Buttons that carry a plain-language line under their label. Same label/hint
-   pairing as .jc-row-label / .jc-row-hint, so rows and buttons read alike. */
-.jc-btn-stack {
-  align-items: flex-start;
+  outline-offset: -2px;
+  border-radius: 8px;
 }
 
 .jc-btn-text {
@@ -344,6 +314,7 @@ body {
   flex-direction: column;
   gap: 1px;
   min-width: 0;
+  flex: 1;
 }
 
 .jc-btn-label {
@@ -357,20 +328,28 @@ body {
   color: var(--jc-muted);
 }
 
-/* On the filled buttons the hint has to lift off the accent, not off paper. */
-.jc-btn-red .jc-btn-hint,
-.jc-btn-dark .jc-btn-hint {
-  color: rgba(255, 255, 255, 0.78);
+/* Icon chip — a quiet tinted square that gives every row the same anchor.
+   Neutral by default; the accent version marks the two primary actions. */
+.jc-chip {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  corner-shape: squircle;
+  background: var(--jc-track);
+  color: var(--jc-muted);
 }
 
-/* The icon and caret sit with the label, not centred against the whole stack. */
-.jc-btn-stack > .jc-ico {
-  margin-top: 1px;
+.jc-chip-accent {
+  background: var(--jc-accent-soft);
+  color: var(--jc-accent);
 }
 
 .jc-ico {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   flex: none;
   stroke: currentColor;
   stroke-width: 1.9;
@@ -379,9 +358,42 @@ body {
   stroke-linejoin: round;
 }
 
-.jc-btn-red .jc-ico,
-.jc-btn-dark .jc-ico {
-  stroke: #fff;
+.jc-caret {
+  color: var(--jc-faint);
+  width: 13px;
+  height: 13px;
+}
+
+/* The one filled button left: save-and-test, inside the BYOK reveal. */
+.jc-btn-dark {
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 9px;
+  corner-shape: squircle;
+  background: var(--jc-ink);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 150ms var(--ease-out-quad);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .jc-btn-dark:hover {
+    background: #2a2320;
+  }
+}
+
+/* A solo button can take the press-scale without dragging a card with it. */
+.jc-btn-dark:active {
+  transform: scale(0.975);
+}
+
+.jc-btn-dark:focus-visible {
+  outline: 2px solid var(--jc-ink);
+  outline-offset: 2px;
 }
 
 /* --- Reveal (BYOK fields, live-audio key) --------------------------------- */
@@ -411,7 +423,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  padding: 1px 0;
+}
+
+.jc-reveal-inner.jc-card-pad {
+  padding-top: 2px;
 }
 
 /* Collapsed content must not be tabbable or clickable. */
@@ -430,17 +445,19 @@ body {
 }
 
 /* --- Inputs --------------------------------------------------------------- */
+/* Inset on the card rather than boxed on the page — inputs read as places to
+   type, not as more cards. */
 .jc-input {
   width: 100%;
-  padding: 9px 11px;
-  border: 1px solid var(--jc-line);
-  border-radius: 10px;
+  padding: 8px 11px;
+  border: 1px solid transparent;
+  border-radius: 9px;
   corner-shape: squircle;
-  background: var(--jc-card);
+  background: var(--jc-track);
   color: var(--jc-ink);
   font-family: inherit;
   font-size: 12px;
-  transition: border-color 150ms ease;
+  transition: border-color 150ms ease, background-color 150ms ease;
 }
 
 .jc-input::placeholder {
@@ -449,7 +466,8 @@ body {
 
 .jc-input:focus {
   outline: none;
-  border-color: var(--jc-red);
+  background: var(--jc-card);
+  border-color: var(--jc-accent);
 }
 
 /* --- Status + notes ------------------------------------------------------- */
@@ -462,7 +480,7 @@ body {
 }
 
 .jc-status.is-ok { color: var(--jc-ok); }
-.jc-status.is-err { color: var(--jc-red); }
+.jc-status.is-err { color: var(--jc-err); }
 
 @keyframes jc-rise {
   from { opacity: 0; transform: translateY(-3px); }
@@ -473,12 +491,165 @@ body {
   margin: 0;
   font-size: 10.5px;
   line-height: 1.5;
-  color: var(--jc-faint);
+  color: var(--jc-muted);
+}
+
+/* AI selected with nothing able to run it: the note says so and looks like it. */
+.jc-note.is-warn {
+  color: var(--jc-warn);
 }
 
 .jc-note-foot {
-  margin-top: 4px;
+  margin-top: 12px;
   text-align: center;
+  color: var(--jc-faint);
+}
+
+/* ── Segmented engine picker ─────────────────────────────────────────────────
+   Inset track, selected segment lifts as a white card. The accent stays out of
+   it — which engine is on is told by position and weight, and the header pill
+   already reports its live state. */
+.jc-seg {
+  display: grid;
+  gap: 3px;
+  padding: 3px;
+  margin: 0 0 8px;
+  border-radius: 10px;
+  corner-shape: squircle;
+  background: var(--jc-track);
+}
+
+.jc-seg-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.jc-seg-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 7px 4px;
+  border: 0;
+  border-radius: 8px;
+  corner-shape: squircle;
+  background: transparent;
+  font: inherit;
+  color: var(--jc-muted);
+  text-align: center;
+  min-width: 0;
+  cursor: pointer;
+  transition:
+    background-color 0.16s var(--ease-out-quad),
+    box-shadow 0.16s var(--ease-out-quad),
+    color 0.16s var(--ease-out-quad),
+    transform 150ms var(--ease-out-quad);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .jc-seg-btn:not(.is-on):hover {
+    color: var(--jc-ink);
+  }
+}
+
+.jc-seg-btn.is-on {
+  background: var(--jc-card);
+  color: var(--jc-ink);
+  box-shadow:
+    0 0 0 1px rgba(20, 17, 15, 0.05),
+    0 1px 2px rgba(20, 17, 15, 0.08);
+}
+
+.jc-seg-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.jc-seg-hint {
+  font-size: 9.5px;
+  color: var(--jc-muted);
+  opacity: 0.85;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jc-seg-btn.is-on .jc-seg-hint {
+  color: var(--jc-muted);
+}
+
+/* An engine that isn't shipped yet. Sits back rather than disappearing, so the
+   control keeps its three-up shape and nothing moves when it arrives. */
+.jc-seg-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Acknowledge the press — the only motion this control gets. */
+.jc-seg-btn:active {
+  transform: scale(0.985);
+}
+
+.jc-seg-btn:focus-visible {
+  outline: 2px solid var(--jc-ink);
+  outline-offset: 1px;
+}
+
+/* ── Fact-check disclosure — click the head to reveal the targets ─────────── */
+/* Click-only. Hover-opening a menu inside a 320px popup meant the options
+   sprang out while the pointer was merely passing through to Display. */
+.jc-fc-caret {
+  margin-left: auto;
+  width: 13px;
+  height: 13px;
+  color: var(--jc-faint);
+  transition: transform 0.18s var(--ease-out-quad);
+}
+
+.jc-fc-group.is-open .jc-fc-caret {
+  transform: rotate(90deg);
+}
+
+.jc-fc-options {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 220ms var(--ease-out-cubic),
+    opacity 160ms var(--ease-out-quad);
+}
+
+.jc-fc-group.is-open .jc-fc-options {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* One inner wrapper so a single 0fr row clips all three targets. */
+.jc-fc-options > .jc-fc-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Collapsed targets must not be tabbable or clickable. */
+.jc-fc-group:not(.is-open) .jc-fc-inner {
+  visibility: hidden;
+}
+
+/* Children indent past the head's chip so they read as its targets. */
+.jc-fc-opt {
+  padding-left: 24px;
+}
+
+.jc-fc-opt .jc-chip {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+}
+
+.jc-fc-opt .jc-ico {
+  width: 12px;
+  height: 12px;
 }
 
 /* --- Reduced motion ------------------------------------------------------- */
@@ -486,46 +657,21 @@ body {
   .jc-switch,
   .jc-switch-knob,
   .jc-btn,
+  .jc-btn-dark,
   .jc-input,
-  .jc-progress i,
-  .jc-reveal {
+  .jc-reveal,
+  .jc-fc-options,
+  .jc-fc-caret,
+  .jc-seg-btn,
+  .jc-row-byok {
     transition: none;
   }
   .jc-dot.is-busy,
   .jc-status {
     animation: none;
   }
+  .jc-seg-btn:active,
+  .jc-btn-dark:active {
+    transform: none;
+  }
 }
-
-/* ── Fact-check disclosure — head at rest, all targets on hover/focus/click ── */
-.jc-fc-group { position: relative; }
-.jc-fc-head { width: 100%; }
-.jc-fc-caret {
-  margin-left: auto;
-  width: 14px;
-  height: 14px;
-  transition: transform 0.18s var(--ease-out-quad, ease);
-}
-.jc-fc-group:hover .jc-fc-caret,
-.jc-fc-group:focus-within .jc-fc-caret,
-.jc-fc-group.is-open .jc-fc-caret { transform: rotate(90deg); }
-
-.jc-fc-options {
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  margin-top: 0;
-  transition: max-height 0.24s var(--ease-out-cubic, ease),
-              opacity 0.18s ease, margin-top 0.18s ease;
-}
-.jc-fc-group:hover .jc-fc-options,
-.jc-fc-group:focus-within .jc-fc-options,
-.jc-fc-group.is-open .jc-fc-options {
-  /* Headroom for the three targets now that each carries an explanatory line. */
-  max-height: 420px;
-  opacity: 1;
-  margin-top: 6px;
-}
-.jc-fc-opt + .jc-fc-opt { margin-top: 6px; }
-/* Nudge the options in a touch so they read as children of the head. */
-.jc-fc-opt { padding-left: 16px; }

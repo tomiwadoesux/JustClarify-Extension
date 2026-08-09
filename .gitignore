@@ -47,3 +47,7 @@ JustClarify-extension*.zip
 .claude/
 .agents/
 skills-lock.json
+
+# foglamp scan (contains an edit token)
+.foglamp/
+

@@ -3,20 +3,62 @@
 // worker react to those changes live, so nothing here needs a save button
 // except the keys (which are verified when saved).
 
-const JC_PANEL_KEY = "jcPanelOn";
 const JC_BYOK_ENABLED_KEY = "jcByokEnabled";
 const JC_BYOK_KEY_KEY = "jcByokKey";
 const JC_BYOK_MODEL_KEY = "jcByokModel";
+const JC_BYOK_PROVIDER_KEY = "jcByokProvider";
 const JC_DEEPGRAM_KEY = "jcDeepgramKey";
 const JC_GOOGLE_FACT_KEY = "jcGoogleFactKey";
 const JC_DEFAULT_MODEL = "openai/gpt-4o-mini";
 
-let store = { panelOn: false, byokEnabled: false };
+// Early access: the hosted API is free until this date. The popup only needs
+// the date for copy — enforcement (such as it is) lives server-side.
+const JC_FREE_UNTIL = Date.parse("2026-08-28T00:00:00");
+
+// Which company a key belongs to, read off the key itself — providers prefix
+// keys exactly so tools can do this. Mirrors jcDetectProvider in providers.js
+// (the worker can't be imported from a popup page, so the table is repeated;
+// the tests hold the two copies together).
+const JC_KEY_PROVIDERS = {
+  anthropic: { label: "Anthropic", validate: "https://api.anthropic.com/v1/models",
+    headers: (k) => ({ "x-api-key": k, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }),
+    defaultModel: "claude-haiku-4-5" },
+  openai: { label: "OpenAI", validate: "https://api.openai.com/v1/models",
+    headers: (k) => ({ Authorization: `Bearer ${k}` }),
+    defaultModel: "gpt-5.4-nano" },
+  gemini: { label: "Google Gemini", validate: "https://generativelanguage.googleapis.com/v1beta/models",
+    headers: (k) => ({ "x-goog-api-key": k }),
+    defaultModel: "gemini-2.5-flash-lite" },
+  huggingface: { label: "Hugging Face", validate: "https://huggingface.co/api/whoami-v2",
+    headers: (k) => ({ Authorization: `Bearer ${k}` }),
+    defaultModel: "openai/gpt-oss-120b:cheapest" },
+  vercel: { label: "Vercel AI Gateway", validate: "https://ai-gateway.vercel.sh/v1/models",
+    headers: (k) => ({ Authorization: `Bearer ${k}` }),
+    defaultModel: JC_DEFAULT_MODEL },
+};
+
+function jcDetectKeyProvider(key) {
+  const k = String(key || "").trim();
+  if (!k) return null;
+  if (k.startsWith("sk-ant-")) return "anthropic";
+  if (k.startsWith("vck_")) return "vercel";
+  if (k.startsWith("hf_")) return "huggingface";
+  if (k.startsWith("AIza")) return "gemini";
+  if (k.startsWith("sk-")) return "openai";
+  return null;
+}
+
+let store = { byokEnabled: false, savedKey: "", savedProvider: "", savedModel: "" };
+let lastEngineInfo = null;
 
 const $ = (id) => document.getElementById(id);
 
-const panelSwitch = $("jc-panel-switch");
 const byokSwitch = $("jc-byok-switch");
+const byokSaved = $("jc-byok-saved");
+const byokSavedLabel = $("jc-byok-saved-label");
+const byokSavedHint = $("jc-byok-saved-hint");
+const byokDeleteBtn = $("jc-byok-delete");
+const byokEntry = $("jc-byok-entry");
 const byokFields = $("jc-byok-fields");
 const byokKeyInput = $("jc-byok-key");
 const byokModelInput = $("jc-byok-model");
@@ -32,6 +74,37 @@ const factcheckBtn = $("jc-factcheck-btn");
 const factcheckVideoBtn = $("jc-factcheck-video-btn");
 const liveBtn = $("jc-factcheck-live-btn");
 const historyBtn = $("jc-history-btn");
+const enginePick = $("jc-engine-pick");
+const engineNote = $("jc-engine-note");
+const llmRow = $("jc-llm-row");
+const llmProviderSelect = $("jc-llm-provider");
+const llmModelField = $("jc-llm-model-field");
+const llmModelInput = $("jc-llm-model");
+const voiceNote = $("jc-voice-note");
+const micBtn = $("jc-mic-btn");
+
+// A website can switch the microphone off for anything running inside it, and
+// plenty do — that is why voice worked on one site and was dead on the next.
+// A grant on the extension's own origin outranks all of them, so offer it here
+// rather than waiting for the user to hit the wall on some site that blocks it.
+async function renderMicSetup() {
+  if (!micBtn) return;
+  try {
+    const status = await chrome.runtime.sendMessage({ type: "JC_VOICE_MIC_STATUS" });
+    micBtn.hidden = status?.state === "granted";
+  } catch (_) {
+    micBtn.hidden = false;
+  }
+}
+
+micBtn?.addEventListener("click", async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: "JC_VOICE_MIC_GRANT" });
+    window.close(); // the grant page is now the thing to look at
+  } catch (_) {}
+});
+
+renderMicSetup();
 
 function setSwitch(el, on) {
   el.classList.toggle("is-on", on);
@@ -43,92 +116,116 @@ function setReveal(el, open) {
 }
 
 function render() {
-  setSwitch(panelSwitch, store.panelOn);
   setSwitch(byokSwitch, store.byokEnabled);
   setReveal(byokFields, store.byokEnabled);
+
+  // A saved key shows as a row that can only be deleted, never edited: the
+  // masked tail proves WHICH key is saved, and a replacement is a fresh paste.
+  const saved = !!store.savedKey;
+  byokSaved.hidden = !saved;
+  byokEntry.hidden = saved;
+  if (saved) {
+    const spec = JC_KEY_PROVIDERS[store.savedProvider];
+    const tail = store.savedKey.slice(-4);
+    byokSavedLabel.textContent = `${spec ? spec.label : "API"} key ••••${tail}`;
+    byokSavedHint.textContent = store.savedModel
+      ? `Model: ${store.savedModel}`
+      : `Model: ${spec ? spec.defaultModel : "default"}`;
+  }
 }
 
+// --- Voice mode --------------------------------------------------------------
+// Free  — the 33-rule grammar only. Instant, offline, nothing leaves the device.
+// AI    — anything the grammar misses goes to a model that picks an action.
+//
+// The note names the engine that would actually serve AI mode, because "AI" on
+// a machine with no on-device model and no key is a promise the extension
+// can't keep, and finding that out mid-sentence is worse than reading it here.
 // --- Engine card -------------------------------------------------------------
-// Asks the service worker what will actually answer the next question, and says
-// so plainly — including, when the built-in model is out of reach, that a key
-// is now the only way to keep using the extension on this machine.
+// Two tiers now: JustClarify's hosted AI by default, or the user's own Gateway
+// key when they set one. The on-device tier is gone, so this no longer has to
+// explain hardware requirements or narrate a download.
 function renderEngine(info) {
+  lastEngineInfo = info;
+
   const dot = $("jc-head-dot");
   const headText = $("jc-head-engine-text");
-  const card = $("jc-engine");
-  const name = $("jc-engine-name");
-  const state = $("jc-engine-state");
-  const detail = $("jc-engine-detail");
-  const progress = $("jc-engine-progress");
-
   dot.className = "jc-dot";
-  state.className = "jc-engine-state";
-  card.classList.remove("is-blocked");
-  progress.hidden = true;
 
   if (!info || !info.ok) {
     headText.textContent = "Unknown";
-    name.textContent = "Engine";
-    state.textContent = "";
-    detail.textContent = "Couldn't reach the extension's background worker.";
+    engineNote.textContent = "Couldn't reach the extension's background worker.";
     return;
   }
 
-  const { availability, hasKey, model, blocked } = info;
+  const engine = info.engine || "api";
 
-  if (availability === "available") {
+  // Reflect the selection on the segmented control.
+  for (const btn of enginePick.querySelectorAll(".jc-seg-btn")) {
+    const on = btn.dataset.engine === engine;
+    btn.classList.toggle("is-on", on);
+    btn.setAttribute("aria-checked", String(on));
+  }
+
+  // Provider list arrives from the worker so the popup can't drift from llm.js.
+  if (llmProviderSelect.options.length === 0 && Array.isArray(info.llmProviders)) {
+    for (const p of info.llmProviders) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = `${p.symbol}  ${p.name}`;
+      llmProviderSelect.appendChild(opt);
+    }
+  }
+  if (info.llmProvider) llmProviderSelect.value = info.llmProvider;
+  llmRow.hidden = engine !== "llm";
+  // The model field only means something where the ask URL can carry a model.
+  llmModelField.hidden = llmProviderSelect.value !== "chatgpt";
+
+  if (engine === "device") {
+    // The on-device slot is Early access now: the hosted API, free, no meter,
+    // until the free period spins off on August 28.
     dot.classList.add("is-ok");
-    headText.textContent = "On-device";
-    name.textContent = "On-device AI";
-    state.textContent = "Ready";
-    state.classList.add("is-ok");
-    detail.textContent =
-      "Answers run on this machine — free, private, works offline. Nothing is sent anywhere.";
+    headText.textContent = "Early access";
+    engineNote.textContent =
+      Date.now() < JC_FREE_UNTIL
+        ? "JustClarify's API, free until August 28 — nothing to set up, voice included."
+        : "The free period has ended — answers now use the API engine's normal path.";
     return;
   }
 
-  if (availability === "downloading") {
-    dot.classList.add("is-busy");
-    headText.textContent = "Setting up";
-    name.textContent = "On-device AI";
-    state.textContent = "Downloading";
-    detail.textContent =
-      "Chrome is downloading the built-in model (about 4GB, one time). Ask something and you'll see progress.";
-    progress.hidden = false;
-    return;
-  }
-
-  if (availability === "downloadable") {
-    dot.classList.add("is-warn");
-    headText.textContent = hasKey ? "Your key" : "Not yet";
-    name.textContent = "On-device AI";
-    state.textContent = "Not downloaded";
-    detail.textContent = hasKey
-      ? `Your key (${model || JC_DEFAULT_MODEL}) answers for now, while Chrome pulls the built-in model down for later.`
-      : "Chrome hasn't downloaded the built-in model yet (about 4GB, one time). Your first question starts it.";
-    return;
-  }
-
-  // unavailable — the machine or the browser can't run it at all.
-  if (hasKey) {
+  if (engine === "llm") {
     dot.classList.add("is-ok");
-    headText.textContent = "Your key";
-    name.textContent = "Your own key";
-    state.textContent = "Ready";
-    state.classList.add("is-ok");
-    detail.textContent = `${model || JC_DEFAULT_MODEL} via Vercel AI Gateway. The built-in model isn't available on this device, so every answer goes through your key.`;
+    const chosen = (info.llmProviders || []).find((p) => p.id === info.llmProvider);
+    headText.textContent = chosen ? chosen.name : "Your LLM";
+    engineNote.textContent =
+      `${chosen ? chosen.name : "Your chat site"} answers in a quiet tab on your own account — free. ` +
+      "Slower streaming; no voice control.";
     return;
   }
 
-  dot.classList.add("is-off");
-  headText.textContent = "Needs a key";
-  card.classList.add("is-blocked");
-  name.textContent = blocked ? blocked.headline : "No engine available";
-  state.textContent = "Blocked";
-  state.classList.add("is-off");
-  detail.textContent =
-    (blocked ? blocked.detail + " " : "") +
-    "Turn on “Use your own AI key” below and JustClarify works normally again.";
+  // api
+  dot.classList.add("is-ok");
+  if (info.hasKey) {
+    headText.textContent = info.keyProviderName || "Your key";
+    engineNote.textContent =
+      `${info.model || JC_DEFAULT_MODEL} straight to ${info.keyProviderName || "your provider"} on your own key — unlimited.`;
+    return;
+  }
+  headText.textContent = "JustClarify";
+  if (Date.now() < JC_FREE_UNTIL) {
+    // Early access covers the API tier too — no countdown while it's free.
+    engineNote.textContent =
+      "JustClarify's model — free until August 28. Add your own key below any time.";
+    return;
+  }
+  const used = info.meterUsed;
+  const total = info.meterTotal;
+  const meterLine =
+    used != null && total != null
+      ? `${used} of ${total} free asks used`
+      : "First 30 asks free";
+  engineNote.textContent =
+    `JustClarify's model — voice included. ${meterLine}; then $3.99/month, or add your key below.`;
 }
 
 function loadEngine() {
@@ -144,12 +241,15 @@ function loadEngine() {
 
 function load() {
   chrome.storage.local.get(
-    [JC_PANEL_KEY, JC_BYOK_ENABLED_KEY, JC_BYOK_KEY_KEY, JC_BYOK_MODEL_KEY, JC_DEEPGRAM_KEY, JC_GOOGLE_FACT_KEY],
+    [JC_BYOK_ENABLED_KEY, JC_BYOK_KEY_KEY, JC_BYOK_MODEL_KEY, JC_BYOK_PROVIDER_KEY, JC_DEEPGRAM_KEY, JC_GOOGLE_FACT_KEY],
     (res) => {
-      store.panelOn = !!res[JC_PANEL_KEY];
       store.byokEnabled = !!res[JC_BYOK_ENABLED_KEY];
-      if (res[JC_BYOK_KEY_KEY]) byokKeyInput.value = res[JC_BYOK_KEY_KEY];
-      if (res[JC_BYOK_MODEL_KEY]) byokModelInput.value = res[JC_BYOK_MODEL_KEY];
+      // The saved key is never written back into an input. It renders as a
+      // masked row with a Delete button — replace it by deleting and pasting.
+      store.savedKey = res[JC_BYOK_KEY_KEY] || "";
+      store.savedModel = res[JC_BYOK_MODEL_KEY] || "";
+      store.savedProvider =
+        res[JC_BYOK_PROVIDER_KEY] || jcDetectKeyProvider(store.savedKey) || "";
       if (res[JC_DEEPGRAM_KEY]) deepgramInput.value = res[JC_DEEPGRAM_KEY];
       if (res[JC_GOOGLE_FACT_KEY]) factKeyInput.value = res[JC_GOOGLE_FACT_KEY];
       render();
@@ -160,21 +260,42 @@ function load() {
 
 // --- Toggles -----------------------------------------------------------------
 
-panelSwitch.addEventListener("click", () => {
-  store.panelOn = !store.panelOn;
-  chrome.storage.local.set({ [JC_PANEL_KEY]: store.panelOn });
-  render();
-});
-
 byokSwitch.addEventListener("click", () => {
   store.byokEnabled = !store.byokEnabled;
   chrome.storage.local.set({ [JC_BYOK_ENABLED_KEY]: store.byokEnabled });
   render();
   loadEngine();
-  if (store.byokEnabled && !byokKeyInput.value) {
+  if (store.byokEnabled && !store.savedKey) {
     // Opening the section is a request to fill it in.
     setTimeout(() => byokKeyInput.focus(), 220);
   }
+});
+
+for (const btn of enginePick.querySelectorAll(".jc-seg-btn")) {
+  if (btn.disabled) continue; // Device isn't finished — nothing to select
+  btn.addEventListener("click", () => {
+    chrome.storage.local.set({ jcEngine: btn.dataset.engine });
+    // The worker reads storage per-ask; re-render optimistically now.
+    if (lastEngineInfo) {
+      lastEngineInfo.engine = btn.dataset.engine;
+      renderEngine(lastEngineInfo);
+    }
+    loadEngine();
+  });
+}
+
+llmProviderSelect.addEventListener("change", () => {
+  chrome.storage.local.set({ jcLlmProvider: llmProviderSelect.value });
+  llmModelField.hidden = llmProviderSelect.value !== "chatgpt";
+});
+
+// The ChatGPT model preference. Saved as typed; llm.js puts it on the ask URL
+// for NEW windows only, and ChatGPT ignores names it doesn't recognize.
+chrome.storage.local.get(["jcLlmModel"], (res) => {
+  if (res && typeof res.jcLlmModel === "string") llmModelInput.value = res.jcLlmModel;
+});
+llmModelInput.addEventListener("change", () => {
+  chrome.storage.local.set({ jcLlmModel: llmModelInput.value.trim() });
 });
 
 // --- Page actions ------------------------------------------------------------
@@ -250,42 +371,75 @@ function showByokStatus(text, ok) {
   byokStatus.classList.toggle("is-err", !ok);
 }
 
-// Save, then verify against the Gateway's /models so a bad key is caught here
-// rather than on the user's next highlight.
+// Save, then verify against the key's OWN provider so a bad key is caught here
+// rather than on the user's next highlight. The provider is read off the key's
+// prefix — nobody should have to know what a dropdown means to paste a key.
 byokSaveBtn.addEventListener("click", async () => {
   const apiKey = byokKeyInput.value.trim();
   const model = byokModelInput.value.trim();
   if (!apiKey) {
-    showByokStatus("Paste your AI Gateway key first.", false);
+    showByokStatus("Paste your API key first.", false);
     byokKeyInput.focus();
     return;
   }
 
+  const provider = jcDetectKeyProvider(apiKey);
+  if (!provider) {
+    showByokStatus(
+      "That doesn't look like a key JustClarify knows — Anthropic (sk-ant-), OpenAI (sk-), Gemini (AIza), Hugging Face (hf_) and AI Gateway (vck_) keys work.",
+      false,
+    );
+    return;
+  }
+  const spec = JC_KEY_PROVIDERS[provider];
+
   chrome.storage.local.set({
     [JC_BYOK_KEY_KEY]: apiKey,
     [JC_BYOK_MODEL_KEY]: model,
+    [JC_BYOK_PROVIDER_KEY]: provider,
     [JC_BYOK_ENABLED_KEY]: true,
   });
   store.byokEnabled = true;
+  store.savedKey = apiKey;
+  store.savedProvider = provider;
+  store.savedModel = model;
+  byokKeyInput.value = "";
   render();
-  showByokStatus("Testing key…", true);
+  showByokStatus(`Testing your ${spec.label} key…`, true);
 
   try {
-    const res = await fetch("https://ai-gateway.vercel.sh/v1/models", {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
+    const res = await fetch(spec.validate, { headers: spec.headers(apiKey) });
     if (res.ok) {
-      showByokStatus(`Key works — using ${model || JC_DEFAULT_MODEL}`, true);
+      showByokStatus(`Key works — using ${model || spec.defaultModel} on ${spec.label}.`, true);
     } else if (res.status === 401 || res.status === 403) {
-      showByokStatus("Key rejected. Check it on vercel.com → AI Gateway.", false);
+      showByokStatus(`${spec.label} rejected the key — check it and paste again.`, false);
     } else if (res.status === 402) {
-      showByokStatus("Key has no credit on the Gateway.", false);
+      showByokStatus(`${spec.label} reports no credit on this key.`, false);
+    } else if (res.status === 400 && provider === "gemini") {
+      // Gemini answers a bad key on this endpoint with 400, not 401.
+      showByokStatus("Google Gemini rejected the key — check it and paste again.", false);
     } else {
       showByokStatus(`Saved, but the test returned HTTP ${res.status}.`, false);
     }
   } catch (_) {
-    showByokStatus("Saved, but couldn't reach the Gateway to test it.", false);
+    showByokStatus(`Saved, but couldn't reach ${spec.label} to test it.`, false);
   }
+  loadEngine();
+});
+
+// Delete is the only way a saved key changes: no editing in place. Clearing it
+// re-opens the entry fields for the replacement paste.
+byokDeleteBtn.addEventListener("click", () => {
+  chrome.storage.local.remove([JC_BYOK_KEY_KEY, JC_BYOK_MODEL_KEY, JC_BYOK_PROVIDER_KEY]);
+  chrome.storage.local.set({ [JC_BYOK_ENABLED_KEY]: false });
+  store.byokEnabled = false;
+  store.savedKey = "";
+  store.savedProvider = "";
+  store.savedModel = "";
+  byokKeyInput.value = "";
+  byokModelInput.value = "";
+  byokStatus.hidden = true;
+  render();
   loadEngine();
 });
 
@@ -298,7 +452,7 @@ historyBtn.addEventListener("click", () => {
 if (chrome.storage && chrome.storage.onChanged) {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    if (changes[JC_PANEL_KEY] || changes[JC_BYOK_ENABLED_KEY]) load();
+    if (changes[JC_BYOK_ENABLED_KEY] || changes[JC_BYOK_KEY_KEY]) load();
   });
 }
 

@@ -79,29 +79,41 @@ function extractSemanticWindow(fullText, selectionStart, selectionEnd, opts) {
   let start = selectionStart;
   let end = selectionEnd;
 
+  // A sentence can end in any of these, and what follows is often a newline
+  // rather than a space — innerText keeps the line breaks block elements
+  // produce. Testing only for ". " missed both, so a selection inside a
+  // multi-line paragraph found no boundaries and got no context.
+  const endsSentence = (i) =>
+    /[.!?]/.test(fullText[i]) && (i + 1 >= fullText.length || /\s/.test(fullText[i + 1]));
+
   // ---- Backward scan (N sentences)
   let backwardMatches = 0;
-  for (let i = selectionStart; i >= 0; i--) {
-    if (fullText[i] === "." && fullText[i + 1] === " ") {
-      backwardMatches++;
-      if (backwardMatches === sentences) {
-        start = i + 2;
-        break;
-      }
+  for (let i = selectionStart - 1; i >= 0; i--) {
+    if (!endsSentence(i)) continue;
+    backwardMatches++;
+    if (backwardMatches === sentences) {
+      start = i + 1;
+      break;
     }
   }
+  // Fewer than N sentences exist before the selection. Reaching as far back as
+  // the radius allows beats reaching back NOT AT ALL, which is what happened
+  // before: a phrase in the opening sentence of a passage was handed to the
+  // model with nothing in front of it, and the tighter the selection the more
+  // of the passage that lost.
+  if (backwardMatches < sentences) start = Math.max(0, selectionStart - MAX_RADIUS);
 
   // ---- Forward scan (N sentences)
   let forwardMatches = 0;
   for (let i = selectionEnd; i < fullText.length; i++) {
-    if (fullText[i] === "." && fullText[i + 1] === " ") {
-      forwardMatches++;
-      if (forwardMatches === sentences) {
-        end = i + 1;
-        break;
-      }
+    if (!endsSentence(i)) continue;
+    forwardMatches++;
+    if (forwardMatches === sentences) {
+      end = i + 1;
+      break;
     }
   }
+  if (forwardMatches < sentences) end = Math.min(fullText.length, selectionEnd + MAX_RADIUS);
 
   // ---- Fallback if too small
   if (end - start < 50) {
@@ -146,6 +158,19 @@ document.addEventListener("selectionchange", () => {
   if (selectionTimeout) {
     clearTimeout(selectionTimeout);
     selectionTimeout = null;
+  }
+
+  // A selection the SYSTEM just made (voice highlight, found phrase) is a
+  // pointing gesture, not a request for the blob — commands.js stamps
+  // jcSystemSelectionAt right before it selects. Without this check the
+  // extension startles itself: it highlights, then offers to explain its own
+  // highlight.
+  if (
+    typeof globalThis.jcSystemSelectionAt === "number" &&
+    Date.now() - globalThis.jcSystemSelectionAt < 900
+  ) {
+    removeBlob(false);
+    return;
   }
 
   // Hide the blob immediately while they are making a new selection
@@ -222,6 +247,48 @@ document.addEventListener("selectionchange", () => {
   }, 500); // 0.5-second delay
 });
 
+// How many asks are waiting on an answer right now. The "Your LLM" engine opens
+// its provider tab focused, so the user is physically taken off this page for
+// twenty seconds or more and then clicks back onto it — and that innocent
+// return click used to run removePopup() and destroy the very card the answer
+// was about to land in. The answer then rendered into a detached node: no
+// error, no exception, nothing on screen, while the provider tab showed it
+// perfectly. That is the whole of "it answers in its own tab but never loads on
+// my page".
+let jcAsksInFlight = 0;
+
+// Reveal transitions all start with "next frame, add the visible class", because
+// the element must be painted at opacity 0 before the transition can run. But a
+// HIDDEN tab gets no animation frames at all — so a card created while the user
+// is away in the LLM tab never gets its visible class, and sits at opacity 0
+// with a perfectly good answer inside it. llm-keepalive.js patches exactly this
+// in the provider tab; nothing patched it here, on the page the answer is FOR.
+//
+// A timer fallback when the tab is hidden costs one frame of smoothness in the
+// case nobody is watching, and buys the answer actually being visible when they
+// come back.
+function jcNextFrame(fn) {
+  if (document.visibilityState === "hidden") {
+    setTimeout(fn, 0);
+    return 0;
+  }
+  return requestAnimationFrame(fn);
+}
+
+// Relay for the network interceptor (llm-net.js). That script runs in the MAIN
+// world and so cannot reach chrome.runtime; this content script (isolated
+// world, same tab) can. It forwards each answer snapshot to the worker, which
+// matches it to the live ask by this tab's id. Runs on every page, but only
+// ever fires on the tab JustClarify is driving, because only there does the
+// interceptor post — and a snapshot from any other tab matches no active ask
+// and is dropped. The marker keeps a random page's postMessage from riding in.
+window.addEventListener("message", (e) => {
+  if (e.source !== window) return;
+  const d = e.data;
+  if (!d || d.__jcNet !== true) return;
+  jcSend({ type: "JC_LLM_NET", text: typeof d.text === "string" ? d.text : "", done: !!d.done });
+});
+
 // Handle clicking outside to close popup
 document.addEventListener("mousedown", (e) => {
   if (
@@ -231,6 +298,9 @@ document.addEventListener("mousedown", (e) => {
   ) {
     return;
   }
+  // An answer is still coming. A stray click is not a request to throw it away
+  // — Escape still is, and so is a click once the answer has landed.
+  if (jcAsksInFlight > 0) return;
   removePopup();
 });
 
@@ -241,6 +311,100 @@ document.addEventListener("keydown", (e) => {
     removeBlob(false);
   }
 });
+
+// --- Surviving an extension reload -------------------------------------------
+//
+// Chrome leaves OLD content scripts running in already-open tabs when the
+// extension reloads or updates, but their chrome.runtime is dead. Every call
+// then throws "Extension context invalidated" — which is exactly what a user
+// sees when they highlight something after an update, and it looks like the
+// product broke rather than like it needs a refresh.
+//
+// So: check before every call, say the one useful thing once, and never throw.
+
+function jcContextAlive() {
+  try {
+    return !!(chrome.runtime && chrome.runtime.id);
+  } catch (_) {
+    return false;
+  }
+}
+
+let jcStaleWarned = false;
+
+function jcWarnStale() {
+  if (jcStaleWarned) return;
+  jcStaleWarned = true;
+  // The chip belongs to voice.js and may not be loaded; fall back to a plain
+  // banner so the message lands either way.
+  try {
+    if (typeof jcVoiceChip === "function") {
+      jcVoiceChip("error", "JustClarify updated — reload this page to keep using it.", null, 6000);
+      return;
+    }
+  } catch (_) {}
+  try {
+    const note = document.createElement("div");
+    note.textContent = "JustClarify updated — reload this page to keep using it.";
+    note.style.cssText =
+      "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:2147483647;" +
+      "padding:10px 16px;border-radius:999px;background:#1a1a1a;color:#fff;font:14px system-ui;" +
+      "box-shadow:0 8px 32px rgba(0,0,0,.2);pointer-events:none";
+    document.body.appendChild(note);
+    setTimeout(() => note.remove(), 6000);
+  } catch (_) {}
+}
+
+// Callback-style send that can never throw. Returns false when the context is
+// gone, so callers can bail instead of waiting on a response that won't come.
+//
+// `onError` matters more than it looks. Without it, a failed send returned
+// WITHOUT EVER CALLING BACK — so a caller awaiting a reply waited forever: the
+// promise never settled, the listener was never removed, and the answer card
+// span forever. That is the whole of "the LLM answered in its own tab but the
+// page it came from never loaded". A send that fails must tell its caller,
+// because a caller that is never told cannot recover.
+function jcSend(message, callback, onError) {
+  const fail = (reason) => {
+    jcWarnStale();
+    if (onError) onError(reason instanceof Error ? reason : new Error(String(reason)));
+  };
+  if (!jcContextAlive()) {
+    fail("Extension was reloaded — refresh the page to keep using JustClarify.");
+    return false;
+  }
+  try {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        fail(chrome.runtime.lastError.message || "The extension stopped responding.");
+        return;
+      }
+      if (callback) callback(response);
+    });
+    return true;
+  } catch (error) {
+    fail(error);
+    return false;
+  }
+}
+
+// Promise-style, for the await call sites in commands.js / voice.js. Resolves
+// null rather than rejecting: every caller already treats null as "no answer".
+function jcSendAsync(message) {
+  if (!jcContextAlive()) {
+    jcWarnStale();
+    return Promise.resolve(null);
+  }
+  try {
+    return chrome.runtime.sendMessage(message).catch(() => {
+      jcWarnStale();
+      return null;
+    });
+  } catch (_) {
+    jcWarnStale();
+    return Promise.resolve(null);
+  }
+}
 
 // --- Mouse tracking (so the ask box / loading dot opens at the cursor) ---
 let lastMouseX = window.innerWidth / 2;
@@ -254,11 +418,45 @@ document.addEventListener(
   { passive: true },
 );
 
+// Where the cursor is IN SCREEN SPACE, plus the usable bounds of the display
+// this window is on. The service worker has no idea where the mouse is, and the
+// "Your LLM" engine needs both to open its little window next to the cursor on
+// the right monitor.
+//
+// screenX/screenY are the window's own top-left on the virtual desktop, so
+// adding the viewport-relative cursor gives screen space. The vertical offset
+// also has to clear the browser's own chrome (tab strip, address bar), which is
+// outerHeight minus innerHeight — otherwise the window lands a hundred-odd
+// pixels too high.
+//
+// availLeft/availTop can be NEGATIVE on a display sitting to the left of or
+// above the primary one, so nothing here may assume they start at zero.
+function jcCursorScreenPoint() {
+  try {
+    const s = window.screen || {};
+    const chromeHeight = Math.max(0, (window.outerHeight || 0) - (window.innerHeight || 0));
+    return {
+      x: Math.round((window.screenX || 0) + lastMouseX),
+      y: Math.round((window.screenY || 0) + chromeHeight + lastMouseY),
+      availLeft: Math.round(typeof s.availLeft === "number" ? s.availLeft : 0),
+      availTop: Math.round(typeof s.availTop === "number" ? s.availTop : 0),
+      availWidth: Math.round(s.availWidth || s.width || 1280),
+      availHeight: Math.round(s.availHeight || s.height || 800),
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 // --- Double-tap Shift opens the ask box ---
 // Two clean Shift taps (no other key pressed in between) within 400ms, the way
 // IDE/Spotlight-style double-shift works. Any other key resets the chain so it
 // won't fire while you're typing capital letters.
 const DOUBLE_SHIFT_MS = 400;
+// Voice owns Shift now. Keep the old handler here for a future explicit
+// setting, but leave it dormant so a quick Shift tap can never interrupt an
+// agentic voice session by opening a text box.
+const DOUBLE_SHIFT_ENABLED = false;
 let lastShiftUp = 0;
 let shiftChainBroken = false;
 
@@ -274,6 +472,18 @@ document.addEventListener(
   "keyup",
   (e) => {
     if (e.key !== "Shift") return;
+    if (!DOUBLE_SHIFT_ENABLED) return;
+
+    // A HELD Shift is push-to-talk (voice.js), not half of a double-tap. Both
+    // listeners are capture-phase and this one is registered first, so the hold
+    // is still flagged here — voice.js ends it a moment later. Clearing the
+    // chain matters as much as returning: without it, the keyup that finishes
+    // a spoken command would arm the next single tap into opening the ask box.
+    if (typeof jcVoiceHoldActive === "function" && jcVoiceHoldActive()) {
+      lastShiftUp = 0;
+      shiftChainBroken = false;
+      return;
+    }
 
     const now = Date.now();
     const isDouble =
@@ -489,17 +699,30 @@ async function openPopupAtSelection(rect, data) {
   popupEl = popup;
 
   // Force a frame, then reveal
-  requestAnimationFrame(() => {
+  jcNextFrame(() => {
     popup.classList.add("visible");
   });
 
   renderActionMenu(popup);
 }
 
+// Set when an answer on this page came from the "Your LLM" engine, so that
+// dismissing that answer is the cue to tuck its little window away (or ask
+// whether it is still wanted). Cleared as soon as it is reported, so an ordinary
+// second dismissal doesn't re-trigger it.
+let jcLastAnswerWasLlm = false;
+
 function removePopup() {
   const popup = document.getElementById("ambient-popup");
   if (popup) popup.remove();
   popupEl = null;
+
+  // They are done with the answer. The worker decides what happens to the
+  // provider window: shrink it away, or ask once whether to keep it.
+  if (jcLastAnswerWasLlm) {
+    jcLastAnswerWasLlm = false;
+    jcSend({ type: "JC_LLM_DISMISSED", host: location.host });
+  }
   // Stop popup tweens so nothing keeps running on detached nodes.
   if (typeof gsap !== "undefined") gsap.globalTimeline.clear();
   clearInterval(jcLoadingTimer);
@@ -510,7 +733,31 @@ function removePopup() {
 // Expand the popup out of the compact loading circle and show a short message
 // (used for empty selections and fetch failures, so the user never gets stuck
 // staring at a clipped loading circle).
+// A popup reference captured before an await may be DETACHED by the time the
+// answer arrives — removePopup() runs on stray clicks, and the LLM engine keeps
+// the user away from this page for twenty seconds or more. Writing into an
+// orphaned node throws nothing and shows nothing, which is the worst possible
+// failure: a correct answer, delivered, invisible.
+//
+// So every render resolves the LIVE card first: the node it was handed if that
+// node is still in the document, otherwise whatever #ambient-popup is now.
+function jcLivePopup(popup) {
+  if (popup && popup.isConnected) return popup;
+  const live = document.getElementById("ambient-popup");
+  if (live) return live;
+  if (popup) jcWarnDetached();
+  return null;
+}
+
+let jcDetachedWarned = false;
+function jcWarnDetached() {
+  if (jcDetachedWarned) return;
+  jcDetachedWarned = true;
+  console.debug("[JustClarify] answer arrived with no card on screen to show it in");
+}
+
 function showPopupMessage(popup, message) {
+  popup = jcLivePopup(popup);
   if (!popup) return;
   // In menu mode the row stays put; short messages/errors land in the panel.
   const panel = jcMenuPanel(popup);
@@ -1201,102 +1448,63 @@ function stripLayoutMarkers(text) {
 
 let claudeReqSeq = 0;
 
-// --- On-device first-run consent --------------------------------------------
-// The very first time the built-in model would need its one-time ~4GB download
-// (and there's no key to answer with meanwhile), ask before starting it.
-const JC_ONDEVICE_CONSENT_KEY = "jcOnDeviceConsent";
-let jcConsentState = null; // "yes" | "no" (session-only decline) | null
+// Send a JustClarify request to the background worker, which answers with the
+// user's own Gateway key when they have set one, else JustClarify's hosted AI.
+//
+// There used to be a consent gate here, asking permission before Chrome's
+// one-time on-device model download. The on-device tier is gone, so the gate
+// had nothing to ask about — but it still cost a round-trip to the worker
+// before every single ask, on the critical path, to compute "no".
+// No answer may take longer than this WITHOUT ANY SIGN OF LIFE. The clock is
+// reset by every progress message, so a genuinely slow engine (the LLM tab
+// engine can legitimately spend a minute or more) is never cut off while it is
+// still talking to us. It only fires when the worker has gone quiet for good —
+// killed, reloaded, or wedged — which used to leave the card spinning forever.
+const JC_ASK_SILENCE_MS = 90_000;
 
-function jcEngineStatus() {
-  return new Promise((resolve) => {
-    try {
-      chrome.runtime.sendMessage({ type: "JC_ENGINE_STATUS" }, (info) => {
-        resolve(chrome.runtime.lastError ? null : info);
-      });
-    } catch (_) {
-      resolve(null);
-    }
-  });
-}
-
-// Consent card rendered into the popup panel; resolves "yes" | "no".
-function jcAskOnDeviceConsent() {
-  return new Promise((resolve) => {
-    const popup = document.getElementById("ambient-popup");
-    const target = popup
-      ? jcMenuPanel(popup) || popup.querySelector(".popup-content")
-      : null;
-    if (!target) {
-      resolve("yes"); // no surface to ask on — don't block the answer
-      return;
-    }
-    if (popup) {
-      jcSetRowLoading(popup, false);
-      popup.classList.remove("is-loading");
-      popup.classList.add("is-loaded");
-      target.classList?.remove("loading");
-      target.classList?.add("ready");
-    }
-    target.innerHTML = `
-      <div class="jc-consent">
-        <span class="jc-consent-ico">${jcIcon("ondevice")}</span>
-        <div class="jc-consent-title">Set up on-device AI?</div>
-        <p class="jc-consent-body">JustClarify can answer right on your machine — free, private, and it works offline. Chrome downloads the built-in model once (about 4GB); after that it's instant. Nothing you highlight ever leaves your device.</p>
-        <div class="jc-consent-actions">
-          <button class="jc-consent-yes" type="button">Use on-device AI</button>
-          <button class="jc-consent-no" type="button">Not now</button>
-        </div>
-      </div>
-    `;
-    if (popup) clampPopupPosition(popup);
-    target.querySelector(".jc-consent-yes").addEventListener("click", () => resolve("yes"));
-    target.querySelector(".jc-consent-no").addEventListener("click", () => resolve("no"));
-  });
-}
-
-async function jcEnsureEngineConsent() {
-  if (jcConsentState === "yes") return;
-  const stored = await jcStorageGet([JC_ONDEVICE_CONSENT_KEY]);
-  if (stored[JC_ONDEVICE_CONSENT_KEY] === "yes") {
-    jcConsentState = "yes";
-    return;
-  }
-  const info = await jcEngineStatus();
-  // Consent only matters when the built-in model needs its one-time download AND
-  // there's no key to answer with meanwhile. Anything else → nothing to ask.
-  const needsDownload = info && info.ok && info.availability === "downloadable" && !info.hasKey;
-  if (!needsDownload) {
-    jcConsentState = "yes";
-    return;
-  }
-  if (jcConsentState === "no") {
-    // Declined earlier this session — don't re-prompt on every ask, but don't
-    // start the download behind their back either.
-    throw new Error(
-      "On-device AI setup was declined. Add your own AI Gateway key in the JustClarify popup to answer, or reopen JustClarify to accept the one-time download.",
-    );
-  }
-  const choice = await jcAskOnDeviceConsent();
-  if (choice === "yes") {
-    await jcStorageSet({ [JC_ONDEVICE_CONSENT_KEY]: "yes" }); // remembered across sessions
-    jcConsentState = "yes";
-    return;
-  }
-  jcConsentState = "no"; // session-only — re-asked on the next page load
-  throw new Error(
-    "On-device AI setup was declined. Turn on “Use your own AI key” in the JustClarify popup to answer without the one-time download.",
-  );
-}
-
-// Send a JustClarify request to the background worker, which answers with
-// Chrome's on-device model when available, else the Vercel AI Gateway.
 async function askChatGPT(prompt, onProgress) {
-  await jcEnsureEngineConsent(); // may throw if the user declines the download
   const reqId = ++claudeReqSeq;
   jcPanelActivity("thinking");
+  jcAsksInFlight += 1;
   return new Promise((resolve, reject) => {
+    let settled = false;
+    let watchdog = null;
+
+    const cleanup = () => {
+      chrome.runtime.onMessage.removeListener(onMessage);
+      clearTimeout(watchdog);
+      jcAsksInFlight = Math.max(0, jcAsksInFlight - 1);
+    };
+    const armWatchdog = () => {
+      clearTimeout(watchdog);
+      watchdog = setTimeout(() => {
+        finishBad("JustClarify lost contact with its background worker. Try again.");
+      }, JC_ASK_SILENCE_MS);
+    };
+    // Every settle path goes through these two, so the listener, the timer and
+    // the promise can never disagree about whether this ask is over.
+    const finishOk = (value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+    const finishBad = (message, quiet) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (!quiet) jcPanelActivity("error", message);
+      const error = new Error(message);
+      // Carried on the Error itself so every catch site — there are several,
+      // and they do different things — can tell "show this to the user" from
+      // "this ask was abandoned, render nothing".
+      if (quiet) error.jcQuiet = true;
+      reject(error);
+    };
+
     const onMessage = (msg) => {
       if (msg && msg.type === "CLAUDE_PROGRESS" && msg.reqId === reqId) {
+        armWatchdog(); // still alive — the silence clock starts over
         const clean = stripLayoutMarkers(stripTopicForDisplay(msg.answer || ""));
         // The engine that's actually answering — the card badges it live, so a
         // Gateway fallback after an on-device miss is visible as it happens.
@@ -1308,25 +1516,35 @@ async function askChatGPT(prompt, onProgress) {
       }
     };
     chrome.runtime.onMessage.addListener(onMessage);
-    chrome.runtime.sendMessage(
-      { type: "ASK_CLAUDE", prompt: prompt + JC_TOPIC_INSTRUCTION, reqId },
+    armWatchdog();
+
+    const sent = jcSend(
+      {
+        type: "ASK_CLAUDE",
+        prompt: prompt + JC_TOPIC_INSTRUCTION,
+        reqId,
+        // Only the "Your LLM" engine uses these; the others ignore them.
+        cursor: jcCursorScreenPoint(),
+        host: location.host,
+      },
       (resp) => {
-        chrome.runtime.onMessage.removeListener(onMessage);
-        if (chrome.runtime.lastError) {
-          jcPanelActivity("error", "Extension reloaded — refresh the page.");
-          return reject(new Error(chrome.runtime.lastError.message));
-        }
         if (!resp?.ok) {
-          const message = resp?.error || "JustClarify couldn't get an answer. Try again.";
-          jcPanelActivity("error", message);
-          return reject(new Error(message));
+          // A superseded ask is not a failure: the user asked something newer
+          // and that one owns the card now. Fail quietly so its answer isn't
+          // stomped by an error message about the question they moved on from.
+          if (resp?.superseded) return finishBad("superseded", true);
+          return finishBad(resp?.error || "JustClarify couldn't get an answer. Try again.");
         }
         jcSetEngine(resp.engine, resp.model);
         jcPanelActivity("done");
         const { body, topic } = splitTopic(resp.answer || "");
-        resolve({ answer: body, thinking: resp.thinking || "", url: resp.url || "", topic });
+        finishOk({ answer: body, thinking: resp.thinking || "", url: resp.url || "", topic });
       },
+      // The send itself failed, or the channel died before a reply. Previously
+      // this went nowhere and the caller waited forever.
+      (error) => finishBad(error.message || "JustClarify couldn't reach its background worker."),
     );
+    if (!sent) finishBad("Extension was reloaded — refresh the page to keep using JustClarify.");
   });
 }
 
@@ -1379,6 +1597,25 @@ Reply with ONLY the translation — no quotes, no preamble, no notes. If the tar
     ""
   ).trim();
   const selection = (selectedText || "").trim();
+
+  // A voice ask can arrive as a QUESTION about the highlight rather than a
+  // bare phrase — "what does he mean by 'I spend my days'?" — and the reader
+  // wants THAT answered, not a definition of the quoted words. The question
+  // rides in data.spokenQuestion (attached by the voice layer only when it
+  // genuinely reads as a question); when present, it replaces the canned
+  // instruction while keeping the same passage grounding.
+  // Only the default explain honours it: a style button pressed afterwards
+  // (ELI5, Expand…) is a NEW, explicit instruction and must behave as labeled.
+  const spoken = mode === "default" && !question ? String(data.spokenQuestion || "").trim() : "";
+  if (spoken) {
+    if (!context || context === selection) {
+      return `The reader highlighted "${selection}" and asked: "${spoken}"
+Answer their question in 2-4 sentences. Reply only with the answer.${JC_LAYOUT_HINT}`;
+    }
+    return `Passage: "${context}"
+The reader highlighted "${selection}" in this passage and asked: "${spoken}"
+Answer exactly what they asked, in 2-4 sentences, using what the passage actually means here — not a generic definition of the highlighted words. Reply only with the answer.${JC_LAYOUT_HINT}`;
+  }
 
   // Keep the working prompt compact: the model gets the exact passage and the
   // desired transformation, without restating the product's entire UI contract.
@@ -1514,7 +1751,7 @@ function jcMenuPanel(popup, create = true) {
     menu.appendChild(panel);
     // Next frame → flip on the scale-out transition, then re-center the popup
     // now that it's taller/wider.
-    requestAnimationFrame(() => {
+    jcNextFrame(() => {
       panel.classList.add("is-open");
       clampPopupPosition(popup);
     });
@@ -1742,6 +1979,8 @@ function jcPanelAnswer(popup, answer, label, thinking) {
 }
 
 function setPopupLoading(popup) {
+  popup = jcLivePopup(popup);
+  if (!popup) return;
   if (jcPanelLoading(popup)) return;
   const content = popup.querySelector(".popup-content");
   content.classList.remove("ready");
@@ -1814,6 +2053,8 @@ function renderSmoothStream(element, target) {
 // Live streaming view: built on the first chunk, then updated in place as more
 // text arrives. Uses textContent so partial markup mid-stream can't inject HTML.
 function renderStreaming(popup, { thinking, answer, download }) {
+  popup = jcLivePopup(popup);
+  if (!popup) return;
   if (jcPanelStreaming(popup, { thinking, answer, download })) return;
   const content = popup.querySelector(".popup-content");
   let stream = content.querySelector(".jc-stream");
@@ -2046,6 +2287,8 @@ function animateEmailWave(card) {
 }
 
 function renderAnswer(popup, answer, label, thinking) {
+  popup = jcLivePopup(popup);
+  if (!popup) return;
   if (jcPanelAnswer(popup, answer, label, thinking)) return;
   clearInterval(jcLoadingTimer);
   if (jcStreamFrame) cancelAnimationFrame(jcStreamFrame);
@@ -2102,6 +2345,11 @@ function renderAnswer(popup, answer, label, thinking) {
 }
 
 function showClaudeError(popup, err) {
+  // A superseded ask is not an error the user should ever read. It means they
+  // asked something newer, and that newer ask now owns this card — writing
+  // "superseded" here would both be gibberish and stomp the answer they are
+  // actually waiting for.
+  if (err && err.jcQuiet) return;
   const message = err?.message?.includes("couldn't connect")
     ? err.message
     : err?.message ||
@@ -2316,7 +2564,7 @@ function jcDefineSelection(popup) {
   }
   setPopupLoading(popup);
 
-  chrome.runtime.sendMessage({ type: "JC_DICTIONARY", word }, (resp) => {
+  jcSend({ type: "JC_DICTIONARY", word }, (resp) => {
     // No entry (or the lookup failed) → the model explains it in context
     // instead. Better a contextual explanation than a dead end.
     if (chrome.runtime.lastError || !resp?.ok) {
@@ -2342,7 +2590,7 @@ async function jcFactCheckSelection(popup) {
   }
   setPopupLoading(popup);
 
-  chrome.runtime.sendMessage(
+  jcSend(
     {
       type: "JC_FACTCHECK_ONE",
       claim,
@@ -2409,7 +2657,7 @@ let jcFcLive = false;
 
 function jcFcCloseOverlay() {
   if (jcFcLive) {
-    chrome.runtime.sendMessage({ type: "JC_AUDIO_END" }, () => {
+    jcSend({ type: "JC_AUDIO_END" }, () => {
       void chrome.runtime.lastError;
     });
     jcFcLive = false;
@@ -2455,7 +2703,7 @@ function jcFcStartLive() {
     .insertAdjacentHTML("afterend", `<p class="jc-fc-heard">Starting…</p>`);
   jcFcLive = true;
 
-  chrome.runtime.sendMessage({ type: "JC_AUDIO_BEGIN" }, (resp) => {
+  jcSend({ type: "JC_AUDIO_BEGIN" }, (resp) => {
     void chrome.runtime.lastError;
     if (!resp?.ok) {
       overlay.classList.remove("is-listening");
@@ -2505,7 +2753,7 @@ function jcFcStartPageCheck(kind) {
     overlay.classList.add("is-collapsed");
   }
 
-  chrome.runtime.sendMessage({ type: "JC_FACTCHECK_TEXT", text, runId, limit: 6 }, () => {
+  jcSend({ type: "JC_FACTCHECK_TEXT", text, runId, limit: 6 }, () => {
     void chrome.runtime.lastError; // verdicts arrive as their own messages
   });
 }
@@ -3264,7 +3512,7 @@ function openAskBox() {
 
   document.body.appendChild(popup);
   popupEl = popup;
-  requestAnimationFrame(() => popup.classList.add("visible"));
+  jcNextFrame(() => popup.classList.add("visible"));
 
   renderAskForm(popup, data);
 }
@@ -3308,6 +3556,21 @@ function renderAskForm(popup, data) {
     event.preventDefault();
     const question = input.value.trim();
     if (!question) return;
+
+    // One command system, two mouths. Whatever works spoken works typed:
+    // "scroll down", "open vercel", "highlight the pricing part". Only when
+    // it isn't a command does it become a question for the model — which is
+    // exactly the voice pipeline's order (grammar first, model second).
+    if (typeof jcVoiceExecute === "function") {
+      const command = jcVoiceExecute(question);
+      if (command !== null) {
+        removePopup();
+        if (!command.quiet && typeof jcVoiceChip === "function") {
+          jcVoiceChip(command.ok ? "done" : "error", command.label || question, null, command.ok ? 1500 : 2600);
+        }
+        return;
+      }
+    }
     submitAsk(popup, data, question);
   });
 }
@@ -3626,7 +3889,7 @@ function openThreadView(thread) {
 
   document.body.appendChild(popup);
   popupEl = popup;
-  requestAnimationFrame(() => popup.classList.add("visible"));
+  jcNextFrame(() => popup.classList.add("visible"));
 
   renderThreadView(popup, thread);
 }
@@ -3715,8 +3978,12 @@ try {
   if (window.top !== window) return;
   try {
     await loadThreads();
-    const s = await jcStorageGet([JC_PANEL_KEY]);
-    jcPanelOn = !!s[JC_PANEL_KEY];
+    // The ambient panel is RETIRED from the product: its card and toggle are
+    // gone from the popup, so the stored flag is deliberately ignored — anyone
+    // who switched it on back when the toggle existed would otherwise carry a
+    // panel they can no longer turn off anywhere but its own ✕. The machinery
+    // below stays for the day it returns.
+    jcPanelOn = false;
   } catch (_) {}
   renderPanel();
 
@@ -3791,7 +4058,7 @@ function ensurePanel() {
     }
   });
 
-  requestAnimationFrame(() => panel.classList.add("jc-ap-in"));
+  jcNextFrame(() => panel.classList.add("jc-ap-in"));
   return panel;
 }
 
@@ -3900,6 +4167,10 @@ let jcEngine = null; // { slug, name, color, model }
 function jcSetEngine(slug, model) {
   if (!slug) return;
   const key = String(slug).toLowerCase();
+  // Remember that this answer came from the provider-window engine, so
+  // dismissing it can tidy that window away. Every CLAUDE_PROGRESS from
+  // llm.js carries engine:"llm".
+  if (key === "llm") jcLastAnswerWasLlm = true;
   const meta = JC_ENGINES[key] || { name: key, color: "#8a847e" };
   jcEngine = { slug: key, name: meta.name, color: meta.color, model: model || "" };
   // Repaint an open card so a mid-request engine switch is visible live.
@@ -3979,7 +4250,7 @@ function jcPanelCard(panel) {
   `;
   jcFillEngineHead(card.querySelector(".jc-ap-card-head"));
   wrap.appendChild(card);
-  requestAnimationFrame(() => card.classList.add("is-open"));
+  jcNextFrame(() => card.classList.add("is-open"));
   return card;
 }
 
@@ -4033,10 +4304,102 @@ function jcPanelActivity(state, text) {
   }
 }
 
+// --- Text transforms, on whichever engine is selected -------------------------
+//
+// These used to POST bare { text, mode } to the backend's /transform, which was
+// broken three ways at once: the prompts lived on a server this repo can't see,
+// the fetch ran in the content script and so carried the PAGE's origin (the
+// exact MV3 CORS failure voice was already moved to the worker for), and the
+// whole thing ignored the engine picker — under "Your LLM" or a personal API
+// key the buttons still quietly billed the hosted backend. That is why they
+// worked on some pages and not others.
+//
+// Now the prompt is built HERE and rides ASK_CLAUDE, the same road every other
+// ask takes — so a transform answers from Early access, the user's own key, or
+// their ChatGPT window, exactly like a highlight would.
+//
+// The humanize instructions are distilled from the blader/humanizer skill
+// (skills.sh), itself derived from Wikipedia's "signs of AI writing" catalogue:
+// the tells are named so the model can remove them rather than guess at vibes.
+const JC_TRANSFORM_TAIL =
+  "\nKeep the original meaning, facts, names and language. Reply with ONLY the rewritten text — no preamble, no quotes around it, no commentary.";
+
+const JC_TRANSFORM_PROMPTS = {
+  humanize:
+    "Rewrite the text below so it reads like a person wrote it. Remove the tells of AI writing: " +
+    "vary sentence length instead of keeping an even rhythm; cut the \"it's not just X, it's Y\" construction; " +
+    "stop grouping everything in threes; drop hedging fillers (arguably, it's worth noting, in many ways); " +
+    "drop grand openers and closers (in today's fast-paced world; ultimately, the choice is yours); " +
+    "use fewer em dashes and no bolded keyword lists; prefer concrete detail over abstraction; " +
+    "use contractions and the active voice; and do not end with a tidy summary of what was just said. " +
+    "Do not add new claims.",
+  shorten:
+    "Rewrite the text below in as few words as it honestly takes — cut repetition, filler, hedges and " +
+    "throat-clearing, keep every load-bearing fact and the original tone. Aim for roughly half the length.",
+  expand:
+    "Expand the text below with substance, not padding: unpack the compressed claims, add the connective " +
+    "reasoning between the ideas that are already there, and give a concrete example where one helps. " +
+    "Roughly double the length. Do not invent facts the text doesn't support.",
+  summarize:
+    "Summarize the text below in 2-4 sentences that capture only the key points, dropping the filler.",
+  paraphrase:
+    "Rewrite the text below in different words and sentence structure while saying exactly the same thing, " +
+    "at about the same length.",
+  grammar:
+    "Fix the grammar, spelling and punctuation of the text below. Change NOTHING else — keep the wording, " +
+    "tone and structure exactly as written wherever they are already correct.",
+  formal:
+    "Rewrite the text below in a professional, formal register — no slang, no contractions, precise wording — " +
+    "without inflating its length or burying its point.",
+  casual:
+    "Rewrite the text below in a relaxed, conversational register, the way you'd say it to a colleague you " +
+    "know well — contractions welcome, jargon kept only where it earns its place.",
+  simplify:
+    "Rewrite the text below in much simpler, plainer language — short sentences, everyday words, one idea " +
+    "per sentence — so someone new to the topic follows it on the first read.",
+};
+
+// One transform = one ASK_CLAUDE round trip. Returns the rewritten text, or
+// throws with a message fit to show. Progress messages for this reqId are
+// ignored on purpose — a transform replaces the editor's contents in one move,
+// so streaming a half-rewritten paragraph into it would only churn the text.
+function jcTransformViaEngine(text, mode) {
+  const instruction = JC_TRANSFORM_PROMPTS[mode];
+  if (!instruction) return Promise.reject(new Error(`Unknown rewrite: ${mode}`));
+  const reqId = ++claudeReqSeq;
+  const prompt = `${instruction}${JC_TRANSFORM_TAIL}\n\nText:\n${text}`;
+
+  return new Promise((resolve, reject) => {
+    const sent = jcSend(
+      {
+        type: "ASK_CLAUDE",
+        prompt,
+        reqId,
+        // The LLM engine parks its little window by the cursor and counts asks
+        // per site — same as any other ask.
+        cursor: jcCursorScreenPoint(),
+        host: location.host,
+      },
+      (resp) => {
+        if (!resp?.ok) {
+          return reject(new Error(resp?.error || "Rewrite failed — try again."));
+        }
+        // Engines that decorate answers (topic tags, layout markers) must not
+        // leak that decoration into a text editor.
+        const clean = jcStripStrayMarkers(stripTopicForDisplay(resp.answer || "")).trim();
+        if (!clean) return reject(new Error("The rewrite came back empty — try again."));
+        resolve(clean);
+      },
+      (error) => reject(new Error(error?.message || "JustClarify couldn't reach its background worker.")),
+    );
+    if (!sent) reject(new Error("Extension was reloaded — refresh the page and try again."));
+  });
+}
+
 // --- Rewrite box (text tools) ---
 // Opened from the toolbar popup. A centered, Grammarly-style box: paste text
-// in, hit one of the rewrite buttons, get the transformed text back from the
-// backend /transform endpoint.
+// in, hit one of the rewrite buttons, get the transformed text back on
+// whichever engine is selected.
 
 const JC_RW_MODES = [
   { mode: "humanize", label: "Humanize" },
@@ -4128,22 +4491,10 @@ function openRewriteBox() {
     setStatus(`${label}…`);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/transform`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, mode }),
-      });
-      if (!res.ok) {
-        let detail = "";
-        try {
-          detail = (await res.json()).detail || "";
-        } catch (_) {}
-        throw new Error(detail || `Request failed (${res.status})`);
-      }
-      const data = await res.json();
+      const rewritten = await jcTransformViaEngine(text, mode);
       setStatus("");
       resultLabel.textContent = label;
-      resultText.textContent = data.text || "";
+      resultText.textContent = rewritten;
       result.hidden = false;
       copyBtn.textContent = "Copy";
     } catch (e) {
@@ -4192,7 +4543,7 @@ function openRewriteBox() {
   document.addEventListener("keydown", overlay._jcOnKeydown, true);
 
   document.body.appendChild(overlay);
-  requestAnimationFrame(() => overlay.classList.add("visible"));
+  jcNextFrame(() => overlay.classList.add("visible"));
   input.focus();
 }
 
@@ -4476,7 +4827,7 @@ function jcTaRestore() {
   if (editor) editor.focus();
 }
 
-let jcTaBusy = false; // one /transform in flight at a time
+let jcTaBusy = false; // one rewrite in flight at a time
 
 async function jcTaTransform(mode, label, btn) {
   const editor = jcTaEditor();
@@ -4491,17 +4842,11 @@ async function jcTaTransform(mode, label, btn) {
   jcTaEl.querySelectorAll(".jc-ta-action").forEach((b) => (b.disabled = true));
   jcTaSetStatus(`${label}…`);
   try {
-    const res = await fetch(`${API_BASE_URL}/transform`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, mode }),
-    });
-    if (!res.ok) throw new Error(`Request failed (${res.status})`);
-    const data = await res.json();
+    const rewritten = await jcTransformViaEngine(text, mode);
     // The editor may have been closed/reopened while the request was in flight.
     const live = jcTaEditor();
     if (live) {
-      live.textContent = data.text || text;
+      live.textContent = rewritten;
       jcTaAlignIdx = -1; // fresh text — alignment restarts from reflow
       live.style.textAlign = "";
     }

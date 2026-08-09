@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 // "Privacy Policy" alone — the root layout's title template appends
-// " — JustClarify", so spelling out the brand here would double it.
+// " | JustClarify", so spelling out the brand here would double it.
 export const metadata = {
   title: "Privacy Policy",
   description:
@@ -12,7 +12,7 @@ export const metadata = {
   // root block wholesale — it has to be spelled out in full or this page would
   // inherit the landing page's og:url and lose its image.
   openGraph: {
-    title: "Privacy Policy — JustClarify",
+    title: "Privacy Policy | JustClarify",
     description:
       "What JustClarify collects, how it is used, what is stored, and what is shared with other users.",
     url: "/privacy-policy",
@@ -103,7 +103,7 @@ export default function PrivacyPolicyPage() {
           </ul>
 
           <h3 className="font-semibold text-[#000000] mb-2">
-            3. Page content, page address and page title — when you run a
+            3. Page content, page address and page title, when you run a
             fact-check
           </h3>
           <p className="mb-5">
@@ -114,7 +114,7 @@ export default function PrivacyPolicyPage() {
           </p>
 
           <h3 className="font-semibold text-[#000000] mb-2">
-            4. Tab audio — only during live fact-checking
+            4. Tab audio, only during live fact-checking
           </h3>
           <p>
             If you explicitly start live fact-checking, JustClarify captures
@@ -142,7 +142,7 @@ export default function PrivacyPolicyPage() {
             <li>the page&apos;s web address, with tracking parameters removed</li>
             <li>the page title</li>
             <li>
-              a cryptographic hash (a fingerprint) of the page text — not the
+              a cryptographic hash (a fingerprint) of the page text, not the
               page text itself
             </li>
             <li>
@@ -285,40 +285,40 @@ export default function PrivacyPolicyPage() {
           </p>
           <ul className="list-disc pl-5 space-y-1">
             <li>
-              <span className="font-semibold">Supabase</span> — database hosting
+              <span className="font-semibold">Supabase</span>: database hosting
               for shared fact-check results
             </li>
             <li>
-              <span className="font-semibold">Vercel</span> — hosting for the
+              <span className="font-semibold">Vercel</span>: hosting for the
               JustClarify backend
             </li>
             <li>
-              <span className="font-semibold">Hugging Face</span> — AI-generated
+              <span className="font-semibold">Hugging Face</span>: AI-generated
               explanations
             </li>
             <li>
-              <span className="font-semibold">Vercel AI Gateway</span> — routes
+              <span className="font-semibold">Vercel AI Gateway</span>: routes
               AI requests to model providers
             </li>
             <li>
-              <span className="font-semibold">Perplexity</span> — web-grounded
+              <span className="font-semibold">Perplexity</span>: web-grounded
               fact-check verdicts
             </li>
             <li>
-              <span className="font-semibold">OpenAI</span> — identifying which
+              <span className="font-semibold">OpenAI</span>: identifying which
               sentences contain checkable claims
             </li>
             <li>
-              <span className="font-semibold">Google Fact Check Tools</span> —
+              <span className="font-semibold">Google Fact Check Tools</span>:
               retrieving fact-checks already published by organisations such as
               PolitiFact, Snopes and FactCheck.org
             </li>
             <li>
-              <span className="font-semibold">DictionaryAPI</span> — dictionary
+              <span className="font-semibold">DictionaryAPI</span>: dictionary
               lookups
             </li>
             <li>
-              <span className="font-semibold">Resend</span> — storing email
+              <span className="font-semibold">Resend</span>: storing email
               contacts and sending email
             </li>
           </ul>

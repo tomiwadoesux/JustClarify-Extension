@@ -1,0 +1,73 @@
+# CI for every push and PR. The voice layer shipped ~2,000 lines before its
+# first browser run and the bugs were found by a human holding Shift — this is
+# the cheap half of never doing that again. (The expensive half, real browser
+# runs, still has to happen by hand until a Playwright harness exists.)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Syntax-check every extension file
+        # node --check catches what a typo'd patch does to an unbundled
+        # extension: one broken file silently kills every feature after it
+        # in the importScripts chain.
+        run: |
+          set -e
+          for f in ambient-explainer-extension/*.js; do
+            node --check "$f"
+          done
+
+      - name: Validate manifest
+        run: python3 -m json.tool ambient-explainer-extension/manifest.json > /dev/null
+
+      - name: Voice grammar + routing tests
+        run: npm run test:voice
+
+      - name: Request-settling tests
+        # Guards the class of bug where an answer is produced and delivered but
+        # the page still spins forever because nothing settled the promise.
+        run: npm run test:ask
+
+      - name: Provider-window placement and keep-cadence tests
+        # Chrome refuses a window that is not at least 50% on screen, so the
+        # cursor-anchored placement is checked at every corner of three display
+        # layouts, including a second monitor with negative coordinates.
+        run: npm run test:popup
+
+      - name: Microphone routing tests
+        # The one-time extension grant must be offered at the FIRST mic request,
+        # before any site can prompt — otherwise the setup page promises
+        # something the code never delivers.
+        run: npm run test:mic
+
+      - name: LLM tab-driving tests
+        # Both of these guard bugs that only appear in a tab nobody is looking
+        # at, which is precisely where manual testing does not reach:
+        # composer insertion without document focus, and painting without
+        # animation frames.
+        run: npm run test:llm
+
+      - name: Install site dependencies
+        run: npm ci
+
+      - name: Build the site
+        # The API routes read env at request time, not build time, so this
+        # needs no secrets — which is the point: CI must never hold the
+        # Gateway key.
+        run: npm run build

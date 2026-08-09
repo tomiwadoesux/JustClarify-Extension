@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JustClarify — microphone</title>
+    <style>
+      :root { --bg: #fbf9f7; --ink: #171412; --soft: #6b625c; --line: #e6e0d9; }
+      @media (prefers-color-scheme: dark) {
+        :root { --bg: #14110f; --ink: #f4f0ec; --soft: #a2988f; --line: #2c2723; }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+        font: 15px/1.6 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+        display: grid; place-items: center; padding: 32px;
+      }
+      main { max-width: 34rem; width: 100%; }
+      .mark { display: block; margin-bottom: 26px; }
+      h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 14px; letter-spacing: -0.02em; }
+      p { margin: 0 0 14px; color: var(--soft); }
+      ul { margin: 0 0 22px; padding-left: 1.1rem; color: var(--soft); }
+      li { margin-bottom: 6px; }
+      button {
+        font: inherit; font-weight: 550; padding: 11px 20px; border-radius: 10px;
+        border: 1px solid transparent; background: var(--ink); color: var(--bg);
+        cursor: pointer;
+      }
+      button:hover { opacity: 0.88; }
+      button[disabled] { opacity: 0.5; cursor: default; }
+      .status { margin-top: 18px; padding: 13px 15px; border-radius: 10px; border: 1px solid var(--line); }
+      .status[hidden] { display: none; }
+      .ok { border-color: #2f7d55; color: #2f7d55; }
+      .bad { border-color: #a8433a; color: #a8433a; }
+      .foot { margin-top: 26px; font-size: 13px; color: var(--soft); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg class="mark" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="4" y="4" width="16" height="16" rx="3.6" transform="rotate(45 12 12)" fill="currentColor"/>
+        <rect x="8.6" y="8.6" width="6.8" height="6.8" rx="1.8" transform="rotate(45 12 12)" fill="var(--bg)"/>
+      </svg>
+
+      <h1>Let JustClarify hear you on every site.</h1>
+
+      <p>
+        Websites each control their own microphone access, and plenty of them switch it
+        off entirely. Granting it here instead attaches the permission to JustClarify,
+        so hold to talk works the same everywhere.
+      </p>
+
+      <ul>
+        <li>Nothing is recorded unless you are holding Shift.</li>
+        <li>The recording ends the moment you let go.</li>
+        <li>Audio goes to the speech service to become text, and is not stored.</li>
+      </ul>
+
+      <button id="grant" type="button">Allow microphone</button>
+
+      <div class="status" id="status" hidden></div>
+
+      <p class="foot">You can undo this any time from Chrome's site settings for this extension.</p>
+    </main>
+    <script src="mic.js"></script>
+  </body>
+</html>

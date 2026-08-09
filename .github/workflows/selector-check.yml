@@ -1,0 +1,63 @@
+name: Daily selector check
+
+# DORMANT. This job existed to watch the chatgpt.com / claude.ai DOM selectors
+# used by chatgpt-agent.js and claude-agent.js. Those agents were removed when
+# JustClarify stopped driving the user's own logged-in LLM tab, so
+# scripts/check-selectors.mjs now fails to read files that don't exist — which
+# would auto-file a false "site UI changed" issue every night.
+#
+# The schedule is off for that reason. Nothing else in the extension needs
+# selector monitoring: the engine chain talks to APIs, not to other sites' DOM.
+# Delete this file and scripts/check-selectors.mjs when you're sure the
+# tab-driving path isn't coming back.
+on:
+  workflow_dispatch: {} # manual runs only
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright
+        run: |
+          npm i --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Run selector check
+        id: check
+        run: node scripts/check-selectors.mjs
+        continue-on-error: true
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: selector-report
+          path: selector-report.md
+
+      - name: Open/update issue on breakage
+        if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="Selector check failed: site UI changed"
+          BODY_FILE=selector-report.md
+          EXISTING=$(gh issue list --label selector-check --state open --json number --jq '.[0].number' || true)
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body-file "$BODY_FILE"
+          else
+            gh label create selector-check --description "Automated selector health check" --color D93F0B || true
+            gh issue create --title "$TITLE" --label selector-check --body-file "$BODY_FILE"
+          fi
+
+      - name: Fail job if broken
+        if: steps.check.outcome == 'failure'
+        run: exit 1
