@@ -486,11 +486,15 @@
     const width = box.width || 220;
     const height = box.height || 40;
 
-    // Flip to the other side of the cursor rather than run off the edge.
+    // Flip to the other side of the cursor rather than run off the edge. The
+    // margin is the breathing room the chip keeps from the viewport border, so
+    // it never reads as squashed against the edge when the cursor is up against
+    // one.
+    const CHIP_EDGE_MARGIN = 16;
     let left = x + CHIP_OFFSET_X;
-    if (left + width > window.innerWidth - 8) left = Math.max(8, x - CHIP_OFFSET_X - width);
+    if (left + width > window.innerWidth - CHIP_EDGE_MARGIN) left = Math.max(CHIP_EDGE_MARGIN, x - CHIP_OFFSET_X - width);
     let top = y + CHIP_OFFSET_Y;
-    if (top + height > window.innerHeight - 8) top = Math.max(8, y - CHIP_OFFSET_Y - height);
+    if (top + height > window.innerHeight - CHIP_EDGE_MARGIN) top = Math.max(CHIP_EDGE_MARGIN, y - CHIP_OFFSET_Y - height);
 
     chip.style.left = `${Math.round(left)}px`;
     chip.style.top = `${Math.round(top)}px`;
