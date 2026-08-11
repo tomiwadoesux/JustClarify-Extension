@@ -42,12 +42,10 @@ const check = (label, cond, detail) => {
 function makeVoice(holds) {
   return new Function(
     "holds",
-    `${constant("SUPPORT_EMAIL")}
-     ${constant("LEARNING_HOLDS")}
+    `${constant("LEARNING_HOLDS")}
      ${constant("TROUBLE_BEFORE_HELP")}
      ${array("COACH_GESTURE")}
      ${array("COACH_WORDS")}
-     ${array("MAIL_APPS")}
      const shown = [];
      const stored = {};
      let holdCount = holds;
@@ -58,15 +56,15 @@ function makeVoice(holds) {
      const location = { host: "example.com" };
      const navigator = { userAgent: "TestBrowser/1.0" };
      const console = { debug: () => {} };
+     const chrome = { runtime: { getManifest: () => ({ version: "0.0.0-test" }) } };
      const remember = (k, v) => { stored[k] = v; };
      const showChip = (state, text, actions) => shown.push({ state, text, actions: actions || null });
      const hideChip = () => {};
      const opened = [];
-     const openMail = (url) => opened.push(url);
+     const openPage = (url) => opened.push(url);
      ${grab("voiceWorked")}
      ${grab("voiceTrouble")}
-     ${grab("troubleReport")}
-     ${grab("askMailApp")}
+     ${grab("tellmePageUrl")}
      return {
        trouble: (m, c) => voiceTrouble(m, c === "gesture" ? COACH_GESTURE : c === "words" ? COACH_WORDS : null),
        worked: voiceWorked,
@@ -75,9 +73,7 @@ function makeVoice(holds) {
        streak: () => troubleStreak,
        stored: () => stored,
        opened: () => opened,
-       report: troubleReport,
-       apps: MAIL_APPS,
-       email: SUPPORT_EMAIL,
+       report: tellmePageUrl,
      };`,
   )(holds);
 }
@@ -98,7 +94,11 @@ const RAW = "I didn't hear anything.";
   v.trouble(RAW, "gesture");
   check("failure 3 shows the browser's actual words", v.last().text === RAW, v.last().text);
   check("and offers a way to reach a human", !!v.last().actions?.length);
-  check("labelled plainly", v.last().actions[0].label === "Email us", v.last().actions[0].label);
+  check(
+    "labelled plainly",
+    v.last().actions[0].label === "Tell us about this error",
+    v.last().actions[0].label,
+  );
 }
 
 // --------------------------------------------------------- the streak resets
@@ -149,59 +149,44 @@ const RAW = "I didn't hear anything.";
   );
 }
 
-// ------------------------------------------------------------ the mail draft
+// ------------------------------------------------------------ the report page
 {
   const v = makeVoice(1);
   v.trouble(RAW, "gesture");
   v.trouble(RAW, "gesture");
   v.trouble(RAW, "gesture");
-  v.last().actions[0].run(); // "Email us"
+  const result = v.last().actions[0].run(); // "Tell us about this error"
 
-  const ask = v.last();
-  check("it asks which mail app before opening anything", /Where do you read your email/.test(ask.text), ask.text);
-  check("and names the address it will write to", ask.text.includes(v.email), ask.text);
-  check("with a choice per mail service", ask.actions.length === v.apps.length);
-
-  const labels = ask.actions.map((a) => a.label);
-  check("Gmail is one of them", labels.includes("Gmail"), labels.join());
-  check("and the system handler is offered too", labels.includes("Mail app"), labels.join());
-
-  for (const action of ask.actions) action.run();
   const urls = v.opened();
-  check("every choice opens something", urls.length === v.apps.length, `${urls.length}`);
   check(
-    "the web ones are compose URLs, not mailto",
-    urls.filter((u) => /^https:/.test(u)).length === v.apps.length - 1,
+    "one click opens the tellme page",
+    urls.length === 1 && urls[0].startsWith("https://justclarify.xyz/tellme?"),
     urls.join("\n"),
   );
+  check("a page, never a mail client", urls.every((u) => !u.startsWith("mailto:")), urls.join("\n"));
   check(
-    "and only the system-handler one is mailto",
-    urls.filter((u) => u.startsWith("mailto:")).length === 1,
-    urls.join("\n"),
+    "and the confirmation says so out loud",
+    /not an email/.test(result?.label || ""),
+    result?.label,
   );
-  check(
-    "all of them address the support inbox",
-    urls.every((u) => u.includes(encodeURIComponent(v.email)) || u.includes(v.email)),
-    urls.join("\n"),
-  );
-  check("every draft carries a subject", urls.every((u) => /su=|subject=/.test(u)));
-  check("choosing a mail app clears the streak", v.streak() === 0);
+  check("reporting clears the streak", v.streak() === 0);
 }
 
 // ------------------------------------------------------------ what it reports
 {
   const v = makeVoice(1);
-  const body = v.report(RAW);
-  check("the report quotes the actual error", body.includes(RAW), body);
-  check("names the site so a site-specific block is findable", body.includes("example.com"), body);
-  check("says which microphone lane was in play", /lane/.test(body), body);
-  check("and leaves room for the user's own words", /What I was trying to do/.test(body), body);
+  const url = v.report(RAW);
+  const ctx = decodeURIComponent(url.split("ctx=")[1] || "");
+  check("the report quotes the actual error", ctx.includes(RAW), ctx);
+  check("names the site so a site-specific block is findable", ctx.includes("example.com"), ctx);
+  check("says which microphone lane was in play", /lane/.test(ctx), ctx);
+  check("and names the extension version", ctx.includes("0.0.0-test"), ctx);
   // The full URL can carry a session token, a search query, a document name.
   // The host is what makes a microphone fail; the rest is nobody's business.
   check(
     "it sends the host, never the full URL",
-    !/location\.href/.test(grab("troubleReport")),
-    "troubleReport is reading location.href",
+    !/location\.href/.test(grab("tellmePageUrl")),
+    "tellmePageUrl is reading location.href",
   );
 }
 

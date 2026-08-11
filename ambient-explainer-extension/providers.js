@@ -369,7 +369,20 @@ async function providerAsk(prompt, reqId, tabId) {
 // key to gatewayClassify so that path stays exactly as it was; everything else
 // asks its provider directly. null on any failure, like gatewayClassify, so
 // callers keep their hosted fallback.
+// Why the last key-backed call failed, in words. providerClassify returns null
+// for every possible failure, and callers used to turn that single null into
+// "fall back to JustClarify's free tier" — which spent our budget on someone
+// who had explicitly opted out of it, and reported OUR outages as though they
+// were theirs. Now the reason survives the null so callers can say the true
+// thing instead of guessing.
+let providerLastFailure = null;
+
+function providerFailureMessage() {
+  return providerLastFailure;
+}
+
 async function providerClassify(systemPrompt, userPrompt) {
+  providerLastFailure = null;
   const settings = await providerGetSettings();
   if (!settings) return null;
   if (settings.provider === "vercel") return gatewayClassify(systemPrompt, userPrompt);
@@ -392,10 +405,17 @@ async function providerClassify(systemPrompt, userPrompt) {
       headers: spec.headers(settings.apiKey),
       body: JSON.stringify(req.body),
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      providerLastFailure = providerFailure(spec, response.status, body);
+      return null;
+    }
     const text = providerText(settings.provider, await response.json());
-    return (text || "").trim() || null;
-  } catch (_) {
+    const answer = (text || "").trim();
+    if (!answer) providerLastFailure = `${spec.label} returned an empty answer.`;
+    return answer || null;
+  } catch (error) {
+    providerLastFailure = `Couldn't reach ${spec.label} — ${String(error).slice(0, 100)}`;
     return null;
   }
 }

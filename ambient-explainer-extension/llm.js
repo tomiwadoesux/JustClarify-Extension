@@ -1645,7 +1645,11 @@ async function llmAskNow(prompt, reqId, originTabId, myGen, place) {
   const cursor = (place && place.cursor) || null;
   const host = (place && place.host) || "";
 
-  say(`Asking ${provider.name}\u2026`);
+  // Opening the window is the FIRST thing that happens and the slowest part of
+  // a cold ask, so it is what the card should say. "Asking ChatGPT\u2026" while a
+  // browser window is still being created reads as a stall; "Opening ChatGPT\u2026"
+  // reads as progress, and it is also simply true.
+  say(`Opening ${provider.name}\u2026`);
   llmTrace("ask", { provider: providerId, prompt: prompt.slice(0, 60) });
   let tabInfo;
   try {
@@ -1657,6 +1661,10 @@ async function llmAskNow(prompt, reqId, originTabId, myGen, place) {
   } catch (error) {
     return { ok: false, error: `Couldn't open a ${provider.name} window (${String(error).slice(0, 80)}).` };
   }
+
+  // The window exists now, so the next honest thing to say is that the question
+  // is going in.
+  say(`Asking ${provider.name}…`);
 
   // Counts toward the per-site "is this still wanted" cadence.
   if (host) llmKeepBump(host).catch(() => {});

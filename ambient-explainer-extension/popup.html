@@ -102,7 +102,11 @@
                 </div>
                 <button id="jc-byok-delete" class="jc-btn-dark jc-btn-danger" type="button">Delete</button>
               </div>
-              <p class="jc-note">To change it, delete this key and paste the new one.</p>
+              <div class="jc-field">
+                <input id="jc-byok-model-edit" class="jc-input" type="text" list="jc-byok-models"
+                       placeholder="Model" autocomplete="off" spellcheck="false" />
+                <p class="jc-note">Switch models any time. The next ask uses the new one. To change the key itself, delete it and paste a fresh one.</p>
+              </div>
             </div>
 
             <div id="jc-byok-entry">
@@ -122,6 +126,8 @@
                   <option value="gpt-5.4-nano"></option>
                   <option value="gemini-2.5-flash-lite"></option>
                   <option value="openai/gpt-oss-120b:cheapest"></option>
+                  <option value="openai/gpt-oss-120b:groq"></option>
+                  <option value="openai/gpt-oss-120b:cerebras"></option>
                   <option value="openai/gpt-4o-mini"></option>
                 </datalist>
               </div>

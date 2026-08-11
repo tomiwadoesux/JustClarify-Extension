@@ -1996,6 +1996,14 @@ function setPopupLoading(popup) {
   popup.classList.remove("is-loaded", "is-menu");
   popup.classList.add("is-loading");
   clearInterval(jcLoadingTimer);
+  jcRealStateShown = false;
+
+  // These three are a GUESS on a 900ms clock, and they are only ever shown
+  // while nothing truer is available. The engines that know what they are
+  // actually doing — the LLM tab in particular, which opens a window, waits for
+  // a site to load, types, and then waits again — report real stages, and the
+  // first one that arrives switches this off for the rest of the ask. See
+  // jcSetLoadingState.
   const messages = [
     ["Preparing your context", "Reading only the selected passage."],
     ["Opening a temporary chat", "Starting a clean, visible conversation."],
@@ -2003,12 +2011,34 @@ function setPopupLoading(popup) {
   ];
   let messageIndex = 0;
   jcLoadingTimer = setInterval(() => {
+    if (jcRealStateShown) return; // a real stage owns the line now
     messageIndex = Math.min(messageIndex + 1, messages.length - 1);
     const title = content.querySelector(".jc-passive-wait");
     const detail = content.querySelector(".jc-loading-detail");
     if (title) title.textContent = messages[messageIndex][0];
     if (detail) detail.textContent = messages[messageIndex][1];
   }, 900);
+}
+
+// True once an engine has told us what it is really doing, so the guessed
+// rotation above stops overwriting it.
+let jcRealStateShown = false;
+
+// Put an engine's own words on the loading card: "Opening ChatGPT…", "Waiting
+// for ChatGPT to load…", "ChatGPT is thinking…". Returns false when there is no
+// loading card to write into, so the caller can fall back to its old path.
+function jcSetLoadingState(popup, text) {
+  popup = jcLivePopup(popup);
+  if (!popup || !text) return false;
+  const content = popup.querySelector(".popup-content");
+  const title = content && content.querySelector(".jc-passive-wait");
+  if (!title) return false;
+  jcRealStateShown = true;
+  title.textContent = text.replace(/…$/, "…");
+  const detail = content.querySelector(".jc-loading-detail");
+  // The subtitle would otherwise still be narrating a different stage.
+  if (detail) detail.textContent = "This stays visible and in your control.";
+  return true;
 }
 
 let jcLoadingTimer = null;
@@ -2055,6 +2085,16 @@ function renderSmoothStream(element, target) {
 function renderStreaming(popup, { thinking, answer, download }) {
   popup = jcLivePopup(popup);
   if (!popup) return;
+
+  // A stage report with no answer yet is NOT the first chunk. It used to morph
+  // the card into the streaming layout anyway, which meant an empty answer
+  // panel sat there for the ten or more seconds an LLM tab takes to open, with
+  // the real explanation of the delay tucked inside a collapsed "Thinking"
+  // line nobody opens. Keep the loading card and let it say what is happening.
+  if (thinking && !answer && !download) {
+    if (jcSetLoadingState(popup, thinking)) return;
+  }
+
   if (jcPanelStreaming(popup, { thinking, answer, download })) return;
   const content = popup.querySelector(".popup-content");
   let stream = content.querySelector(".jc-stream");
@@ -2355,6 +2395,38 @@ function showClaudeError(popup, err) {
     : err?.message ||
       "Couldn't get an answer. Check your AI Gateway key in the extension popup, then try again.";
   showPopupMessage(popup, message);
+  jcOfferErrorReport(popup, message);
+}
+
+// Every error card carries a way to say so: a link to justclarify.xyz/tellme
+// with the error text attached, so the report arrives holding its own
+// evidence. A PAGE, deliberately not an email — the link says so, because a
+// surprise mail-client launch is exactly the kind of thing people report.
+function jcTellmeUrl(message) {
+  let version = "";
+  try {
+    version = chrome.runtime.getManifest().version;
+  } catch (_) {}
+  const ctx = `[extension v${version} on ${location.host}] ${String(message || "").slice(0, 600)}`;
+  return `https://justclarify.xyz/tellme?src=extension&ctx=${encodeURIComponent(ctx)}`;
+}
+
+function jcOfferErrorReport(popup, message) {
+  popup = jcLivePopup(popup);
+  if (!popup) return;
+  const body = popup.querySelector(".explanation-body");
+  if (!body || body.querySelector(".jc-tellme-link")) return;
+  const link = document.createElement("a");
+  link.className = "jc-tellme-link";
+  link.href = jcTellmeUrl(message);
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = "Tell us about this error";
+  const note = document.createElement("span");
+  note.className = "jc-tellme-note";
+  note.textContent = "opens our report page, not an email";
+  body.appendChild(link);
+  body.appendChild(note);
 }
 
 async function fetchExplanation(mode, isNew = false) {

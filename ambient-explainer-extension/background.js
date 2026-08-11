@@ -95,14 +95,17 @@ async function askEngine(prompt, reqId, tabId, place) {
   if (engine === 'device') {
     // EARLY ACCESS — this slot used to be Chrome's on-device Gemini Nano; that
     // code is commented out (see importScripts) and the slot now answers from
-    // the hosted API, free until August 28. Deliberately hostedAsk and not
-    // askApi: early access means JustClarify's own API, so a saved personal
-    // key is neither consulted nor spent here.
+    // the hosted API, free until August 28.
+    //
+    // A saved personal key OUTRANKS early access: someone who pasted their own
+    // key has opted out of spending JustClarify's, whichever engine tab they
+    // happen to be on. askApi routes to their provider and only falls back to
+    // hosted when no key is saved.
     //
     // const local = await onDeviceAsk(prompt, reqId, tabId);
     // if (local) return local;
     // onDeviceEnsureReady();
-    return hostedAsk(prompt, reqId, tabId);
+    return askApi(prompt, reqId, tabId);
   }
 
   if (engine === 'llm') {
@@ -284,9 +287,10 @@ async function lookupDictionary(rawWord) {
 //     text. Link labels and headings are enough to resolve a destination.
 
 async function voiceIntentRaw(system, user) {
-  // The user's own key first when they have one, JustClarify's otherwise.
-  const viaKey = await providerClassify(system, user);
-  if (viaKey) return viaKey;
+  // A saved key is used and NOT silently backstopped by the free tier — see
+  // completeAnywhere in hosted.js for why that fallback was removed everywhere.
+  const own = await providerGetSettings();
+  if (own) return providerClassify(system, user);
 
   // Non-streaming and short-capped: a classifier has nowhere to stream to, and
   // borrowing the conversation path polluted per-tab history with prompts the
@@ -620,12 +624,19 @@ async function voiceStep(msg) {
 
   const raw = await voiceIntentRaw(JC_VOICE_AGENT_SYSTEM, user);
   if (!raw) {
-    return {
-      ok: false,
-      error: hostedFailureMessage(
-        'Voice needs an API key or an early-access engine — pick one in the JustClarify popup.',
-      ),
-    };
+    // askFailureMessage, not hostedFailureMessage: when the user is on their
+    // own key it was THEIR provider that failed, and saying "voice needs an API
+    // key" to someone who has one is the exact confusion this whole change is
+    // about.
+    const own = await providerGetSettings();
+    const why = own
+      ? `${providerFailureMessage() || `${providerLabel(own.provider)} didn't answer.`} ` +
+        "Free access wasn't used instead, because you're on your own key. " +
+        "Turn the key off in the popup if you'd rather use free access."
+      : hostedFailureMessage(
+          'Voice needs an API key or an early-access engine — pick one in the JustClarify popup.',
+        );
+    return { ok: false, error: why };
   }
 
   const step = parseStep(raw, verbs);

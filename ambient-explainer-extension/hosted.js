@@ -316,8 +316,20 @@ async function hostedComplete(messages, options = {}) {
   }
 }
 
-// The whole chain in one call, so no feature has to re-implement the order:
-// the user's own key first when they have one, JustClarify's otherwise.
+// The whole chain in one call, so no feature has to re-implement the order.
+//
+// THE RULE: a saved key means the hosted tier is off limits. If the key fails,
+// the ask fails and says why. It does NOT quietly re-ask on JustClarify's
+// account.
+//
+// It used to fall through, and that was wrong twice over. It spent our budget
+// on people who had explicitly chosen not to use it, and it reported OUR
+// problems in OUR words — "the model is getting a lot of traffic right now" —
+// to someone whose own provider was the thing that had actually failed. That
+// message, arriving for a user with a working key, is what exposed this.
+//
+// Choosing the free tier is a decision the user makes in the popup by turning
+// their key off. It is not a decision this function makes for them.
 async function completeAnywhere(prompt, options = {}) {
   const settings = await providerGetSettings();
   if (settings) {
@@ -326,9 +338,32 @@ async function completeAnywhere(prompt, options = {}) {
       prompt,
     );
     if (viaKey) return viaKey;
+    jcOwnKeyFailure =
+      providerFailureMessage() ||
+      `${providerLabel(settings.provider)} didn't answer.`;
+    return null;
   }
+  jcOwnKeyFailure = null;
   const messages = options.system
     ? [{ role: "system", content: options.system }, { role: "user", content: prompt }]
     : [{ role: "user", content: prompt }];
   return hostedComplete(messages, options);
+}
+
+// Set when an ask failed on the USER'S OWN key. Read by askFailureMessage so
+// the message names their provider and tells them how to choose the free tier
+// on purpose, rather than being switched to it behind their back.
+let jcOwnKeyFailure = null;
+
+// The one place that turns "the last ask returned null" into something worth
+// showing a person. Use this instead of hostedFailureMessage anywhere the call
+// went through completeAnywhere, because only this one knows whose key it was.
+function askFailureMessage(fallback) {
+  if (jcOwnKeyFailure) {
+    return (
+      `${jcOwnKeyFailure} JustClarify did not fall back to its free access, because you're using ` +
+      `your own key. Turn that key off in the popup if you'd rather use free access.`
+    );
+  }
+  return hostedFailureMessage(fallback);
 }

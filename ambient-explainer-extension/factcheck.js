@@ -157,7 +157,12 @@ function factCheckParse(raw) {
 }
 
 async function factCheckVerify(claim, context, published) {
-  const settings = await gatewayGetSettings();
+  // providerGetSettings, NOT gatewayGetSettings. The latter answers null for
+  // every key that isn't a Vercel Gateway key, so an Anthropic, OpenAI, Gemini
+  // or Hugging Face user fell into the hosted branch below and had their own
+  // key ignored for the entire fact-check feature, silently, while JustClarify
+  // paid for it. Any provider's key counts here now.
+  const settings = await providerGetSettings();
 
   // No key of their own: JustClarify's hosted tier verifies instead. This used
   // to `return null` here, which meant fact-checking — the feature the product
@@ -173,6 +178,31 @@ async function factCheckVerify(claim, context, published) {
     // it can't source is one it shouldn't be trusted to rule on — factCheckParse
     // already carries whatever sources the model named, and the caller shows
     // UNVERIFIABLE when there are none.
+    return parsed || { error: "the model's answer couldn't be read as a verdict" };
+  }
+
+  // Everyone EXCEPT a Gateway key asks their own provider directly. The branch
+  // below posts to ai-gateway.vercel.sh with the key in a Bearer header, so
+  // sending an Anthropic or Gemini key down it would hand that key to a third
+  // party. Routing by provider is a security requirement here, not tidiness.
+  //
+  // The trade is real and worth stating: only the Gateway path has a
+  // web-searching model behind it, so a direct-provider verdict comes back
+  // without citations, and the card shows UNVERIFIABLE when there are none.
+  if (settings.provider !== "vercel") {
+    const answer = await providerClassify(
+      "You are a careful fact-checker. Follow the output format exactly.",
+      factCheckPrompt(claim, context, published),
+    );
+    if (!answer) {
+      const why = providerFailureMessage();
+      return {
+        error: why
+          ? `${why} Free access wasn't used instead, because you're on your own key.`
+          : `${providerLabel(settings.provider)} didn't return a verdict`,
+      };
+    }
+    const parsed = factCheckParse(answer);
     return parsed || { error: "the model's answer couldn't be read as a verdict" };
   }
 
@@ -234,14 +264,21 @@ async function factCheckOne(claim, context) {
 
   const lookup = await factCheckLookup(text);
   const published = lookup.results;
-  const hasKey = !!(await gatewayGetSettings());
+
+  // canSearch, not hasKey. Live web search comes from one place only: the
+  // searching model behind a Vercel Gateway key. Every other key answers from
+  // the model's own knowledge, which is a different and weaker thing, and the
+  // published-ruling branch below is choosing between "search for fresher
+  // context" and "trust the published ruling" — a question only search answers.
+  const own = await providerGetSettings();
+  const canSearch = !!own && own.provider === "vercel";
 
   if (published.length) {
     const top = published[0];
-    // With a key we still search — a 2019 ruling on a claim that resurfaced
-    // today deserves current context. Without one, the published verdict
+    // With search we still look — a 2019 ruling on a claim that resurfaced
+    // today deserves current context. Without it, the published verdict
     // stands on its own, which is exactly the free tier's promise.
-    if (!hasKey) {
+    if (!canSearch) {
       return {
         claim: text,
         verdict: factCheckRatingToVerdict(top.rating),
@@ -256,21 +293,26 @@ async function factCheckOne(claim, context) {
     }
   }
 
-  if (!hasKey) {
+  // A failed lookup is the one case with nothing to fall back on: saying
+  // "nobody has ruled on this" when the lookup never ran is a lie the reader
+  // cannot detect.
+  if (!lookup.ok && !published.length) {
     return {
       claim: text,
       verdict: "UNVERIFIABLE",
       confidence: "low",
-      // Two different situations, two different sentences. Saying "nobody has
-      // ruled on this" when the lookup never actually ran is a lie the reader
-      // can't detect.
-      summary: lookup.ok
-        ? "No fact-checker has published a ruling on this. The free check covers claims PolitiFact, Snopes, FactCheck.org and others have formally ruled on — mostly political and widely-circulated claims, not ordinary sentences. Add an AI Gateway key in the JustClarify popup to check anything else."
-        : "Couldn't reach the fact-check lookup — check your connection and try again.",
+      summary: "Couldn't reach the fact-check lookup. Check your connection and try again.",
       sources: [],
-      origin: lookup.ok ? "no-key" : "lookup-failed",
+      origin: "lookup-failed",
     };
   }
+
+  // No early return for "no key" any more. There used to be one, telling people
+  // to "add an AI Gateway key", and it sat IN FRONT of factCheckVerify's own
+  // hosted branch — so the free-access path that exists precisely so that
+  // fact-checking works without a key was unreachable, and anyone holding an
+  // Anthropic, OpenAI, Gemini or Hugging Face key was told to go and get a
+  // different one. factCheckVerify picks the right engine for whoever is asking.
 
   const verified = await factCheckVerify(text, context, published);
   if (!verified) return null;
@@ -355,11 +397,20 @@ async function factCheckExtractClaims(text, limit = 6) {
   if (body.length < 40) return [];
   const prompt = factCheckExtractPrompt(body, limit);
 
-  const settings = await gatewayGetSettings();
+  // Any provider's key, not just a Gateway one — see factCheckVerify for the
+  // bug this fixes and why non-Gateway keys must not touch the branch below.
+  const settings = await providerGetSettings();
   if (!settings) {
     // Same reasoning as factCheckVerify: without this, a keyless user gets an
     // empty claim list and a fact-check that appears to find nothing.
     const answer = await hostedComplete([{ role: "user", content: prompt }], { maxTokens: 700 });
+    return factCheckParseClaims(answer, limit);
+  }
+  if (settings.provider !== "vercel") {
+    const answer = await providerClassify(
+      "You extract checkable factual claims. Follow the output format exactly.",
+      prompt,
+    );
     return factCheckParseClaims(answer, limit);
   }
   try {

@@ -51,3 +51,6 @@ skills-lock.json
 # foglamp scan (contains an edit token)
 .foglamp/
 
+# local research notes
+WEBMCP_RESEARCH.md
+

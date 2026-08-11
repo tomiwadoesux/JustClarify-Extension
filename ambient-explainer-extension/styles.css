@@ -3277,3 +3277,29 @@ mark.jc-claim:hover {
   .jc-voice-flash { animation: none; outline: 3px solid var(--accent); }
   .jc-voice-trace-box { animation: none; outline: 2px solid var(--accent); }
 }
+
+/* "Tell us about this error" — appended to every error card by
+   jcOfferErrorReport. A link to the /tellme page, with the small print making
+   clear it is a page and not a mail client about to jump out. */
+.jc-tellme-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.jc-tellme-link:hover {
+  opacity: 1;
+}
+
+.jc-tellme-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  opacity: 0.55;
+}

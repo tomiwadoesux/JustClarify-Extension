@@ -58,6 +58,7 @@ const byokSaved = $("jc-byok-saved");
 const byokSavedLabel = $("jc-byok-saved-label");
 const byokSavedHint = $("jc-byok-saved-hint");
 const byokDeleteBtn = $("jc-byok-delete");
+const byokModelEdit = $("jc-byok-model-edit");
 const byokEntry = $("jc-byok-entry");
 const byokFields = $("jc-byok-fields");
 const byokKeyInput = $("jc-byok-key");
@@ -131,6 +132,12 @@ function render() {
     byokSavedHint.textContent = store.savedModel
       ? `Model: ${store.savedModel}`
       : `Model: ${spec ? spec.defaultModel : "default"}`;
+    // The model, unlike the key, is safe to edit in place — a typo'd model is
+    // a readable error on the next ask, not a dead key.
+    if (byokModelEdit && document.activeElement !== byokModelEdit) {
+      byokModelEdit.value = store.savedModel || "";
+      byokModelEdit.placeholder = `Model — default: ${spec ? spec.defaultModel : "provider default"}`;
+    }
   }
 }
 
@@ -183,9 +190,15 @@ function renderEngine(info) {
 
   if (engine === "device") {
     // The on-device slot is Early access now: the hosted API, free, no meter,
-    // until the free period spins off on August 28.
+    // until the free period spins off on August 28. A saved personal key
+    // outranks it (background.js routes to askApi), so say so here rather
+    // than promising the free tier is spending anything.
     dot.classList.add("is-ok");
     headText.textContent = "Early access";
+    if (info.hasKey) {
+      engineNote.textContent = `Your ${info.keyProviderName || "API"} key is saved, so answers go straight to it. Your key always comes first.`;
+      return;
+    }
     engineNote.textContent =
       Date.now() < JC_FREE_UNTIL
         ? "JustClarify's API, free until August 28 — nothing to set up, voice included."
@@ -427,6 +440,21 @@ byokSaveBtn.addEventListener("click", async () => {
   loadEngine();
 });
 
+// Switching models on a saved key — takes effect on the next ask; the worker
+// reads jcByokModel per request, so there is nothing else to poke.
+byokModelEdit?.addEventListener("change", () => {
+  const model = byokModelEdit.value.trim();
+  chrome.storage.local.set({ [JC_BYOK_MODEL_KEY]: model });
+  store.savedModel = model;
+  const spec = JC_KEY_PROVIDERS[store.savedProvider];
+  byokSavedHint.textContent = `Model: ${model || (spec ? spec.defaultModel : "default")}`;
+  showByokStatus(
+    model ? `Model switched to ${model}.` : `Back to the default model${spec ? ` (${spec.defaultModel})` : ""}.`,
+    true,
+  );
+  loadEngine();
+});
+
 // Delete is the only way a saved key changes: no editing in place. Clearing it
 // re-opens the entry fields for the replacement paste.
 byokDeleteBtn.addEventListener("click", () => {
@@ -438,6 +466,7 @@ byokDeleteBtn.addEventListener("click", () => {
   store.savedModel = "";
   byokKeyInput.value = "";
   byokModelInput.value = "";
+  if (byokModelEdit) byokModelEdit.value = "";
   byokStatus.hidden = true;
   render();
   loadEngine();

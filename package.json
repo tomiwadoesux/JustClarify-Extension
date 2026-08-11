@@ -24,6 +24,9 @@
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.0-canary.107",
+    "@ai-sdk/openai-compatible": "^3.0.29",
+    "@vercel/functions": "^3.9.2",
+    "@vercel/sandbox": "^3.0.0",
     "ai": "^7.0.0-canary.176",
     "framer-motion": "^12.34.3",
     "gsap": "^3.15.0",
@@ -32,7 +35,8 @@
     "p5": "^2.3.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

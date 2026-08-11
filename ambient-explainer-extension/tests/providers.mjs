@@ -163,8 +163,12 @@ const hosted = fs.readFileSync(new URL("hosted.js", dir), "utf8");
 check("the free period has one date constant", /JC_FREE_UNTIL = Date\.parse\("2026-08-28/.test(hosted));
 check("the meter chip is silenced during the free period", /if \(jcFreePeriod\(\)\) return;/.test(hosted));
 check(
-  "the device engine slot answers from the hosted API (early access)",
-  /engine === 'device'[\s\S]{0,900}return hostedAsk\(/.test(background),
+  "the device engine slot rides askApi, so a saved key outranks early access",
+  /engine === 'device'[\s\S]{0,900}return askApi\(/.test(background),
+);
+check(
+  "and askApi still lands on the hosted API for anyone without a key",
+  /function askApi[\s\S]{0,900}return hostedAsk\(/.test(background),
 );
 check("the on-device code is commented out, not deleted",
   /\/\/ const local = await onDeviceAsk/.test(background) && /\/\/ importScripts\('ondevice\.js'\)/.test(background));

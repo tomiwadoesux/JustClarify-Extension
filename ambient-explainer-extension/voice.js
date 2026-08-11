@@ -631,7 +631,6 @@
   // Three in a row is the line. At that point coaching has demonstrably not
   // worked, the user deserves to see exactly what the browser said, and they
   // deserve somewhere to send it.
-  const SUPPORT_EMAIL = "hello@justclarify.xyz";
   const LEARNING_HOLDS = 5; // how long "the first few times" lasts
   const TROUBLE_BEFORE_HELP = 3; // consecutive failures before the error itself
 
@@ -693,13 +692,16 @@
     );
 
     if (troubleStreak >= TROUBLE_BEFORE_HELP) {
-      console.debug("[JustClarify voice] three in a row — offering support");
+      console.debug("[JustClarify voice] three in a row — offering the report page");
       showChip("error", message, [
         {
-          label: "Email us",
+          label: "Tell us about this error",
           run: () => {
-            askMailApp(message);
-            return null; // askMailApp owns the chip from here
+            openPage(tellmePageUrl(message));
+            // The streak has been heard. Reset it so a fixed problem doesn't
+            // greet them with the same offer on the very next hold.
+            voiceWorked();
+            return { ok: true, label: "Opening the report page, not an email." };
           },
         },
       ]);
@@ -719,77 +721,29 @@
     hideChip(2800);
   }
 
-  // Which mail app, asked BEFORE the link rather than assumed by it. A bare
-  // mailto: hands off to whatever the OS believes the mail client is — which,
-  // for anyone who lives in Gmail or Yahoo in a browser tab, is a desktop app
-  // they have never signed into. The link "works", a dead compose window opens,
-  // and the message is never written. One tap here means the draft opens where
-  // they actually read mail, already filled in.
-  const MAIL_APPS = [
-    {
-      label: "Gmail",
-      compose: (subject, body) =>
-        `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(SUPPORT_EMAIL)}&su=${subject}&body=${body}`,
-    },
-    {
-      label: "Outlook",
-      compose: (subject, body) =>
-        `https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(SUPPORT_EMAIL)}&subject=${subject}&body=${body}`,
-    },
-    {
-      label: "Yahoo",
-      compose: (subject, body) =>
-        `https://compose.mail.yahoo.com/?to=${encodeURIComponent(SUPPORT_EMAIL)}&subject=${subject}&body=${body}`,
-    },
-    {
-      // Apple Mail, Thunderbird, Spark — anything registered as the system
-      // handler. mailto: is exactly right here and wrong for the three above.
-      label: "Mail app",
-      compose: (subject, body) => `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`,
-    },
-  ];
-
-  // Everything a reply would otherwise have to ask for. Deliberately the SITE
-  // and not the full URL: the host is what makes a microphone fail, and a
-  // pasted query string is somebody's private business.
-  function troubleReport(message) {
-    return [
-      "Hold-to-talk isn't working for me.",
-      "",
-      `What it says: ${message}`,
+  // The report goes to justclarify.xyz/tellme — a page where they can see
+  // other people's reports and watch their own turn green — with everything a
+  // reply would otherwise have to ask for attached. Deliberately the SITE and
+  // not the full URL: the host is what makes a microphone fail, and a pasted
+  // query string is somebody's private business.
+  function tellmePageUrl(message) {
+    let version = "";
+    try {
+      version = chrome.runtime.getManifest().version;
+    } catch (_) {}
+    const ctx = [
+      `[extension v${version}] hold-to-talk trouble`,
+      `What it says: ${String(message || "").slice(0, 300)}`,
       `Site: ${location.host}`,
       `Microphone: ${lane} lane · extension grant ${micGranted ? "yes" : "no"} · site permission ${pageMicState}`,
-      `Browser: ${navigator.userAgent}`,
-      "",
-      "What I was trying to do:",
-      "",
     ].join("\n");
+    return `https://justclarify.xyz/tellme?src=extension&ctx=${encodeURIComponent(ctx)}`;
   }
 
-  function askMailApp(message) {
-    const subject = encodeURIComponent("JustClarify voice — hold to talk isn't working");
-    const body = encodeURIComponent(troubleReport(message));
-    showChip(
-      "confirm",
-      `Where do you read your email? We'll open a draft to ${SUPPORT_EMAIL}.`,
-      MAIL_APPS.map((app) => ({
-        label: app.label,
-        run: () => {
-          openMail(app.compose(subject, body));
-          // The streak has been heard. Reset it so a fixed problem doesn't
-          // greet them with the same offer on the very next hold.
-          voiceWorked();
-          return { ok: true, label: "Opening your email…" };
-        },
-      })),
-    );
-    hideChip(20_000);
-  }
-
-  // An anchor click rather than window.open or a location assignment: mailto:
-  // must hand off to the OS WITHOUT navigating the page away, and a popup
-  // blocker will refuse window.open on some sites even inside a gesture.
-  function openMail(url) {
+  // An anchor click rather than window.open or a location assignment: a popup
+  // blocker will refuse window.open on some sites even inside a gesture, but a
+  // real anchor with target=_blank rides the user's click.
+  function openPage(url) {
     try {
       const link = document.createElement("a");
       link.href = url;

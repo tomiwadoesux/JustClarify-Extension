@@ -35,6 +35,10 @@ import json, sys
 path = sys.argv[1]
 with open(path) as f:
     m = json.load(f)
+# The "key" pins the UNPACKED id (so zip installs and the dev copy share one
+# stable id the API allowlist can name). The store derives its id from its own
+# key and rejects uploads that carry this field, so the store build drops it.
+m.pop("key", None)
 for script in m.get("content_scripts", []):
     # NO PORTS. A match pattern has no port component at all, so "localhost:3000"
     # is not a narrower localhost — it is an invalid pattern, and Chrome refuses
