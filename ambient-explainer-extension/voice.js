@@ -476,6 +476,9 @@
   // chase with the mouse is worse than one that stays put.
   const CHIP_OFFSET_X = 16;
   const CHIP_OFFSET_Y = 20;
+  // Breathing room the chip keeps from the viewport edge. 8 read as squashed
+  // against the border once it flipped to the far side of the cursor.
+  const CHIP_EDGE_GAP = 16;
   let chipFollows = false;
 
   function placeChip() {
@@ -488,9 +491,9 @@
 
     // Flip to the other side of the cursor rather than run off the edge.
     let left = x + CHIP_OFFSET_X;
-    if (left + width > window.innerWidth - 8) left = Math.max(8, x - CHIP_OFFSET_X - width);
+    if (left + width > window.innerWidth - CHIP_EDGE_GAP) left = Math.max(CHIP_EDGE_GAP, x - CHIP_OFFSET_X - width);
     let top = y + CHIP_OFFSET_Y;
-    if (top + height > window.innerHeight - 8) top = Math.max(8, y - CHIP_OFFSET_Y - height);
+    if (top + height > window.innerHeight - CHIP_EDGE_GAP) top = Math.max(CHIP_EDGE_GAP, y - CHIP_OFFSET_Y - height);
 
     chip.style.left = `${Math.round(left)}px`;
     chip.style.top = `${Math.round(top)}px`;
