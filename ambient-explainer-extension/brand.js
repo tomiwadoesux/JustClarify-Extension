@@ -1,3 +1,4 @@
+// plumbing check, safe to delete
 // brand.js — one dull, random OKLCH accent per extension load, shared across
 // every surface (toolbar icon, popup, in-page UI, history) so the whole product
 // wears the SAME colour until the next load, then re-randomises.
