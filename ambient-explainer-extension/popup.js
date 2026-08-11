@@ -308,12 +308,23 @@ function sendToPage(button, message) {
     if (!tab || tab.id == null) return;
     chrome.tabs.sendMessage(tab.id, message, () => {
       if (chrome.runtime.lastError) {
-        // Swap only the label — the button also holds an icon and the line of
-        // helper text, and textContent on the button itself would eat both.
+        // Swap the label and its hint — the button also holds an icon, and
+        // textContent on the button itself would eat that too. The label has no
+        // room for the reason, so the hint line carries it.
         const label = button.querySelector(".jc-btn-label") || button;
+        const hint = button.querySelector(".jc-btn-hint");
         const original = label.textContent;
-        label.textContent = "Open a regular webpage first";
-        setTimeout(() => (label.textContent = original), 1800);
+        const originalHint = hint && hint.textContent;
+        label.textContent = "Only works on normal websites";
+        if (hint) {
+          hint.textContent =
+            "Browser pages like this one can't be read. Open a website and try again.";
+        }
+        // Longer than a one-line swap needed: there are now two lines to read.
+        setTimeout(() => {
+          label.textContent = original;
+          if (hint) hint.textContent = originalHint;
+        }, 3200);
         return;
       }
       window.close();
