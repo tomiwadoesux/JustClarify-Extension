@@ -202,17 +202,39 @@ const TA_TOOLS = [
   },
 ];
 
-// The strip above everything that says what happens when Just Clarify breaks.
+// The top stack: the tellme strip sitting on top of the sticky header, the two
+// of them moving as one piece.
 //
-// It slides down rather than appearing, because a bar that is simply THERE on
-// first paint reads as page furniture and gets skipped; one that arrives is
-// read once. It arrives after a beat so it lands in an eye already on the page,
-// rather than competing with the hero for the first frame.
+// The strip slides down rather than appearing, because a bar that is simply
+// THERE on first paint reads as page furniture and gets skipped; one that
+// arrives is read once. It arrives after a beat so it lands in an eye already
+// on the page, rather than competing with the hero for the first frame.
+//
+// Then it behaves the way a phone toolbar does: scrolling DOWN is reading, so
+// the strip gets out of the way and leaves the header pinned; scrolling UP is
+// looking for something, so it comes back. That is why it is not simply left at
+// the top of the document to scroll away once and never return: someone who
+// scrolls back up after hitting a problem is exactly the person the strip is
+// addressed to, and they should not have to reach the very top to find it.
+//
+// Mechanically it is one transform on one element. The stack is sticky at the
+// top; hiding the strip means translating the whole stack up by exactly the
+// strip's height, which parks the header at y=0 and the strip just above the
+// viewport. No layout is animated, and the header never moves relative to the
+// screen while collapsed.
 //
 // Dismissal is remembered forever. This is an announcement, not a cookie
 // notice, and a bar that returns on every visit is a bar people learn to hate.
-function TellmeBanner() {
+function DemoTopBar({ children }) {
   const [state, setState] = useState("hidden"); // hidden -> in -> out
+  const [wantsCollapse, setWantsCollapse] = useState(false);
+  const [measuredH, setMeasuredH] = useState(0);
+  const stripRef = useRef(null);
+
+  // Both derived rather than stored, so leaving or dismissing the strip cannot
+  // leave a stale height or a collapsed stack with nothing in it to collapse.
+  const stripH = state === "in" ? measuredH : 0;
+  const collapsed = wantsCollapse && state === "in";
 
   useEffect(() => {
     let dismissed = false;
@@ -224,6 +246,44 @@ function TellmeBanner() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Measured rather than assumed: the strip wraps to two lines on a narrow
+  // screen, and a collapse distance that is off by a line either leaves a sliver
+  // of colour under the header or eats into it. The observer fires once on
+  // observe(), so the first measurement comes from it too.
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() => setMeasuredH(el.offsetHeight));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [state]);
+
+  // Direction, not position. The threshold keeps a trackpad's noise and the
+  // rubber-band at the top of the page from flickering the strip in and out.
+  useEffect(() => {
+    if (state !== "in") return undefined;
+    let last = window.scrollY;
+    let frame = 0;
+    const read = () => {
+      frame = 0;
+      const y = window.scrollY;
+      // Above the fold the strip is where it belongs in the document anyway,
+      // so it is always open there and there is nothing to slide.
+      if (y <= stripH) setWantsCollapse(false);
+      else if (y > last + 6) setWantsCollapse(true);
+      else if (y < last - 6) setWantsCollapse(false);
+      last = y;
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(read);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [state, stripH]);
+
   function dismiss() {
     setState("out");
     try {
@@ -231,25 +291,38 @@ function TellmeBanner() {
     } catch (_) {}
   }
 
-  if (state === "hidden") return null;
-
   return (
-    <div className={`jcd-banner${state === "out" ? " is-out" : ""}`} role="status">
-      <p className="jcd-banner-text">
-        <strong>Something break?</strong> Tell us in your own words, and our agent writes the fix
-        with you watching.
-      </p>
-      <a className="jcd-banner-link" href="/tellme">
-        See the board
-      </a>
-      <button
-        type="button"
-        className="jcd-banner-x"
-        onClick={dismiss}
-        aria-label="Dismiss this message"
-      >
-        ×
-      </button>
+    <div
+      className={`jcd-stack${collapsed ? " is-collapsed" : ""}`}
+      style={{ "--strip-h": `${stripH}px` }}
+    >
+      {state !== "hidden" && (
+        <div
+          ref={stripRef}
+          className={`jcd-banner${state === "out" ? " is-out" : ""}`}
+          role="status"
+          // Unmounted once it has left, so the space it held goes back to the
+          // page instead of sitting there as an invisible strip.
+          onAnimationEnd={() => state === "out" && setState("hidden")}
+        >
+          <p className="jcd-banner-text">
+            <strong>Something break?</strong> Tell us in your own words, and our agent writes the
+            fix with you watching.
+          </p>
+          <a className="jcd-banner-link" href="/tellme">
+            See the board
+          </a>
+          <button
+            type="button"
+            className="jcd-banner-x"
+            onClick={dismiss}
+            aria-label="Dismiss this message"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      {children}
     </div>
   );
 }
@@ -567,27 +640,27 @@ export default function DemoPage() {
     <main className="jcd-root" style={{ "--a": `var(--accent, ${ACCENT})` }}>
       <style>{CSS.replace(/__ACCENT__/g, ACCENT)}</style>
 
-      <TellmeBanner />
-
-      <header className="jcd-top">
-        <a href="/" className="jcd-brand">
-          <span className="jcd-mark" aria-hidden="true">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <rect x="5" y="5" width="14" height="14" rx="3.5" transform="rotate(45 12 12)" fill="currentColor" />
-              <rect x="9" y="9" width="6" height="6" rx="1.6" transform="rotate(45 12 12)" fill="#fff" />
-            </svg>
-          </span>
-          <span className="jcd-brand-name">JustClarify</span>
-        </a>
-        <div className="jcd-top-right">
-          <a className="jcd-top-gh" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
-            Source
+      <DemoTopBar>
+        <header className="jcd-top">
+          <a href="/" className="jcd-brand">
+            <span className="jcd-mark" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <rect x="5" y="5" width="14" height="14" rx="3.5" transform="rotate(45 12 12)" fill="currentColor" />
+                <rect x="9" y="9" width="6" height="6" rx="1.6" transform="rotate(45 12 12)" fill="#fff" />
+              </svg>
+            </span>
+            <span className="jcd-brand-name">JustClarify</span>
           </a>
-          <a className="jcd-top-cta" href={STORE_URL} target="_blank" rel="noopener noreferrer">
-            Add to Chrome · Free
-          </a>
-        </div>
-      </header>
+          <div className="jcd-top-right">
+            <a className="jcd-top-gh" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
+              Source
+            </a>
+            <a className="jcd-top-cta" href={STORE_URL} target="_blank" rel="noopener noreferrer">
+              Add to Chrome · Free
+            </a>
+          </div>
+        </header>
+      </DemoTopBar>
 
       {/* ── 1 · The hook ─────────────────────────────────────────────── */}
       <section className="jcd-hero">
@@ -1301,9 +1374,18 @@ const CSS = `
 .jcd-root * { box-sizing: border-box; }
 
 /* ── top bar ─────────────────────────────────────────────────────── */
+/* The sticky piece is the stack, not the header: the strip rides on top of the
+   header and the two travel together, so hiding the strip is one transform on
+   one element rather than two elements negotiating a shared top edge. */
+.jcd-stack { position: sticky; top: 0; z-index: 20;
+  transition: transform 300ms cubic-bezier(0.215, 0.61, 0.355, 1); }
+/* Up by exactly the strip's height: the header lands on the top edge and the
+   strip parks just off-screen, ready to come straight back down. */
+.jcd-stack.is-collapsed { transform: translateY(calc(-1 * var(--strip-h, 0px))); }
+
 .jcd-top { display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 14px clamp(16px, 4vw, 28px); border-bottom: 1px solid #ece7e3; position: sticky; top: 0;
-  background: #faf9f7cc; backdrop-filter: blur(8px); z-index: 20; }
+  padding: 14px clamp(16px, 4vw, 28px); border-bottom: 1px solid #ece7e3;
+  background: #faf9f7cc; backdrop-filter: blur(8px); }
 .jcd-brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; color: inherit; }
 .jcd-mark { display: inline-flex; color: var(--a); }
 .jcd-brand-name { font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
@@ -1315,9 +1397,10 @@ const CSS = `
 .jcd-top-cta:hover { background: var(--a); }
 
 /* ── tellme banner ───────────────────────────────────────────────── */
-/* Sits above the sticky header and scrolls away with the page: it is an
-   announcement, not a permanent fixture, and pinning it would cost every
-   visitor vertical space forever to say something once. */
+/* Rides on top of the sticky header inside .jcd-stack. It is not pinned open,
+   which would cost every visitor vertical space forever to say something once:
+   it slides out of the way while you read downward and returns the moment you
+   scroll back up. */
 .jcd-banner { position: relative; z-index: 21; display: flex; align-items: center; gap: 12px;
   padding: 10px clamp(16px, 4vw, 28px); background: var(--a); color: #fff;
   font-size: 13.5px; line-height: 1.45;
@@ -1349,6 +1432,9 @@ const CSS = `
 @media (prefers-reduced-motion: reduce) {
   .jcd-banner, .jcd-banner.is-out { animation: none; }
   .jcd-banner.is-out { display: none; }
+  /* The strip still gets out of the way and still comes back, it just cuts
+     rather than slides. */
+  .jcd-stack { transition: none; }
 }
 
 @media (max-width: 560px) {
