@@ -54,6 +54,22 @@ export async function POST(request) {
       return Response.json({ ok: true });
     }
 
+    // Marks the moment a candidate fix is actually in users' hands, which is
+    // when the board's "did this fix it?" vote becomes a fair question. For an
+    // extension fix that is the store version that carries it ("v0.6.2"); for
+    // a site fix it just means merged and deployed. Send an empty version to
+    // take it back (a release pulled from the store, a bad mark).
+    if (action === 'shipped') {
+      const id = String(body?.id || '');
+      if (!UUID_RE.test(id)) return Response.json({ error: 'Bad id.' }, { status: 400 });
+      const version = String(body?.version || '').trim().slice(0, 60) || null;
+      await tellmeDb(`jc_reports?id=eq.${id}`, {
+        method: 'PATCH',
+        body: { fix_shipped_in: version },
+      });
+      return Response.json({ ok: true, version });
+    }
+
     if (action === 'voting') {
       const enabled = body?.enabled === true;
       await tellmeDb('jc_flags', {

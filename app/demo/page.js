@@ -202,6 +202,58 @@ const TA_TOOLS = [
   },
 ];
 
+// The strip above everything that says what happens when Just Clarify breaks.
+//
+// It slides down rather than appearing, because a bar that is simply THERE on
+// first paint reads as page furniture and gets skipped; one that arrives is
+// read once. It arrives after a beat so it lands in an eye already on the page,
+// rather than competing with the hero for the first frame.
+//
+// Dismissal is remembered forever. This is an announcement, not a cookie
+// notice, and a bar that returns on every visit is a bar people learn to hate.
+function TellmeBanner() {
+  const [state, setState] = useState("hidden"); // hidden -> in -> out
+
+  useEffect(() => {
+    let dismissed = false;
+    try {
+      dismissed = localStorage.getItem("jcTellmeBannerDismissed") === "1";
+    } catch (_) {}
+    if (dismissed) return undefined;
+    const timer = setTimeout(() => setState("in"), 650);
+    return () => clearTimeout(timer);
+  }, []);
+
+  function dismiss() {
+    setState("out");
+    try {
+      localStorage.setItem("jcTellmeBannerDismissed", "1");
+    } catch (_) {}
+  }
+
+  if (state === "hidden") return null;
+
+  return (
+    <div className={`jcd-banner${state === "out" ? " is-out" : ""}`} role="status">
+      <p className="jcd-banner-text">
+        <strong>Something break?</strong> Tell us in your own words, and our agent writes the fix
+        with you watching.
+      </p>
+      <a className="jcd-banner-link" href="/tellme">
+        See the board
+      </a>
+      <button
+        type="button"
+        className="jcd-banner-x"
+        onClick={dismiss}
+        aria-label="Dismiss this message"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
 export default function DemoPage() {
   // phase: idle → selected → open → loading → answer, plus 'textarea'
   const [phase, setPhase] = useState("idle");
@@ -514,6 +566,8 @@ export default function DemoPage() {
   return (
     <main className="jcd-root" style={{ "--a": `var(--accent, ${ACCENT})` }}>
       <style>{CSS.replace(/__ACCENT__/g, ACCENT)}</style>
+
+      <TellmeBanner />
 
       <header className="jcd-top">
         <a href="/" className="jcd-brand">
@@ -1259,6 +1313,53 @@ const CSS = `
 .jcd-top-cta { padding: 9px 15px; border-radius: 999px; background: #14110f; color: #fff; text-decoration: none;
   font-weight: 700; font-size: 12.5px; white-space: nowrap; transition: background .16s ease; }
 .jcd-top-cta:hover { background: var(--a); }
+
+/* ── tellme banner ───────────────────────────────────────────────── */
+/* Sits above the sticky header and scrolls away with the page: it is an
+   announcement, not a permanent fixture, and pinning it would cost every
+   visitor vertical space forever to say something once. */
+.jcd-banner { position: relative; z-index: 21; display: flex; align-items: center; gap: 12px;
+  padding: 10px clamp(16px, 4vw, 28px); background: var(--a); color: #fff;
+  font-size: 13.5px; line-height: 1.45;
+  /* Only transform and opacity — both GPU, neither triggers layout. */
+  animation: jcd-banner-in 340ms cubic-bezier(0.215, 0.61, 0.355, 1) both; }
+.jcd-banner.is-out { animation: jcd-banner-out 200ms cubic-bezier(0.4, 0, 1, 1) both; }
+.jcd-banner-text { margin: 0; }
+.jcd-banner-text strong { font-weight: 700; }
+.jcd-banner-link { margin-left: auto; white-space: nowrap; color: #fff; font-weight: 700;
+  text-decoration: underline; text-underline-offset: 3px; opacity: .92;
+  transition: opacity .15s ease; }
+.jcd-banner-link:hover { opacity: 1; }
+.jcd-banner-x { flex: none; width: 26px; height: 26px; border: 0; border-radius: 999px;
+  background: transparent; color: #fff; font-size: 17px; line-height: 1; cursor: pointer;
+  opacity: .7; transition: opacity .15s ease, background .15s ease; }
+.jcd-banner-x:hover { opacity: 1; background: #ffffff26; }
+
+/* Entering the screen, so ease-out, and from a short distance so the duration
+   stays under the 300-ish ms that keeps a UI feeling responsive. */
+@keyframes jcd-banner-in {
+  from { opacity: 0; transform: translateY(-100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* Exits are ~20% quicker than entrances — the decision is already made. */
+@keyframes jcd-banner-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jcd-banner, .jcd-banner.is-out { animation: none; }
+  .jcd-banner.is-out { display: none; }
+}
+
+@media (max-width: 560px) {
+  .jcd-banner { flex-wrap: wrap; gap: 6px 10px; font-size: 12.5px; }
+  .jcd-banner-link { margin-left: 0; }
+  /* Lifted out of the flow so the two lines of copy get the full width, which
+     means the copy has to leave a hole for it — otherwise the first line runs
+     under the button. */
+  .jcd-banner-x { position: absolute; top: 6px; right: 8px; }
+  .jcd-banner-text { padding-right: 26px; }
+}
 
 /* ── hero ────────────────────────────────────────────────────────── */
 .jcd-hero { max-width: 760px; margin: 0 auto; padding: clamp(56px, 10vw, 110px) clamp(18px, 5vw, 28px) clamp(28px, 5vw, 48px); }

@@ -21,7 +21,7 @@ export async function GET() {
   try {
     const [reports, votingEnabled] = await Promise.all([
       tellmeDb(
-        'jc_reports?select=id,created_at,body,context,source,status,gist,ups,downs,category,fix_state,fix_pr_url,fix_ups,fix_downs,screenshot_url&order=created_at.desc&limit=200',
+        'jc_reports?select=id,created_at,body,context,source,status,gist,ups,downs,category,fix_state,fix_pr_url,fix_target,fix_shipped_in,fix_ups,fix_downs,screenshot_url&order=created_at.desc&limit=200',
       ),
       tellmeVotingEnabled(),
     ]);

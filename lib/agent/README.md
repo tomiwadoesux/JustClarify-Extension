@@ -30,6 +30,15 @@ branch, push, PR   a human reviews and merges
                    reported it: "did this fix it?" Enough yeses turn it green.
 ```
 
+One asymmetry the board respects: a fix that touches the site is testable
+minutes after merge, but a fix that touches `ambient-explainer-extension/` is
+in nobody's hands until a new version clears the Chrome Web Store. The run
+records where the fix landed (`fix_target`: site | extension | mixed), and for
+extension and mixed fixes the "did this fix it?" vote stays closed until you
+press "Mark fix shipped" in the admin panel (`fix_shipped_in`), so a No vote
+can never mean "the store has not updated yet". The packaging and upload step
+itself stays manual on purpose: the packaging script is in `FORBIDDEN_PATHS`.
+
 ## The two votes, which must never be merged into one
 
 - `jc_report_votes` — "this problem is real". Gated behind opening the agent's

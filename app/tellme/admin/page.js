@@ -229,6 +229,29 @@ export default function TellmeAdminPage() {
     }
   }
 
+  // The human end of the fix-target loop: the agent records WHERE a fix
+  // landed, but only a person knows WHEN it reached users' hands (for the
+  // extension, that is the store review clearing). Until this is pressed the
+  // board holds the "did this fix it?" vote on extension fixes.
+  async function markShipped(r) {
+    const suggestion = r.fix_shipped_in || (r.fix_target === "site" ? "live" : "v0.0.0");
+    const version = window.prompt(
+      r.fix_shipped_in
+        ? "Shipped in… (clear the box to take it back)"
+        : "Shipped in… (the store version for extension fixes, or just 'live' for site fixes)",
+      suggestion,
+    );
+    if (version === null) return;
+    try {
+      const data = await call({ key, action: "shipped", id: r.id, version: version.trim() });
+      setReports((list) =>
+        list.map((x) => (x.id === r.id ? { ...x, fix_shipped_in: data.version } : x)),
+      );
+    } catch (error) {
+      setNote(String(error.message || error));
+    }
+  }
+
   async function toggleVoting() {
     try {
       const data = await call({ key, action: "voting", enabled: !votingEnabled });
@@ -315,9 +338,24 @@ export default function TellmeAdminPage() {
                     ▲ {r.ups} · ▼ {r.downs} · {r.source} ·{" "}
                     {new Date(r.created_at).toLocaleString()}
                     {r.fix_state !== "none" && ` · fix: yes ${r.fix_ups}/no ${r.fix_downs}`}
+                    {r.fix_target && ` · ${r.fix_target} fix`}
+                    {r.fix_shipped_in && ` · shipped in ${r.fix_shipped_in}`}
                   </span>
                   <span className="ml-auto flex flex-wrap gap-2">
                     <AgentButton run={runs[r.id]} onRun={() => sendToAgent(r.id)} />
+                    {r.fix_state && r.fix_state !== "none" && (
+                      <button
+                        type="button"
+                        onClick={() => markShipped(r)}
+                        className={`rounded-full px-3 py-1 ${
+                          r.fix_shipped_in
+                            ? "border border-[#171717]/30 hover:bg-[#171717]/5"
+                            : "bg-[#171717] text-white hover:bg-black"
+                        }`}
+                      >
+                        {r.fix_shipped_in ? "Change shipped mark" : "Mark fix shipped"}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setStatus(r.id, r.status === "fixed" ? "open" : "fixed")}

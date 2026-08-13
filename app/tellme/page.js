@@ -18,6 +18,7 @@ import { useEffect, useRef, useState, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Analytics } from "@vercel/analytics/react";
 
 function voterId() {
   try {
@@ -108,6 +109,30 @@ function FixStrip({ report, votingEnabled, onFixCounts }) {
   const [showing, setShowing] = useState(false);
   const [loadingFix, setLoadingFix] = useState(false);
 
+  // A fix that changes the extension is in nobody's hands until a new version
+  // clears the store, so "did this fix it?" would be judging code nobody can
+  // run. The vote stays hidden until the admin marks the release shipped.
+  // Site fixes are testable as soon as they are live, so they keep the vote.
+  const waitsOnRelease =
+    (report.fix_target === "extension" || report.fix_target === "mixed") &&
+    !report.fix_shipped_in;
+  const voteOpen = votingEnabled && !waitsOnRelease;
+
+  // What the second line should say depends on where the fix is on its way to
+  // the reader, not just on whether it exists.
+  const subline =
+    report.fix_state === "verified"
+      ? "Enough people confirmed it works."
+      : waitsOnRelease
+        ? report.fix_target === "mixed"
+          ? "Part of it changes the extension itself, so the full fix arrives with the next extension update. You can read the code now; the vote opens once the update ships."
+          : "It changes the extension itself, so it arrives with the next extension update. You can read the code now; the vote opens once the update ships."
+        : report.fix_shipped_in
+          ? report.fix_target === "site"
+            ? "It is live on the site. If you had this problem, try again and say whether it worked."
+            : `It shipped with extension update ${report.fix_shipped_in}. Update the extension, try again, and say whether it worked.`
+          : "It is waiting on a human to merge it. Read the code below, and if you had this problem, try the latest build and say whether it worked.";
+
   useEffect(() => {
     setMine(myVotes("jcTellmeFixVotes")[report.id] || 0);
   }, [report.id]);
@@ -164,11 +189,7 @@ function FixStrip({ report, votingEnabled, onFixCounts }) {
       <p className="text-[13px] font-medium">
         A fix has been written for this{report.fix_state === "verified" ? " and confirmed" : ""}.
       </p>
-      <p className="mt-1 text-[12px] opacity-75">
-        {report.fix_state === "verified"
-          ? "Enough people confirmed it works."
-          : "It is waiting on a human to merge it. Read the code below, and if you had this problem, try the latest build and say whether it worked."}
-      </p>
+      <p className="mt-1 text-[12px] opacity-75">{subline}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -238,7 +259,7 @@ function FixStrip({ report, votingEnabled, onFixCounts }) {
           )}
         </div>
       )}
-      {votingEnabled && (
+      {voteOpen && (
         <div className="mt-2 flex items-center gap-1.5">
           <span className="text-[12px] opacity-70">Did this fix it?</span>
           <button
@@ -721,8 +742,13 @@ function TellmeInner() {
 
 export default function TellmePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-white" />}>
-      <TellmeInner />
-    </Suspense>
+    <>
+      <Suspense fallback={<div className="min-h-screen bg-white" />}>
+        <TellmeInner />
+      </Suspense>
+      {/* On the page, not the layout — see layout.js for why the admin panel
+          is deliberately left out of the numbers. */}
+      <Analytics />
+    </>
   );
 }

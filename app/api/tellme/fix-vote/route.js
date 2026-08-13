@@ -46,12 +46,25 @@ export async function POST(request) {
   }
 
   try {
-    const rows = await tellmeDb(`jc_reports?id=eq.${id}&select=fix_state,status`);
+    const rows = await tellmeDb(`jc_reports?id=eq.${id}&select=fix_state,status,fix_target,fix_shipped_in`);
     const report = rows?.[0];
     if (!report) return Response.json({ error: 'That report is gone.' }, { status: 404 });
     if (report.fix_state === 'none') {
       return Response.json(
         { error: 'There is no proposed fix to judge on this one yet.' },
+        { status: 409 },
+      );
+    }
+    // An extension fix is not in anyone's hands until a new version clears the
+    // store, so a vote before then would be judging code nobody can run. The
+    // admin flips fix_shipped_in when the release actually goes out. Mirrored
+    // in the page, but enforced here so the UI cannot be talked around.
+    if (
+      (report.fix_target === 'extension' || report.fix_target === 'mixed') &&
+      !report.fix_shipped_in
+    ) {
+      return Response.json(
+        { error: 'This fix arrives with the next extension update. Voting opens once it ships.' },
         { status: 409 },
       );
     }
