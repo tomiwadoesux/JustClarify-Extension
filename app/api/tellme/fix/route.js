@@ -36,17 +36,23 @@ export async function GET(request) {
     // board is showing. A failed run's half-finished diff is not a candidate
     // fix and must never be presented as one.
     const runs = await tellmeDb(
-      `jc_agent_runs?report_id=eq.${id}&status=eq.succeeded&select=summary,files,diff,pr_url,category,created_at&order=created_at.desc&limit=1`,
+      `jc_agent_runs?report_id=eq.${id}&status=eq.succeeded&select=summary,files,diff,pr_url,category,created_at,shots&order=created_at.desc&limit=1`,
     );
     const run = runs?.[0];
     if (!run) return Response.json({ error: 'Nothing to show yet.' }, { status: 404 });
 
+    const shots = run.shots && typeof run.shots === 'object' ? run.shots : {};
     return Response.json({
       summary: run.summary || '',
       files: Array.isArray(run.files) ? run.files : [],
       diff: (run.diff || '').slice(0, 60_000),
       prUrl: run.pr_url || report.fix_pr_url || null,
       category: run.category || null,
+      // The harness renders: what the UI looked like before the patch and
+      // after it, from identical fixture state, so the images differ only by
+      // the fix. Present only on UI runs that managed to render.
+      before: typeof shots.before === 'string' ? shots.before : null,
+      after: typeof shots.after === 'string' ? shots.after : null,
     });
   } catch (_) {
     return Response.json({ error: "Couldn't load that right now." }, { status: 503 });

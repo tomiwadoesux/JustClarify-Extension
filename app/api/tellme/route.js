@@ -21,7 +21,7 @@ export async function GET() {
   try {
     const [reports, votingEnabled] = await Promise.all([
       tellmeDb(
-        'jc_reports?select=id,created_at,body,context,source,status,gist,ups,downs,category,fix_state,fix_pr_url,fix_ups,fix_downs&order=created_at.desc&limit=200',
+        'jc_reports?select=id,created_at,body,context,source,status,gist,ups,downs,category,fix_state,fix_pr_url,fix_ups,fix_downs,screenshot_url&order=created_at.desc&limit=200',
       ),
       tellmeVotingEnabled(),
     ]);
@@ -56,6 +56,16 @@ export async function POST(request) {
   const context = String(body?.context || '').trim().slice(0, 1000) || null;
   const source = body?.source === 'extension' ? 'extension' : 'web';
 
+  // Only a URL our own upload route minted is accepted — anything else would
+  // let a report embed an arbitrary third-party image on the public board.
+  const shotPrefix = `${process.env.SUPABASE_URL}/storage/v1/object/public/tellme/`;
+  const screenshot =
+    typeof body?.screenshot === 'string' &&
+    process.env.SUPABASE_URL &&
+    body.screenshot.startsWith(shotPrefix)
+      ? body.screenshot.slice(0, 500)
+      : null;
+
   // Best effort, capped by tellmeAI's own timeout — the report posts either way.
   const gist = await tellmeAI(GIST_SYSTEM, text);
 
@@ -63,7 +73,7 @@ export async function POST(request) {
     const rows = await tellmeDb('jc_reports', {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
-      body: { body: text, context, source, gist },
+      body: { body: text, context, source, gist, screenshot_url: screenshot },
     });
     return Response.json({ report: rows?.[0] || null }, { status: 201 });
   } catch (_) {

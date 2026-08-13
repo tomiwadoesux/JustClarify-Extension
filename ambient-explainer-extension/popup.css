@@ -108,9 +108,17 @@ body {
   flex: none;
 }
 
-.jc-dot.is-ok { background: var(--jc-ok); }
-.jc-dot.is-warn { background: var(--jc-warn); }
-.jc-dot.is-off { background: var(--jc-err); }
+.jc-dot.is-ok {
+  background: var(--jc-ok);
+}
+
+.jc-dot.is-warn {
+  background: var(--jc-warn);
+}
+
+.jc-dot.is-off {
+  background: var(--jc-err);
+}
 
 /* The only looping animation in the popup, and it runs only while a download
    is genuinely in progress — motion here means "something is happening". */
@@ -120,8 +128,17 @@ body {
 }
 
 @keyframes jc-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(1.35); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.45;
+    transform: scale(1.35);
+  }
 }
 
 /* --- Layout --------------------------------------------------------------- */
@@ -414,7 +431,7 @@ body {
   opacity: 1;
 }
 
-.jc-reveal > .jc-reveal-inner {
+.jc-reveal>.jc-reveal-inner {
   overflow: hidden;
   min-height: 0;
 }
@@ -430,7 +447,7 @@ body {
 }
 
 /* Collapsed content must not be tabbable or clickable. */
-.jc-reveal[data-open="false"] > .jc-reveal-inner {
+.jc-reveal[data-open="false"]>.jc-reveal-inner {
   visibility: hidden;
 }
 
@@ -479,12 +496,24 @@ body {
   animation: jc-rise 160ms var(--ease-out-cubic);
 }
 
-.jc-status.is-ok { color: var(--jc-ok); }
-.jc-status.is-err { color: var(--jc-err); }
+.jc-status.is-ok {
+  color: var(--jc-ok);
+}
+
+.jc-status.is-err {
+  color: var(--jc-err);
+}
 
 @keyframes jc-rise {
-  from { opacity: 0; transform: translateY(-3px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .jc-note {
@@ -626,7 +655,7 @@ body {
 }
 
 /* One inner wrapper so a single 0fr row clips all three targets. */
-.jc-fc-options > .jc-fc-inner {
+.jc-fc-options>.jc-fc-inner {
   overflow: hidden;
   min-height: 0;
 }
@@ -654,6 +683,7 @@ body {
 
 /* --- Reduced motion ------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
+
   .jc-switch,
   .jc-switch-knob,
   .jc-btn,
@@ -666,10 +696,12 @@ body {
   .jc-row-byok {
     transition: none;
   }
+
   .jc-dot.is-busy,
   .jc-status {
     animation: none;
   }
+
   .jc-seg-btn:active,
   .jc-btn-dark:active {
     transform: none;

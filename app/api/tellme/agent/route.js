@@ -15,9 +15,10 @@ import { runAgent } from '@/lib/agent/run';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-// The ceiling, because an agent run that has to install dependencies and build
-// the site genuinely needs minutes. Extension-only runs finish far sooner.
-export const maxDuration = 300;
+// The ceiling, because an agent run genuinely needs minutes: a site patch pays
+// for npm install and a Next build, and a UI patch pays for a Chromium install
+// plus two harness renders. Extension-only wording fixes finish in about one.
+export const maxDuration = 800;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

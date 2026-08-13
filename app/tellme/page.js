@@ -195,6 +195,30 @@ function FixStrip({ report, votingEnabled, onFixCounts }) {
           {fix?.error && <p className="text-[12px] text-red-700">{fix.error}</p>}
           {fix && !fix.error && (
             <>
+              {fix.before && fix.after && (
+                <div className="mt-1.5">
+                  <p className="text-[12px] font-medium">Which one is right?</p>
+                  <div className="mt-1 grid grid-cols-2 gap-2">
+                    {[
+                      ["Before", fix.before],
+                      ["After the fix", fix.after],
+                    ].map(([label, src]) => (
+                      <a key={label} href={src} target="_blank" rel="noopener noreferrer">
+                        <span className="mb-0.5 block text-[11px] uppercase tracking-wide opacity-60">
+                          {label}
+                        </span>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={src}
+                          alt={label}
+                          className="w-full rounded-lg border border-current/20 bg-white"
+                          loading="lazy"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
               {fix.summary && (
                 <p className="mt-1 whitespace-pre-wrap rounded-lg bg-white/70 p-2.5 text-[13px] leading-relaxed">
                   {fix.summary}
@@ -323,6 +347,18 @@ function ReportCard({ report, votingEnabled, onCounts, onFixCounts }) {
         {report.category && <span>· {CATEGORY_LABEL[report.category] || report.category}</span>}
       </div>
 
+      {report.screenshot_url && (
+        <a href={report.screenshot_url} target="_blank" rel="noopener noreferrer" className="mt-2 block w-fit">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={report.screenshot_url}
+            alt="Screenshot attached to this report"
+            className="max-h-40 rounded-lg border border-current/20"
+            loading="lazy"
+          />
+        </a>
+      )}
+
       {report.context && (
         <details className="mt-2 text-xs opacity-80">
           <summary className="cursor-pointer select-none">The error that came with it</summary>
@@ -420,7 +456,10 @@ function TellmeInner() {
   const [busy, setBusy] = useState(false);
   const [tidying, setTidying] = useState(false);
   const [note, setNote] = useState(null); // { text, ok }
+  const [shot, setShot] = useState(null); // { url } once uploaded
+  const [uploading, setUploading] = useState(false);
   const boxRef = useRef(null);
+  const fileRef = useRef(null);
 
   useEffect(() => {
     const fromError = params.get("ctx");
@@ -477,6 +516,26 @@ function TellmeInner() {
     setTidying(false);
   }
 
+  // The image uploads the moment it is picked, not at post time — a failed
+  // upload should be known while the person is still looking at the form.
+  async function attachShot(file) {
+    if (!file || uploading) return;
+    setUploading(true);
+    setNote(null);
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      const res = await fetch("/api/tellme/upload", { method: "POST", body: form });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) setShot({ url: data.url });
+      else setNote({ text: data.error || "The upload didn't stick. Try again.", ok: false });
+    } catch (_) {
+      setNote({ text: "The upload didn't stick. Try again.", ok: false });
+    }
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   async function post() {
     const current = text.trim();
     if (!current || busy) return;
@@ -490,6 +549,7 @@ function TellmeInner() {
           body: current,
           context: ctx || undefined,
           source: ctx ? "extension" : "web",
+          screenshot: shot?.url || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -498,6 +558,7 @@ function TellmeInner() {
         setText("");
         setOriginal(null);
         setCtx("");
+        setShot(null);
         setNote({ text: "Posted. It shows red until it's fixed, then it turns green.", ok: true });
       } else {
         setNote({ text: data.error || "Couldn't post that. Try again in a moment.", ok: false });
@@ -584,6 +645,36 @@ function TellmeInner() {
           >
             {tidying ? "Tidying…" : "Hard to word it? Let AI tidy it up"}
           </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            onChange={(e) => attachShot(e.target.files?.[0])}
+          />
+          {shot ? (
+            <span className="flex items-center gap-1.5 text-xs">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={shot.url} alt="Attached screenshot" className="h-8 w-8 rounded object-cover" />
+              <button
+                type="button"
+                onClick={() => setShot(null)}
+                className="opacity-60 underline underline-offset-2 hover:opacity-100"
+              >
+                remove
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              title="A picture of the problem helps a lot for anything visual. It will be shown publicly with your report."
+              className="rounded-full border border-[#171717]/20 px-4 py-2 text-sm transition-colors hover:border-[#171717]/50 disabled:opacity-40"
+            >
+              {uploading ? "Uploading…" : "Add a screenshot"}
+            </button>
+          )}
           {original != null && (
             <button
               type="button"
