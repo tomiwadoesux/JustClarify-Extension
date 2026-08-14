@@ -145,12 +145,12 @@ export default function Why() {
     <div>
       <div className="h-[100%] relative">
         <div className="absolute -top-[11%] md:-top-[6%] lg:-top-[3%] pr-3 right-[50%]">
-          <h4 className=" px-2  w-fit bg-[#FF0000] text-white text-base md:text-xl">
+          <h4 className=" px-2  w-fit bg-accent text-white text-base md:text-xl">
             Why it feels different
           </h4>
         </div>
         <div className="absolute top-[1%] pl-3 left-[50%]">
-          <h4 className=" px-2 w-fit bg-[#FF0000] text-white text-base md:text-xl">
+          <h4 className=" px-2 w-fit bg-accent text-white text-base md:text-xl">
             Ambient
           </h4>
           <h4 className=" text-[#000000] pt-1 text-base md:text-xl">
@@ -158,7 +158,7 @@ export default function Why() {
           </h4>
         </div>
         <div className="absolute top-[37%] md:top-[38%] lg:top-[12%] pl-3 left-[50%]">
-          <h4 className=" px-2  w-fit bg-[#FF0000] text-white text-base md:text-xl">
+          <h4 className=" px-2  w-fit bg-accent text-white text-base md:text-xl">
             Contextual
           </h4>
           <h4 className=" text-[#000000] pt-1 text-base md:text-xl">
@@ -166,7 +166,7 @@ export default function Why() {
           </h4>
         </div>
         <div className="absolute top-[75%] md:top-[20%] lg:top-[23%] pl-3 left-[50%]">
-          <h4 className=" px-2  w-fit bg-[#FF0000] text-white text-base md:text-xl">
+          <h4 className=" px-2  w-fit bg-accent text-white text-base md:text-xl">
             Concise
           </h4>
           <h4 className=" text-[#000000] pt-1 text-base md:text-xl">
@@ -287,7 +287,7 @@ export default function Why() {
               <path
                 id="Subtract_3"
                 d="M292.522 229C289.456 229.307 287.062 231.911 287.062 235.079C287.062 238.247 289.456 240.85 292.522 241.157L292.522 229Z"
-                fill="#FF0000"
+                className="fill-accent"
               />
               <path
                 id="Line27"
@@ -310,7 +310,7 @@ export default function Why() {
                 cx="63.5732"
                 cy="234.5"
                 r="6.5"
-                fill="#FF0000"
+                className="fill-accent"
               />
             </g>
             <defs>
@@ -428,7 +428,7 @@ export default function Why() {
                   cx="896.5"
                   cy="585.5"
                   r="6.5"
-                  fill="#FF0000"
+                  className="fill-accent"
                 />
                 <circle
                   id="Ellipse5"
@@ -500,7 +500,7 @@ export default function Why() {
               strokeWidth="1.5"
               strokeDasharray="6 6"
             />
-            <circle  cx="29.5" cy="112.5" r="6.5" fill="#FF0000" />
+            <circle  cx="29.5" cy="112.5" r="6.5" className="fill-accent" />
              </g> */}
             </g>
             <defs>

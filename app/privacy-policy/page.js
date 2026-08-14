@@ -37,7 +37,7 @@ export default function PrivacyPolicyPage() {
             className="w-5 h-5 md:w-6 md:h-6"
           />
           <span className="text-base md:text-xl">JustClarify</span>
-          <span className="text-xs text-[#000000] ml-1 group-hover:text-[#FF0000] transition-colors">
+          <span className="text-xs text-[#000000] ml-1 group-hover:text-accent transition-colors">
             &larr; Home
           </span>
         </Link>
@@ -45,7 +45,7 @@ export default function PrivacyPolicyPage() {
 
       {/* Content */}
       <main className="max-w-2xl mx-auto px-6 md:px-8 pb-20 pt-4">
-        <h1 className="text-2xl md:text-3xl font-semibold text-[#FF0000] mb-2">
+        <h1 className="text-2xl md:text-3xl font-semibold text-accent mb-2">
           Privacy Policy
         </h1>
         <p className="text-sm text-[#000000] mb-10">
@@ -126,7 +126,7 @@ export default function PrivacyPolicyPage() {
         </Section>
 
         <Section title="Shared fact-check results">
-          <div className="border-l-2 border-[#FF0000] bg-[#FAFAFA] rounded-r p-4 mb-4">
+          <div className="border-l-2 border-accent bg-[#FAFAFA] rounded-r p-4 mb-4">
             <p className="font-semibold text-[#000000]">
               Please read this section carefully. It involves information leaving
               your browser and being shown to other people.
@@ -401,7 +401,7 @@ export default function PrivacyPolicyPage() {
             verdict, contact:{" "}
             <a
               href="mailto:hello@ayotomcs.me"
-              className="text-[#FF0000] underline underline-offset-2 hover:opacity-80 transition-opacity"
+              className="text-accent underline underline-offset-2 hover:opacity-80 transition-opacity"
             >
               hello@ayotomcs.me
             </a>
@@ -416,7 +416,7 @@ function Section({ title, children }) {
   return (
     <section className="mb-10">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-1 h-5 rounded-full bg-[#FF0000]" />
+        <div className="w-1 h-5 rounded-full bg-accent" />
         <h2 className="text-lg md:text-xl font-semibold text-[#000000]">
           {title}
         </h2>

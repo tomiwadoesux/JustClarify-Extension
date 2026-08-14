@@ -163,7 +163,7 @@ export default function GoldenRatio() {
             <span
               ref={mobileAccentRef}
               aria-hidden="true"
-              className="absolute inset-0 bg-[#FF0000]"
+              className="absolute inset-0 bg-accent"
             />
             <span className="relative">without leaving the page</span>
           </span>
@@ -418,7 +418,7 @@ export default function GoldenRatio() {
               ref={pathRef}
               id="rect2804_2"
               d="M1157 41.1589H1213"
-              stroke="#FF0000"
+              className="stroke-accent"
               strokeWidth="1.5"
             />
             <path
@@ -463,12 +463,11 @@ export default function GoldenRatio() {
 
           <rect
             id="accent-rect"
-            className="fill-[#FF0000]"
+            className="fill-accent"
             x={isTablet ? "-1170" : "-1170"}
             y={isTablet ? "-8" : "1.5"}
             width={isTablet ? "345" : "215"}
             height={isTablet ? "40" : "28"}
-            fill="#FF0000"
             transform="scale(-1, 1)"
           />
           <path
@@ -527,7 +526,7 @@ export default function GoldenRatio() {
         <path
           id="rect2798_2"
           d="M1185 69L1185 13"
-          stroke="#FF0000"
+          className="stroke-accent"
           strokeWidth="1.5"
         />
 

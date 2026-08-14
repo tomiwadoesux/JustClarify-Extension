@@ -63,6 +63,71 @@ const CATEGORY_LABEL = {
   unclear: "Needs more detail",
 };
 
+const PAGE_SIZE = 9;
+
+// Every state a card can be in, in one place, because the colour IS the
+// status here and a colour defined in three files drifts.
+//
+// Two axes decide it. WHAT the report is (kind: a fault, or a wish) and WHERE
+// it has got to (untouched, picked up, done). Two greens, deliberately: being
+// given something you asked for and having something repaired that never
+// should have broken are different news, and a board that paints them the same
+// green tells the second story about both.
+const STATES = {
+  open: {
+    label: "Not fixed yet",
+    card: "border-red-200 bg-red-50 text-red-900",
+    badge: "bg-red-600 text-white",
+    dot: "bg-red-600",
+    legend: "Broken, nobody on it yet",
+  },
+  looking: {
+    label: "Being looked at",
+    card: "border-orange-300 bg-orange-50 text-orange-900",
+    badge: "bg-orange-500 text-white",
+    dot: "bg-orange-500",
+    legend: "Picked up, not done",
+  },
+  fixed: {
+    label: "Fixed",
+    card: "border-green-300 bg-green-50 text-green-900",
+    badge: "bg-green-600 text-white",
+    dot: "bg-green-600",
+    legend: "Broken, now repaired",
+  },
+  idea: {
+    label: "Suggestion",
+    card: "border-purple-300 bg-purple-50 text-purple-900",
+    badge: "bg-purple-600 text-white",
+    dot: "bg-purple-600",
+    legend: "Nothing broken, someone wants something",
+  },
+  added: {
+    label: "Added",
+    card: "border-teal-300 bg-teal-50 text-teal-900",
+    badge: "bg-teal-600 text-white",
+    dot: "bg-teal-600",
+    legend: "Asked for, now built",
+  },
+  filtered: {
+    label: "Filed away",
+    card: "border-[#171717]/15 bg-[#171717]/[0.03] text-[#171717]/80",
+    badge: "bg-[#171717]/40 text-white",
+    dot: "bg-[#171717]/40",
+    legend: "No request in it",
+  },
+};
+
+// Being looked at outranks the kind: it is news, and it is the same news for a
+// fault and for a wish. Everything else follows from what the report is.
+function stateOf(report, fixed, looking) {
+  const idea = report.kind === "suggestion";
+  if (report.kind === "filtered") return "filtered";
+  if (fixed) return idea ? "added" : "fixed";
+  if (looking) return "looking";
+  return idea ? "idea" : "open";
+}
+
 function timeAgo(iso) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   if (s < 90) return "just now";
@@ -289,6 +354,69 @@ function FixStrip({ report, votingEnabled, onFixCounts }) {
   );
 }
 
+// The published outcome, once there is one. Deliberately NOT the agent's raw
+// findings: those are long, full of file names, and often end mid-question.
+// What lands here is the short account written after the maintainer has
+// decided, because a considered "here is how this ended" is a real answer to a
+// report, and a half-finished investigation shown as a verdict is not.
+function AgentThread({ report }) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  async function toggle() {
+    if (open) return setOpen(false);
+    setOpen(true);
+    if (data) return undefined;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/tellme/fix?id=${report.id}`);
+      const body = await res.json().catch(() => ({}));
+      setData(res.ok ? body : { error: body.error || "Couldn't load it." });
+    } catch (_) {
+      setData({ error: "Couldn't load it." });
+    }
+    setLoading(false);
+  }
+
+  const notes = Array.isArray(data?.notes) ? data.notes : [];
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={toggle}
+        className="text-left text-[13px] font-medium underline decoration-dotted underline-offset-4 hover:opacity-80"
+      >
+        {report.notes > 0
+          ? open
+            ? "How this ended ▾"
+            : "How this ended ▸"
+          : open
+            ? "Being looked at ▾"
+            : "Being looked at ▸"}
+      </button>
+
+      {open && (
+        <div className="mt-1.5 space-y-2">
+          {loading && <p className="text-[12px] opacity-60">Loading…</p>}
+          {data?.error && <p className="text-[12px] opacity-70">{data.error}</p>}
+          {!loading && !data?.error && notes.length === 0 && (
+            <p className="text-[12px] opacity-70">
+              Someone is looking at this. The outcome gets posted here once it is settled.
+            </p>
+          )}
+          {notes.map((n, i) => (
+            <div key={i} className="rounded-lg bg-white/70 p-2.5">
+              <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{n.body}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReportCard({ report, votingEnabled, onCounts, onFixCounts }) {
   const fixed = report.status === "fixed";
   const [gistOpen, setGistOpen] = useState(false);
@@ -345,25 +473,27 @@ function ReportCard({ report, votingEnabled, onCounts, onFixCounts }) {
     castVote(dir);
   }
 
-  const tone = fixed
-    ? "border-green-300 bg-green-50 text-green-900"
-    : "border-red-200 bg-red-50 text-red-900";
+  const looking = !fixed && !!report.lookedAt;
+  const state = stateOf(report, fixed, looking);
+  const tone = STATES[state].card;
+  const badge = STATES[state].badge;
 
   return (
     <li className={`rounded-xl border p-4 md:p-5 ${tone}`}>
       <div className="flex items-start justify-between gap-3">
         <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{report.body}</p>
         <span
-          className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-            fixed ? "bg-green-600 text-white" : "bg-red-600 text-white"
-          }`}
+          className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${badge}`}
         >
-          {fixed ? "Fixed" : "Not fixed yet"}
+          {STATES[state].label}
         </span>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-70">
         <span>{timeAgo(report.created_at)}</span>
+        {/* Without the date, "being looked at" reads the same on day one and
+            day thirty, which is the anxiety the state is supposed to remove. */}
+        {looking && <span>· picked up {timeAgo(report.lookedAt)}</span>}
         {report.source === "extension" && <span>· reported from an error in the extension</span>}
         {report.category && <span>· {CATEGORY_LABEL[report.category] || report.category}</span>}
       </div>
@@ -403,6 +533,8 @@ function ReportCard({ report, votingEnabled, onCounts, onFixCounts }) {
           {report.gist}
         </p>
       )}
+
+      {(report.notes > 0 || report.lookedAt) && <AgentThread report={report} />}
 
       {report.fix_state && report.fix_state !== "none" && (
         <FixStrip report={report} votingEnabled={votingEnabled} onFixCounts={onFixCounts} />
@@ -479,8 +611,17 @@ function TellmeInner() {
   const [note, setNote] = useState(null); // { text, ok }
   const [shot, setShot] = useState(null); // { url } once uploaded
   const [uploading, setUploading] = useState(false);
+  const [shown, setShown] = useState(PAGE_SIZE);
+  const [filteredOpen, setFilteredOpen] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const boxRef = useRef(null);
   const fileRef = useRef(null);
+
+  // The board proper and the drawer under it. Derived rather than stored, so a
+  // report that gets reclassified from the dashboard moves between the two on
+  // the next load with nothing to keep in sync.
+  const live = (reports || []).filter((r) => r.kind !== "filtered");
+  const filtered = (reports || []).filter((r) => r.kind === "filtered");
 
   useEffect(() => {
     const fromError = params.get("ctx");
@@ -491,13 +632,24 @@ function TellmeInner() {
   }, [params]);
 
   useEffect(() => {
+    // "Nothing reported yet" and "the board could not load" are opposite
+    // facts, and rendering the first when the second is true is the worst
+    // failure this page has: it tells everyone their reports are gone.
     fetch("/api/tellme")
       .then((r) => r.json())
       .then((data) => {
-        setReports(Array.isArray(data.reports) ? data.reports : []);
-        setVotingEnabled(data.votingEnabled !== false);
+        if (Array.isArray(data.reports)) {
+          setReports(data.reports);
+          setVotingEnabled(data.votingEnabled !== false);
+        } else {
+          setLoadFailed(true);
+          setReports([]);
+        }
       })
-      .catch(() => setReports([]));
+      .catch(() => {
+        setLoadFailed(true);
+        setReports([]);
+      });
   }, []);
 
   function updateCounts(id, ups, downs) {
@@ -603,21 +755,34 @@ function TellmeInner() {
             className="h-5 w-5 md:h-6 md:w-6"
           />
           <span className="text-base md:text-xl">JustClarify</span>
-          <span className="ml-1 text-xs text-[#000000] transition-colors group-hover:text-[#FF0000]">
+          <span className="ml-1 text-xs text-[#000000] transition-colors group-hover:text-accent">
             &larr; Home
           </span>
         </Link>
       </header>
 
       <main className="mx-auto max-w-2xl px-6 pb-24 pt-4 md:px-8">
-        <h1 className="mb-2 text-2xl font-semibold text-[#FF0000] md:text-3xl">
+        <h1 className="mb-2 text-2xl font-semibold text-accent md:text-3xl">
           Tell us what happened
         </h1>
-        <p className="mb-8 text-sm leading-relaxed text-[#171717]/70">
+        <p className="mb-3 text-sm leading-relaxed text-[#171717]/70">
           Something broke, or got in your way? Say it however it comes out. This is a page, not an
           email. Reports sit here for everyone to see: <span className="text-red-700">red</span>{" "}
           until it&apos;s fixed, <span className="text-green-700">green</span> once it is.
         </p>
+
+        {/* The key, always on screen rather than hidden behind a "what do the
+            colours mean" link. The colours ARE the status of the whole board,
+            and a reader should never have to learn them twice. */}
+        <ul className="mb-8 flex flex-wrap gap-x-4 gap-y-1.5">
+          {["open", "looking", "fixed", "idea", "added"].map((key) => (
+            <li key={key} className="flex items-center gap-1.5 text-[11.5px] text-[#171717]/60">
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${STATES[key].dot}`} />
+              <span className="font-medium text-[#171717]/80">{STATES[key].label}</span>
+              <span className="opacity-70">{STATES[key].legend}</span>
+            </li>
+          ))}
+        </ul>
 
         {ctx && (
           <div className="mb-3 flex items-start justify-between gap-3 rounded-xl border border-[#171717]/15 bg-[#171717]/[0.03] p-3">
@@ -643,9 +808,22 @@ function TellmeInner() {
             setText(e.target.value.slice(0, 2000));
             setOriginal(null);
           }}
-          placeholder="Tell us what happened"
+          onPaste={(e) => {
+            // Cmd+Shift+4 then Cmd+V is how most people screenshot, and making
+            // them save a file first to use the picker throws that away. An
+            // image on the clipboard uploads exactly as a picked file does.
+            const item = [...(e.clipboardData?.items || [])].find((i) =>
+              i.type.startsWith("image/"),
+            );
+            if (!item) return;
+            const file = item.getAsFile();
+            if (!file) return;
+            e.preventDefault();
+            attachShot(file);
+          }}
+          placeholder="Tell us what happened. You can paste a screenshot straight in here."
           rows={4}
-          className="w-full resize-y rounded-xl border border-[#171717]/20 bg-white p-4 text-[15px] leading-relaxed outline-none transition-colors placeholder:text-[#171717]/40 focus:border-[#FF0000]"
+          className="w-full resize-y rounded-xl border border-[#171717]/20 bg-white p-4 text-[15px] leading-relaxed outline-none transition-colors placeholder:text-[#171717]/40 focus:border-accent"
         />
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -653,7 +831,7 @@ function TellmeInner() {
             type="button"
             onClick={post}
             disabled={busy || !text.trim()}
-            className="rounded-full bg-[#FF0000] px-5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="rounded-full bg-accent px-5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {busy ? "Posting…" : "Post it"}
           </button>
@@ -717,14 +895,22 @@ function TellmeInner() {
           </p>
         )}
 
-        <h2 className="mb-3 mt-12 text-lg font-semibold">What others have said</h2>
+        <h2 className="mb-3 mt-12 text-lg font-semibold">
+          What others have said
+          {live.length ? <span className="ml-1 font-normal opacity-50">({live.length})</span> : null}
+        </h2>
         {reports == null ? (
           <p className="text-sm opacity-60">Loading reports…</p>
-        ) : reports.length === 0 ? (
-          <p className="text-sm opacity-60">Nothing reported yet — yours would be the first.</p>
+        ) : loadFailed ? (
+          <p className="text-sm text-red-700">
+            The board didn&apos;t load. Nothing has been lost. Reload the page, and if it keeps
+            happening it is our end, not yours.
+          </p>
+        ) : live.length === 0 ? (
+          <p className="text-sm opacity-60">Nothing reported yet. Yours would be the first.</p>
         ) : (
           <ul className="space-y-3">
-            {reports.map((r) => (
+            {live.slice(0, shown).map((r) => (
               <ReportCard
                 key={r.id}
                 report={r}
@@ -734,6 +920,55 @@ function TellmeInner() {
               />
             ))}
           </ul>
+        )}
+
+        {/* Nine is about a screenful. Beyond that the page becomes a wall
+            nobody reads to the bottom of, and every card below the fold is
+            still costing an image fetch. */}
+        {live.length > shown && (
+          <button
+            type="button"
+            onClick={() => setShown((n) => n + PAGE_SIZE)}
+            className="mt-4 w-full rounded-xl border border-[#171717]/20 py-2.5 text-sm transition-colors hover:border-[#171717]/50"
+          >
+            Show more ({live.length - shown} left)
+          </button>
+        )}
+
+        {/* Messages with no request inside them: praise, abuse, jokes, spam.
+            Kept and countable rather than deleted, because a board that
+            silently drops what it does not like is a board you cannot check.
+            One quiet line at the very bottom, closed by default, so the count
+            is honest without the noise sharing space with the work. */}
+        {reports != null && !loadFailed && (
+          <div className="mt-8 border-t border-[#171717]/10 pt-4">
+            <button
+              type="button"
+              onClick={() => setFilteredOpen((v) => !v)}
+              disabled={filtered.length === 0}
+              className="text-[13px] text-[#171717]/50 underline decoration-dotted underline-offset-4 transition-colors hover:text-[#171717]/80 disabled:no-underline disabled:hover:text-[#171717]/50"
+            >
+              Filtered ({filtered.length}){filtered.length > 0 && (filteredOpen ? " ▾" : " ▸")}
+            </button>
+            {filtered.length > 0 && !filteredOpen && (
+              <p className="mt-1 text-[11.5px] text-[#171717]/40">
+                Messages with nothing to fix or build in them. Nothing is deleted.
+              </p>
+            )}
+            {filteredOpen && filtered.length > 0 && (
+              <ul className="mt-3 space-y-3">
+                {filtered.map((r) => (
+                  <ReportCard
+                    key={r.id}
+                    report={r}
+                    votingEnabled={votingEnabled}
+                    onCounts={updateCounts}
+                    onFixCounts={updateFixCounts}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </main>
     </div>

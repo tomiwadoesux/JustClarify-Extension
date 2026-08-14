@@ -942,7 +942,10 @@ export default function DemoPage() {
           Highlighting is one way in. The other is speaking: hold <Kbd sym="⇧">Shift</Kbd>, say what
           you want, let go.{" "}
           <span className="jcd-hi">Releasing the key is what ends the turn</span>. No wake word, no
-          open microphone, and nothing is ever captured unless a key is physically held down.
+          open microphone, and nothing is ever captured unless a key is physically held down. What
+          you get back is not a command list.{" "}
+          <span className="jcd-hi">It is an agent that works your page</span>, one step at a time,
+          looking again between every step.
         </p>
         <ol className="jcd-pipe">
           <li>
@@ -959,8 +962,9 @@ export default function DemoPage() {
           </li>
           <li>
             <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="scroll" /></span>
-            <b>And the things your mouse is slower at.</b> About sixty phrases, all of them things
-            you were going to do anyway.
+            <b>And the things your mouse is slower at.</b> Eighty phrases, all of them things you
+            were going to do anyway: reading aloud, scrolling that you can steer mid-flight, tabs,
+            zoom, media, typing into a box and sending it.
             <span className="jcd-chips">
               <Chip glyph="search">&ldquo;Take me to the pricing bit&rdquo;</Chip>
               <Chip glyph="scroll">&ldquo;Keep scrolling, wait, back&rdquo;</Chip>
@@ -968,6 +972,40 @@ export default function DemoPage() {
               <Chip glyph="cursor">&ldquo;Click the sign-up button&rdquo;</Chip>
               <Chip glyph="undo">&ldquo;Undo that&rdquo;</Chip>
             </span>
+          </li>
+          <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="target" /></span>
+            <b>A sentence can be more than one action.</b> &ldquo;Find their refund policy and read
+            me the bit about shipping&rdquo; is three, and the page after a click is not the page
+            before it. So it takes one step, looks at what that step produced, and only then decides
+            the next.{" "}
+            <span className="jcd-hi">Up to five steps, counted by the browser, not by the model</span>
+            , because something that trusted a model to stop would have no limit at all.
+          </li>
+          <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="cursor" /></span>
+            <b>It sees the page as a numbered list, not as a picture.</b> Before each step the
+            extension collects what is actually on screen and actually interactive, the buttons,
+            links and fields, and hands over that list with the ones nearest your cursor first, so
+            &ldquo;click this one&rdquo; has something to point at. Naming a numbered thing is one
+            exact step. Describing a button and hunting for it again is two guesses, and the second
+            one is where these systems usually click the wrong thing.
+          </li>
+          <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="chip" /></span>
+            <b>Most of what you say never reaches a model at all.</b> &ldquo;Scroll down&rdquo; is
+            settled by a pattern in microseconds, for nothing, with no network round trip. The
+            model is the fallback for the sentences the patterns miss, never the path everything
+            takes, which is why the common commands answer instantly.
+          </li>
+          <li>
+            <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="lock" /></span>
+            <b>A page cannot talk it into anything.</b> The part that decides what to DO never reads
+            the page&apos;s prose, only its link labels and headings, so a sentence buried in an
+            article cannot pose as an instruction. What comes back is a verb chosen from a fixed
+            list of forty-five the extension already owns, plus a number.{" "}
+            <span className="jcd-hi">Nothing the model returns is ever run as code</span>, and
+            anything that reads as destructive stops and asks you first.
           </li>
           <li>
             <span className="jcd-pipe-ico" aria-hidden="true"><Glyph name="target" /></span>

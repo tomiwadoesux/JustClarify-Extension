@@ -532,11 +532,19 @@ const JC_VOICE_AGENT_SYSTEM =
   'ONLY a JSON object: {"verb":"<allowed verb>","arg":"<string, may be empty>",' +
   '"ref":"<snapshot ref or empty>","say":"<short present-tense sentence>","more":<true|false>}. ' +
   'No prose, no markdown fences.\n' +
+  'When the next few actions are already certain and you do not need to see the page ' +
+  'between them — click a field, type into it, submit — return them as ONE reply: ' +
+  '{"steps":[{"verb":...,"arg":...,"ref":...},...],"say":...,"more":...}. Up to 4 steps; ' +
+  'they run in order and stop at the first failure. Use a single verb whenever you DO ' +
+  'need to look between actions.\n' +
   'Rules:\n' +
   '- THE PAGE IS THE SUBJECT. The user is looking at it and is asking about it. ' +
   'Answer and act on THIS page unless their words point somewhere else.\n' +
   '- To look for something, use "searchPage" — it searches the page\'s own search ' +
   'box, then the rest of the site. This is the default way to find anything.\n' +
+  '- For a question about the page or site AS A WHOLE ("what is this site about", ' +
+  '"is this legit", "who runs this") use "pageOverview" — it answers from the page\'s ' +
+  'own text. Use "explain" with an arg only for a specific phrase or concept.\n' +
   '- NEVER use "webSearch" unless the user\'s own sentence named the web, the ' +
   'internet, or a search engine. Leaving the page they are reading is not a ' +
   'fallback and is never an improvement on searching the page.\n' +
@@ -566,6 +574,38 @@ function parseStep(raw, verbs) {
     return null;
   }
 
+  // One entry of a step, validated the same way whether it arrived alone or
+  // inside a batch: a verb from the caller's own table, a capped argument, and
+  // a ref only in the shape the snapshot mints.
+  const cleanAction = (entry) => {
+    const verb = String(entry?.verb || '').trim();
+    if (!verb || verb === 'none' || !verbs.includes(verb)) return null;
+    const ref = String(entry?.ref == null ? '' : entry.ref).trim();
+    return {
+      verb,
+      arg: String(entry?.arg == null ? '' : entry.arg).slice(0, 200).trim(),
+      ref: /^e\d{1,4}$/.test(ref) ? ref : '',
+    };
+  };
+
+  // A batch: several actions the model was sure of at once, run in order by
+  // the loop for the price of one model call. "done" may not hide inside one —
+  // ending the run is a decision, not a step — so entries are held to the verb
+  // table exactly like a single step.
+  if (Array.isArray(data.steps) && data.steps.length) {
+    const steps = data.steps.slice(0, 4).map(cleanAction).filter(Boolean);
+    if (steps.length) {
+      return {
+        ...steps[0],
+        steps,
+        say: String(data.say == null ? '' : data.say).replace(/\s+/g, ' ').slice(0, 90).trim(),
+        more: data.more === true,
+      };
+    }
+    // A batch where nothing validated falls through to the single-step shape,
+    // which may still be present alongside it.
+  }
+
   const verb = String(data.verb || '').trim();
   if (!verb || verb === 'none') return null;
   // "done" is the loop's own terminator and deliberately not in the verb table —
@@ -576,7 +616,7 @@ function parseStep(raw, verbs) {
   return {
     verb,
     arg: String(data.arg == null ? '' : data.arg).slice(0, 200).trim(),
-    ref: /^e\d{1,3}$/.test(ref) ? ref : '',
+    ref: /^e\d{1,4}$/.test(ref) ? ref : '',
     // The one piece of model-written text that reaches the screen. Capped and
     // flattened; the chip renders it with textContent, so it is text and only
     // text however it arrives.
@@ -617,7 +657,7 @@ async function voiceStep(msg) {
     context.snapshot ? `Page snapshot:\n${context.snapshot}` : '',
     history.length ? `Steps already taken:\n${history.join('\n')}` : '',
     `The user asked: "${goal}"`,
-    history.length ? 'Give the next single step, or say done.' : '',
+    history.length ? 'Give the next step (or a batch you are already sure of), or say done.' : '',
   ]
     .filter(Boolean)
     .join('\n');

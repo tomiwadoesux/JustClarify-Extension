@@ -3,7 +3,14 @@
 // here: flip a report open/fixed, delete one, and switch voting on or off.
 
 import { timingSafeEqual } from 'node:crypto';
-import { tellmeDb, tellmeBurstLimited } from '@/lib/tellme';
+import {
+  tellmeDb,
+  tellmeBurstLimited,
+  tellmeAddNote,
+  tellmeDeleteNotes,
+  tellmeNotes,
+  tellmeAI,
+} from '@/lib/tellme';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,7 +58,27 @@ export async function POST(request) {
       const id = String(body?.id || '');
       if (!UUID_RE.test(id)) return Response.json({ error: 'Bad id.' }, { status: 400 });
       await tellmeDb(`jc_reports?id=eq.${id}`, { method: 'DELETE' });
+      // Notes live in jc_flags rather than a table with a foreign key, so the
+      // cascade a real schema would give us has to happen here. See tellme.js.
+      await tellmeDeleteNotes(id);
       return Response.json({ ok: true });
+    }
+
+    // Answering the agent. A blocked run usually ends with a question, and the
+    // reply is both published on the board and read by the NEXT run, so "here
+    // is the screenshot you asked for" actually changes what it does rather
+    // than disappearing into a comment box.
+    if (action === 'note') {
+      const id = String(body?.id || '');
+      if (!UUID_RE.test(id)) return Response.json({ error: 'Bad id.' }, { status: 400 });
+      const text = String(body?.body || '').trim().slice(0, 4000);
+      if (text.length < 1) return Response.json({ error: 'Write something first.' }, { status: 400 });
+      const notes = await tellmeAddNote(id, {
+        author: 'admin',
+        body: text,
+        at: new Date().toISOString(),
+      });
+      return Response.json({ ok: true, notes });
     }
 
     // Marks the moment a candidate fix is actually in users' hands, which is
@@ -68,6 +95,91 @@ export async function POST(request) {
         body: { fix_shipped_in: version },
       });
       return Response.json({ ok: true, version });
+    }
+
+    // The outcome, in public. Everything before this — the agent's detailed
+    // findings, your replies, the back and forth — is working material and
+    // stays in this dashboard. What the board gets is one short account of how
+    // it ended, written after you have decided, because a conversation in
+    // progress read as a verdict is worse than silence.
+    //
+    // Sonnet writes it rather than Opus: this is prose for a stranger, not code.
+    if (action === 'publish') {
+      const id = String(body?.id || '');
+      if (!UUID_RE.test(id)) return Response.json({ error: 'Bad id.' }, { status: 400 });
+
+      const reports = await tellmeDb(
+        `jc_reports?id=eq.${id}&select=body,status,fix_state,fix_shipped_in,fix_target`,
+      );
+      const report = reports?.[0];
+      if (!report) return Response.json({ error: 'No such report.' }, { status: 404 });
+
+      const runs = await tellmeDb(
+        `jc_agent_runs?report_id=eq.${id}&select=status,summary,files&order=created_at.desc&limit=1`,
+      );
+      const run = runs?.[0];
+      const thread = await tellmeNotes(id);
+
+      // A steer you typed wins over anything generated: sometimes the true
+      // reason is a product decision the agent never saw.
+      const steer = String(body?.steer || '').trim().slice(0, 2000);
+
+      const fixed = report.status === 'fixed' || report.fix_state !== 'none';
+      const shipped = report.fix_shipped_in;
+
+      const text = await tellmeAI(
+        'You write the public outcome of one bug report for a board that anyone can read. ' +
+          'Two to four sentences, plain language, no jargon, no file names, no code, no em dashes. ' +
+          'Address the person who reported it. ' +
+          (fixed
+            ? 'This one WAS fixed: say what now happens differently, in terms of what they will see. ' +
+              (shipped
+                ? `It shipped in ${shipped}, so say so.`
+                : 'It is merged but not yet in a released version, so say it is on the way.')
+            : 'This one was NOT fixed: say plainly why, without blaming them, and say what would ' +
+              'let it be fixed if anything would. Do not promise a timeline.'),
+        [
+          `The report: ${report.body}`,
+          run?.summary ? `What the agent found (internal, do not quote file names): ${run.summary}` : '',
+          thread.length
+            ? `The conversation since:\n${thread.map((n) => `${n.author}: ${n.body}`).join('\n')}`
+            : '',
+          steer ? `The maintainer's final word, which outranks everything above: ${steer}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+        400,
+      );
+
+      if (!text) {
+        return Response.json(
+          { error: "Couldn't write the summary just now. Try again in a moment." },
+          { status: 503 },
+        );
+      }
+
+      const notes = await tellmeAddNote(id, {
+        author: 'public',
+        body: text,
+        at: new Date().toISOString(),
+      });
+      return Response.json({ ok: true, published: text, notes });
+    }
+
+    // Overrule the classifier. It runs on one sentence at post time with no
+    // knowledge of the product, so it will sometimes read a wish as a fault or
+    // file a real report away as chatter. That last case is the one that
+    // matters: a bug in the filtered drawer is a bug nobody sees, so the fix
+    // for it has to be one click from the dashboard.
+    if (action === 'kind') {
+      const id = String(body?.id || '');
+      if (!UUID_RE.test(id)) return Response.json({ error: 'Bad id.' }, { status: 400 });
+      const kind = String(body?.kind || '');
+      if (!['bug', 'suggestion', 'filtered'].includes(kind)) {
+        return Response.json({ error: 'Not a kind.' }, { status: 400 });
+      }
+      await tellmeDb(`jc_reports?id=eq.${id}`, { method: 'PATCH', body: { kind } });
+      return Response.json({ ok: true, kind });
     }
 
     if (action === 'voting') {

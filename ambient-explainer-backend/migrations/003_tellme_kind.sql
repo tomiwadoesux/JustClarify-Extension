@@ -1,0 +1,22 @@
+-- Run in the Supabase SQL editor (project rwqkngtllxoljxccodod) BEFORE
+-- deploying the kind changes: the board's select list asks for this column and
+-- PostgREST refuses the whole query if it is missing.
+--
+-- kind  what the report IS, decided when it is filed:
+--         'bug'        something is broken. Red until fixed, then green.
+--         'suggestion' a wish, not a fault ("it does not hear French").
+--                      Purple until done, then a green of its own, because
+--                      "we added what you asked for" and "we repaired what we
+--                      broke" are not the same news.
+--         'filtered'   a compliment, abuse, spam, or anything with no request
+--                      inside it. Kept, never deleted, but folded away behind
+--                      a link at the foot of the board.
+--
+-- Deliberately separate from `category` (copy/ui/logic/sensitive/unclear),
+-- which is the agent's triage of HOW to fix something. This is what the thing
+-- is, and it decides the colour a stranger sees.
+--
+-- Null means 'bug', which is the safe default: a classification that failed
+-- shows the report in full view rather than hiding it.
+
+alter table jc_reports add column if not exists kind text;

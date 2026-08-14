@@ -39,7 +39,94 @@ function AgentButton({ run, onRun }) {
   );
 }
 
-function RunPanel({ run, open, onToggle }) {
+// The reply box. A blocked run nearly always ends with a question, and this is
+// where it gets answered: the note is published on the board AND fed into the
+// next run's brief, so "here is the screenshot you asked for" changes what the
+// agent does instead of vanishing into a comment field.
+function ReplyBox({ reportId, notes, onSend, onPublish }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [published, setPublished] = useState("");
+
+  async function send() {
+    const body = text.trim();
+    if (!body || busy) return;
+    setBusy(true);
+    await onSend(reportId, body);
+    setText("");
+    setBusy(false);
+  }
+
+  async function publish() {
+    if (busy) return;
+    setBusy(true);
+    // Whatever is in the box is treated as the final word and outranks the
+    // agent's own account, because sometimes the real reason is a product
+    // decision the agent never had access to.
+    const result = await onPublish(reportId, text.trim());
+    if (result) {
+      setPublished(result);
+      setText("");
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="mt-2 border-t border-[#171717]/10 pt-2">
+      {notes.length > 0 && (
+        <ol className="mb-2 space-y-1.5">
+          {notes.map((n, i) => (
+            <li key={i} className="rounded bg-[#171717]/[0.04] p-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide opacity-50">
+                {n.author === "agent" ? "Agent" : "You"}
+              </span>
+              <p className="mt-0.5 whitespace-pre-wrap text-[11.5px] leading-relaxed">{n.body}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value.slice(0, 4000))}
+        placeholder="Answer the agent, then run it again. Or write your final word and publish it…"
+        rows={2}
+        className="w-full resize-y rounded border border-[#171717]/20 p-2 text-[11.5px] outline-none focus:border-[#FF0000]"
+      />
+      <div className="mt-1 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={send}
+          disabled={busy || !text.trim()}
+          className="rounded-full bg-[#171717] px-3 py-1 text-[11px] text-white hover:bg-black disabled:opacity-40"
+        >
+          {busy ? "Sending…" : "Reply to the agent"}
+        </button>
+        {/* Everything above is private. This is the only thing the board ever
+            sees, and it is written from the whole conversation once you are
+            done, so nothing half-finished is ever shown as a verdict. */}
+        <button
+          type="button"
+          onClick={publish}
+          disabled={busy}
+          title="Writes a short public account of how this ended, from the conversation above. Anything in the box counts as your final word."
+          className="rounded-full border border-[#171717]/30 px-3 py-1 text-[11px] hover:bg-[#171717]/5 disabled:opacity-40"
+        >
+          {busy ? "Working…" : "Publish the outcome"}
+        </button>
+      </div>
+      {published && (
+        <div className="mt-2 rounded border border-green-300 bg-green-50 p-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-green-800">
+            Now on the board
+          </span>
+          <p className="mt-0.5 whitespace-pre-wrap text-[11.5px] leading-relaxed">{published}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RunPanel({ run, open, onToggle, notes, onSend, onPublish }) {
   const log = Array.isArray(run.log) ? run.log : [];
   return (
     <div className="mt-2 rounded-lg border border-[#171717]/15 bg-white/70 p-2.5 text-xs">
@@ -94,6 +181,12 @@ function RunPanel({ run, open, onToggle }) {
               Review the pull request
             </a>
           )}
+          <ReplyBox
+            reportId={run.report_id}
+            notes={notes}
+            onSend={onSend}
+            onPublish={onPublish}
+          />
         </div>
       )}
     </div>
@@ -109,6 +202,7 @@ export default function TellmeAdminPage() {
   const [note, setNote] = useState("");
   const [runs, setRuns] = useState({}); // reportId -> newest run
   const [openRun, setOpenRun] = useState(null); // reportId whose detail is expanded
+  const [notes, setNotes] = useState({}); // reportId -> the thread
 
   useEffect(() => {
     try {
@@ -187,6 +281,35 @@ export default function TellmeAdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed, runs, key]);
 
+  // The thread is public, so it comes from the same endpoint the board reads.
+  async function loadNotes(id) {
+    try {
+      const res = await fetch(`/api/tellme/fix?id=${id}`);
+      const data = await res.json().catch(() => ({}));
+      if (Array.isArray(data.notes)) setNotes((prev) => ({ ...prev, [id]: data.notes }));
+    } catch (_) {}
+  }
+
+  async function sendNote(id, body) {
+    try {
+      const data = await call({ key, action: "note", id, body });
+      if (Array.isArray(data.notes)) setNotes((prev) => ({ ...prev, [id]: data.notes }));
+    } catch (error) {
+      setNote(String(error.message || error));
+    }
+  }
+
+  async function publishOutcome(id, steer) {
+    try {
+      const data = await call({ key, action: "publish", id, steer });
+      if (Array.isArray(data.notes)) setNotes((prev) => ({ ...prev, [id]: data.notes }));
+      return data.published || "";
+    } catch (error) {
+      setNote(String(error.message || error));
+      return "";
+    }
+  }
+
   async function sendToAgent(id) {
     setNote("");
     try {
@@ -233,6 +356,18 @@ export default function TellmeAdminPage() {
   // landed, but only a person knows WHEN it reached users' hands (for the
   // extension, that is the store review clearing). Until this is pressed the
   // board holds the "did this fix it?" vote on extension fixes.
+  // Move a report between the board and the filtered drawer. The classifier
+  // reads one sentence at post time, so this is the correction for when it
+  // reads a wish as a fault, or files a real report away as chatter.
+  async function setKind(id, kind) {
+    try {
+      await call({ key, action: "kind", id, kind });
+      setReports((list) => list.map((r) => (r.id === id ? { ...r, kind } : r)));
+    } catch (error) {
+      setNote(String(error.message || error));
+    }
+  }
+
   async function markShipped(r) {
     const suggestion = r.fix_shipped_in || (r.fix_target === "site" ? "live" : "v0.0.0");
     const version = window.prompt(
@@ -272,7 +407,7 @@ export default function TellmeAdminPage() {
             onChange={(e) => setEntered(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && probe(entered.trim())}
             placeholder="Admin key"
-            className="w-full rounded-xl border border-[#171717]/20 p-3 text-sm outline-none focus:border-[#FF0000]"
+            className="w-full rounded-xl border border-[#171717]/20 p-3 text-sm outline-none focus:border-accent"
           />
           <button
             type="button"
@@ -320,10 +455,14 @@ export default function TellmeAdminPage() {
             {reports.map((r) => (
               <li
                 key={r.id}
+                // Same three states as the public board, so the dashboard and
+                // the page never disagree about what colour a report is.
                 className={`rounded-xl border p-4 ${
                   r.status === "fixed"
                     ? "border-green-300 bg-green-50"
-                    : "border-red-200 bg-red-50"
+                    : r.lookedAt
+                      ? "border-orange-300 bg-orange-50"
+                      : "border-red-200 bg-red-50"
                 }`}
               >
                 <p className="whitespace-pre-wrap text-[14px]">{r.body}</p>
@@ -333,6 +472,34 @@ export default function TellmeAdminPage() {
                     {r.context}
                   </pre>
                 )}
+                {/* What the board is showing this as, and the one-click
+                    correction. Filtered reports are invisible to the public
+                    behind a closed drawer, so a wrong call here is the most
+                    expensive one the classifier can make. */}
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                  {[
+                    ["bug", "Bug", "bg-red-600"],
+                    ["suggestion", "Suggestion", "bg-purple-600"],
+                    ["filtered", "Filtered", "bg-[#171717]/40"],
+                  ].map(([value, label, colour]) => {
+                    const on = (r.kind || "bug") === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setKind(r.id, value)}
+                        className={`rounded-full px-2.5 py-0.5 ${
+                          on
+                            ? `${colour} font-semibold text-white`
+                            : "border border-[#171717]/25 opacity-60 hover:opacity-100"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                   <span className="opacity-60">
                     ▲ {r.ups} · ▼ {r.downs} · {r.source} ·{" "}
@@ -381,7 +548,16 @@ export default function TellmeAdminPage() {
                   <RunPanel
                     run={runs[r.id]}
                     open={openRun === r.id}
-                    onToggle={() => setOpenRun(openRun === r.id ? null : r.id)}
+                    onToggle={() => {
+                      const next = openRun === r.id ? null : r.id;
+                      setOpenRun(next);
+                      // Fetched on open rather than with the list: most rows
+                      // are never expanded, and this is one request each.
+                      if (next && !notes[r.id]) loadNotes(r.id);
+                    }}
+                    notes={notes[r.id] || []}
+                    onSend={sendNote}
+                    onPublish={publishOutcome}
                   />
                 )}
               </li>

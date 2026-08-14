@@ -13,7 +13,7 @@
 // dashboard. They carry stack traces, internal paths and upstream provider
 // messages, none of which belong on a public page.
 
-import { tellmeDb } from '@/lib/tellme';
+import { tellmeDb, tellmeNotes } from '@/lib/tellme';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,21 +28,43 @@ export async function GET(request) {
     const reports = await tellmeDb(`jc_reports?id=eq.${id}&select=fix_state,fix_pr_url`);
     const report = reports?.[0];
     if (!report) return Response.json({ error: 'That report is gone.' }, { status: 404 });
-    if (report.fix_state === 'none') {
-      return Response.json({ error: 'No fix has been proposed for this one yet.' }, { status: 404 });
-    }
 
-    // Newest successful run for this report: the one whose pull request the
-    // board is showing. A failed run's half-finished diff is not a candidate
-    // fix and must never be presented as one.
+    // Newest run that ended in something worth showing. A SUCCEEDED run carries
+    // a fix; a BLOCKED one carries the agent's reasoning for not writing one,
+    // and that is published too — "the agent looked and here is what it found"
+    // is a real answer to a report, and hiding it makes a considered refusal
+    // look identical to nobody having bothered. A FAILED run is neither: its
+    // half-finished diff is not a candidate fix and its error text is plumbing.
     const runs = await tellmeDb(
-      `jc_agent_runs?report_id=eq.${id}&status=eq.succeeded&select=summary,files,diff,pr_url,category,created_at,shots&order=created_at.desc&limit=1`,
+      `jc_agent_runs?report_id=eq.${id}&status=in.(succeeded,blocked)&select=status,summary,files,diff,pr_url,category,created_at,shots&order=created_at.desc&limit=1`,
     );
     const run = runs?.[0];
-    if (!run) return Response.json({ error: 'Nothing to show yet.' }, { status: 404 });
+
+    // ONLY the published outcome. The agent's detailed findings and the
+    // maintainer's replies are working material in the dashboard, and a
+    // half-finished conversation shown as a verdict reads worse than nothing.
+    // A note becomes public exactly when someone presses Publish.
+    const notes = (await tellmeNotes(id)).filter((n) => n.author === 'public');
+
+    if (!run) {
+      if (!notes.length) return Response.json({ error: 'Nothing to show yet.' }, { status: 404 });
+      return Response.json({ blocked: false, notes });
+    }
+
+    if (run.status === 'blocked') {
+      return Response.json({
+        blocked: true,
+        // No internal summary, no diff, no files, no pull request, and never
+        // the run's error field. If nothing has been published yet, the board
+        // shows that it is still being looked at.
+        category: run.category || null,
+        notes,
+      });
+    }
 
     const shots = run.shots && typeof run.shots === 'object' ? run.shots : {};
     return Response.json({
+      blocked: false,
       summary: run.summary || '',
       files: Array.isArray(run.files) ? run.files : [],
       diff: (run.diff || '').slice(0, 60_000),
@@ -53,6 +75,7 @@ export async function GET(request) {
       // the fix. Present only on UI runs that managed to render.
       before: typeof shots.before === 'string' ? shots.before : null,
       after: typeof shots.after === 'string' ? shots.after : null,
+      notes,
     });
   } catch (_) {
     return Response.json({ error: "Couldn't load that right now." }, { status: 503 });

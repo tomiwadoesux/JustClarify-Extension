@@ -38,7 +38,7 @@ export default function Jw() {
                 cx="449.236"
                 cy="390.011"
                 r="4.37458"
-                fill="#FF0000"
+                className="fill-accent"
               />
               <circle
                 id="o-beam"

@@ -52,7 +52,7 @@ export default function UpDown() {
           width="4.23803"
           height="4.44951"
           transform="rotate(45 73.5464 260.5)"
-          fill="#FF0000"
+          className="fill-accent"
         />
       </svg>
 
@@ -96,7 +96,7 @@ export default function UpDown() {
             width="5"
             height="5.2"
             transform="rotate(45 340.5 41)"
-            fill="#FF0000"
+            className="fill-accent"
           />
         </svg>
 

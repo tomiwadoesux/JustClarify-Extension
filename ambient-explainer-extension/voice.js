@@ -1516,40 +1516,62 @@
       if (step.more) saveAgent(state);
       else clearAgent();
 
-      const result = typeof jcVoiceRunIntent === "function" ? jcVoiceRunIntent(step, state.goal) : null;
+      // One model call may carry several actions the model was already sure
+      // of (click the field, type, submit). They run in order, stop at the
+      // first failure so the model sees it before deciding anything else, and
+      // together they cost ONE entry of the step budget — the budget exists to
+      // bound model calls that could wander, not keystrokes.
+      const actions = Array.isArray(step.steps) && step.steps.length ? step.steps : [step];
+      let result = null;
 
-      // The model answered with a verb that isn't in the table — treat it as a
-      // miss rather than guessing at what it meant.
-      if (!result) {
-        clearAgent();
-        return state.steps > 1;
+      for (let i = 0; i < actions.length; i++) {
+        const action = actions[i];
+        result = typeof jcVoiceRunIntent === "function" ? jcVoiceRunIntent(action, state.goal) : null;
+
+        // The model answered with a verb that isn't in the table — treat it as
+        // a miss rather than guessing at what it meant.
+        if (!result) {
+          clearAgent();
+          return state.steps > 1;
+        }
+
+        state.done.push(
+          `${action.verb}${action.arg ? ` "${action.arg}"` : ""} → ${
+            result.ok ? result.label || "done" : result.label || "failed"
+          }`,
+        );
+        // Keep the saved record current inside a batch too: if the NEXT action
+        // navigates, the resumed run should know this one already happened.
+        if (step.more) saveAgent(state);
+
+        // Either the page is on its way out, or something on screen owns the
+        // next move — a confirmation waiting on a yes, a search narrating its
+        // own progress. Both mean the same thing: stop acting here, mid-batch
+        // or not. If a new page arrives, the saved record picks the run up on
+        // the far side; if one doesn't, the record expires. What the loop must
+        // not do is keep issuing actions against a page it is leaving.
+        if (result.quiet || LEAVES_PAGE.has(action.verb)) {
+          if (!step.more) {
+            clearAgent();
+            render(result, goal);
+          }
+          return true;
+        }
+
+        // A failed action ends the batch: the remaining actions were planned
+        // against a page state that now cannot be assumed.
+        if (!result.ok) break;
+
+        // A beat between batched actions, so a framework has painted the field
+        // before the typing lands in it.
+        if (i < actions.length - 1) await pause(250);
       }
-
-      state.done.push(
-        `${step.verb}${step.arg ? ` "${step.arg}"` : ""} → ${
-          result.ok ? result.label || "done" : result.label || "failed"
-        }`,
-      );
 
       if (!step.more) {
         clearAgent();
         render(result, goal);
         return true;
       }
-
-      // Now that the outcome is known, write it down. If the step navigated,
-      // this line never runs — which is exactly why the save above it happens
-      // first. Between them, a resumed run knows either what it was about to
-      // do or what it just did, and never repeats a step blindly.
-      saveAgent(state);
-
-      // Either the page is on its way out, or something on screen owns the
-      // next move — a confirmation waiting on a yes, a search narrating its
-      // own progress. Both mean the same thing: stop acting here. If a new
-      // page arrives, the saved record picks the run up on the far side; if
-      // one doesn't, the record expires. What the loop must not do is keep
-      // issuing steps against a page it is in the middle of leaving.
-      if (result.quiet || LEAVES_PAGE.has(step.verb)) return true;
 
       // Let the page react to what just happened before looking at it again.
       await pause(450);

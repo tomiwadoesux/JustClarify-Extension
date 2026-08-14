@@ -117,7 +117,7 @@ export default function Hero() {
               <path
                 id="rect2804_2"
                 d="M1158 1032.16H1214"
-                stroke="#FF0000"
+                className="stroke-accent"
                 strokeWidth="1.5"
               />
               <path
@@ -154,7 +154,7 @@ export default function Hero() {
             <path
               id="rect2798_2"
               d="M1186 1060L1186 1004"
-              stroke="#FF0000"
+              className="stroke-accent"
               strokeWidth="1.5"
             />
             <path
@@ -168,7 +168,7 @@ export default function Hero() {
               y="991"
               width="238"
               height="28"
-              fill="#FF0000"
+              className="fill-accent"
             />
             <path
               id="without leaving the page"

@@ -83,7 +83,7 @@ export default function Veed() {
                 y={isTablet ? "525" : "545"}
                 width={isTablet ? "195" : "117"}
                 height={isTablet ? "40" : "28"}
-                fill="#FF0000"
+                className="fill-accent"
               />
 
               <text
@@ -139,7 +139,7 @@ export default function Veed() {
       <div className="md:hidden">
         <div className="">
           <div className="pt-2 pb-2 px-4 justify-left flex  ">
-            <h1 className="text-base text-[#FFFFFF] bg-[#FF0000] text-right  w-fit px-2 py-0">
+            <h1 className="text-base text-[#FFFFFF] bg-accent text-right  w-fit px-2 py-0">
               How it works
             </h1>
           </div>

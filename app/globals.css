@@ -3,11 +3,22 @@
 :root {
   --background: #FFFFFF;
   --foreground: #171717;
+  /* The site's accent, and only the fallback value of it: the brand script in
+     app/layout.js overwrites --accent on :root with one random dull OKLCH per
+     page load, so every visit is a slightly different colour. Red is what the
+     site falls back to if that script ever fails to run. */
+  --accent: #FF0000;
+  --accent-soft: #FF00001f;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  /* `inline` matters here: it compiles bg-accent to var(--accent) rather than
+     baking today's value into the utility, which is what lets a class written
+     once follow a colour chosen at runtime. */
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
   --font-sans: var(--font-inter-tight), sans-serif;
   --font-mono: var(--font-inter-tight), sans-serif;
 }

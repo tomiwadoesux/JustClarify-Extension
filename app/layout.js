@@ -90,6 +90,11 @@ export const viewport = {
 // on :root as --accent, mirrored to Safari's status bar (theme-color) and to a
 // diamond favicon drawn in that colour. Runs before paint so there's no flash
 // and Safari reads the right colour on load (it only reads theme-color once).
+//
+// --accent is what CSS reads (through the `accent` Tailwind colour defined in
+// globals.css). --accent-hex is the same colour as a plain #rrggbb string, for
+// the places that cannot read a CSS colour at all: WebGL shaders take floats,
+// so the dithered gradient has to be handed a hex it can parse.
 const BRAND_SCRIPT = `(function(){try{
 var l=+(0.55+Math.random()*0.11).toFixed(3),c=+(0.05+Math.random()*0.06).toFixed(3),h=Math.floor(Math.random()*360);
 var R=document.documentElement;
@@ -102,6 +107,7 @@ var P=4.0767416621*x-3.3077115913*y+0.2309699292*z,Q=-1.2684380046*x+2.609757401
 function g(v){v=v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055;return Math.round(Math.max(0,Math.min(1,v))*255);}
 return[g(P),g(Q),g(S)];}
 var rgb=o2r(l,c,h),hex='#'+rgb.map(function(v){return('0'+v.toString(16)).slice(-2)}).join('');
+R.style.setProperty('--accent-hex',hex);
 var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',hex);
 var s=64,cv=document.createElement('canvas');cv.width=cv.height=s;var x=cv.getContext('2d');
 function rr(x,X,Y,W,H,r){x.beginPath();x.moveTo(X+r,Y);x.arcTo(X+W,Y,X+W,Y+H,r);x.arcTo(X+W,Y+H,X,Y+H,r);x.arcTo(X,Y+H,X,Y,r);x.arcTo(X,Y,X+W,Y,r);x.closePath();}

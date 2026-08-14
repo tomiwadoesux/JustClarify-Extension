@@ -358,7 +358,7 @@ export default function Abt() {
           <g id="Group 23">
             <g id="Group_12">
               <g id="Group 9">
-                <rect x="567" y="991" width="160" height="28" fill="#FF0000" />
+                <rect x="567" y="991" width="160" height="28" className="fill-accent" />
 
                 <path
                   id="highlight-anything"
@@ -447,7 +447,7 @@ export default function Abt() {
                 y1="960.5"
                 x2="756.75"
                 y2="992.5"
-                stroke="#FF0000"
+                className="stroke-accent"
                 strokeWidth="1.5"
               />
               <line
@@ -456,7 +456,7 @@ export default function Abt() {
                 y1="975.75"
                 x2="772"
                 y2="975.75"
-                stroke="#FF0000"
+                className="stroke-accent"
                 strokeWidth="1.5"
               />
             </g>

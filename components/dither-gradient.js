@@ -367,10 +367,19 @@ export default function DitherGradient({ width: propWidth, height: propHeight })
       uColors: gl.getUniformLocation(program, "uColors"),
     };
 
-    // Pre-compute color array (static config, no need to rebuild every frame)
+    // The first colour is the site accent, which is chosen at random on every
+    // page load by the brand script in app/layout.js. A shader cannot read a
+    // CSS variable, so it is read here as the plain hex that script also
+    // publishes, falling back to the configured red if it is not there.
+    const accentHex =
+      getComputedStyle(document.documentElement).getPropertyValue("--accent-hex").trim() ||
+      CONFIG.colors[0];
+    const colors = [accentHex, ...CONFIG.colors.slice(1)];
+
+    // Pre-compute color array (static for this load, no need to rebuild every frame)
     const colorArray = [];
     for (let i = 0; i < 8; i++) {
-      const hex = CONFIG.colors[i] || CONFIG.colors[CONFIG.colors.length - 1];
+      const hex = colors[i] || colors[colors.length - 1];
       colorArray.push(...hexToRgb(hex));
     }
     const colorFloat32 = new Float32Array(colorArray);
@@ -381,7 +390,7 @@ export default function DitherGradient({ width: propWidth, height: propHeight })
     gl.uniform1i(uniforms.uDitherStyle, CONFIG.ditherStyle);
     gl.uniform1f(uniforms.uDitherSize, CONFIG.ditherSize);
     gl.uniform1f(uniforms.uDitherOpacity, CONFIG.ditherOpacity);
-    gl.uniform1i(uniforms.uColorCount, CONFIG.colors.length);
+    gl.uniform1i(uniforms.uColorCount, colors.length);
     gl.uniform1f(uniforms.uImageOpacity, CONFIG.imageOpacity);
     gl.uniform1f(uniforms.uImageScale, CONFIG.imageScale);
     gl.uniform3fv(uniforms.uColors, colorFloat32);

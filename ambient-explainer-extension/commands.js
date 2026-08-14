@@ -1872,9 +1872,28 @@
   // "What does he mean by 'front end engineer at yolat'" — the user named the
   // target out loud instead of highlighting it. Find it, select it, and hand it
   // to the ordinary explain path so it arrives with its surrounding context.
+  // "What is this site about" is not a phrase to look up — it is a question
+  // about the page as a whole, and the only honest source for the answer is
+  // the page's own text. Hand the main content to the same explain pipeline a
+  // highlight uses; attachQuestion carries the actual spoken words, so the
+  // model answers the question rather than summarising blindly.
+  function pageOverview(question) {
+    const main = document.querySelector("article, main") || document.body;
+    const text = (main.innerText || "").replace(/\s+/g, " ").trim().slice(0, 6000);
+    if (!text) return { ok: false, label: "There's nothing on this page to go on yet." };
+    return runOnText(text, "style", "default", "Reading the page…", question || jcUtterance);
+  }
+
   function explainPhrase(phrase, kind = "style", key = "default", question) {
     const cleaned = String(phrase).replace(/^["'“‘]|["'”’]$/g, "").trim();
     if (!cleaned) return { ok: false, label: "What would you like me to explain?" };
+
+    // "Explain this site", "what does this page mean": the phrase names the
+    // page itself, so grounding it as literal text would find nothing — or
+    // worse, some stray paragraph containing the word "site".
+    if (/^(?:this|the|that) (?:whole )?(?:site|page|website|web ?page|article|app)\b/.test(cleaned.toLowerCase())) {
+      return pageOverview(question);
+    }
 
     const range = findTextRange(cleaned);
     if (range) return jcExplainRange(range, range.toString().trim(), kind, key, question);
@@ -2055,7 +2074,13 @@
     const title = (el.getAttribute("title") || "").trim();
     if (title) return title;
 
-    if (typeof el.value === "string" && el.value.trim()) return el.value.trim();
+    // A field's value is a last-resort name, and for the fields autofill loves
+    // most it must not be one at all: an unlabeled card-number input would
+    // otherwise introduce itself to the model BY the card number.
+    if (typeof el.value === "string" && el.value.trim()) {
+      if (isSensitiveField(el)) return "[value redacted]";
+      return el.value.trim().slice(0, 60);
+    }
 
     const img = el.querySelector("img[alt]");
     if (img) return (img.getAttribute("alt") || "").trim();
@@ -2650,7 +2675,7 @@
 
     // -- JustClarify's own verbs, routed through the same dispatcher the mouse
     //    uses. "this"/"that"/"it" all resolve through jcResolveTarget.
-    { re: /^(?:explain|explain (?:this|that|it)|what does (?:this|that|it) mean|i don'?t (?:get|understand) (?:this|that|it))$/,
+    { re: /^(?:explain|explain (?:this|that|it)|what does (?:this|that|it) mean|what(?:'?s| is) (?:this|that)|i don'?t (?:get|understand) (?:this|that|it))$/,
       run: () => runOnTarget(jcResolveTarget(), "style", "default") },
     { re: /^(?:expand|more detail|tell me more|go deeper)$/,
       run: () => runOnTarget(jcResolveTarget(), "style", "detailed") },
@@ -2658,6 +2683,14 @@
       run: () => runOnTarget(jcResolveTarget(), "style", "eli5") },
     { re: /^(?:give me an example|for example|example)$/,
       run: () => runOnTarget(jcResolveTarget(), "style", "example") },
+
+    // -- the page itself as the subject. These must sit ABOVE every rule that
+    //    treats the words after "what is" as a phrase to look up: "what is
+    //    this site about" once fell through to the define catch-all, which
+    //    solemnly defined the words "this site about". A question about where
+    //    you ARE is answered from the page's own text, not from a dictionary.
+    { re: /^(?:what(?:'?s| is) (?:this|the) (?:whole )?(?:site|page|website|web ?page|article|app)(?: (?:about|for|all about|doing|selling|offering))?|what (?:does|do) (?:this|the) (?:site|page|website|app) (?:do|sell|offer|make|actually do)|what(?:'?s| is) (?:happening|going on)(?: here| on this (?:page|site))?|what am i (?:looking at|reading|on)|where am i(?: right now)?|who (?:made|runs|owns|is behind) (?:this|this (?:site|website|page|app))|summari[sz]e(?: (?:this|the) (?:page|site|article|whole thing))?|tl;?dr|give me the (?:gist|rundown|overview)(?: of (?:this|the) (?:page|site|article))?)$/,
+      run: () => pageOverview(jcUtterance) },
 
     // -- named target. Everything above resolves "this"/"that" from context;
     //    these take the target from the sentence itself, which is how people
@@ -2684,7 +2717,13 @@
     // gets looked up in the dictionary.
     { re: /^define(?: (?:this|that|it))?$/,
       run: () => runOnTarget(jcResolveTarget(), "define", "define") },
-    { re: /^(?:define|what'?s|what is) (?:a |an |the )?(.+)$/,
+    // The dictionary takes WORDS, not sentences. Four words at most, and never
+    // a deictic — "what is this site about" is a question about the page, and
+    // "what is the difference between stocks and bonds" is a question for a
+    // model. Both used to be swallowed here and defined literally; now they
+    // fall through: no grammar rule matches, so the agent loop gets them, which
+    // is where open questions belong.
+    { re: /^(?:define|what'?s|what is) (?:a |an |the )?(?!(?:this|that|it|there|here)\b)(?!(?:.* )?(?:this|that|here|there)$)((?:\S+ ){0,2}\S+)$/,
       run: (m) => runOnText(m[1], "define", "define", `Defining "${m[1]}"`) },
     // Translate opens its own language picker (startTranslate), so a spoken
     // language isn't captured here — it would imply a shortcut that isn't wired.
@@ -2761,7 +2800,67 @@
   // It is still not the raw DOM. Only interactive elements and headings, only
   // visible ones, capped — the whole point is to stay small enough to send.
 
-  let snapshotRefs = new Map();
+  // Refs are STABLE: an element keeps the ref it was first given for as long
+  // as it lives, however many times the snapshot is rebuilt. The agent loop
+  // re-looks between steps, and a numbering that reshuffled on every look made
+  // step 2 click whatever had inherited step 1's number. WeakRef and WeakMap
+  // mean holding a ref never keeps a dead DOM node alive.
+  const refByEl = new WeakMap();
+  const elByRef = new Map(); // ref -> WeakRef(element)
+  let refCounter = 0;
+
+  // What leaves the page for the model gets two washes, both learned from how
+  // pages attack agents rather than users:
+  //
+  //   1. Invisible Unicode. Zero-width characters, bidi overrides and filler
+  //      glyphs can spell out an instruction no human reader will ever see.
+  //      They become visible replacement characters, so a hidden payload turns
+  //      into obvious junk instead of prose the model might follow.
+  //   2. Envelope forgery. Text shaped like our own harness tags could pose as
+  //      instructions from us rather than data from the page.
+  //
+  // The replacement is deliberately not deletion: deleting zero-widths would
+  // quietly splice the hidden text into the legitimate text around it.
+  // Written as escapes on purpose: the characters themselves are invisible,
+  // which is exactly the property that would make a literal-character regex
+  // unreviewable in this file.
+  const INVISIBLE_RE = new RegExp(
+    "[" +
+      "\\u034F" + // combining grapheme joiner
+      "\\u00AD" + // soft hyphen
+      "\\u061C" + // arabic letter mark
+      "\\u115F\\u1160" + // hangul fillers
+      "\\u180E" + // mongolian vowel separator
+      "\\u200B-\\u200F" + // zero-widths and the LRM/RLM pair
+      "\\u202A-\\u202E" + // bidi embeddings and overrides
+      "\\u2060-\\u2064" + // word joiner, invisible operators
+      "\\u2066-\\u2069" + // bidi isolates
+      "\\u3164" + // hangul filler
+      "\\uFEFF" + // byte-order mark / zero-width no-break
+      "\\uFFA0" + // halfwidth hangul filler
+    "]",
+    "g",
+  );
+
+  function sanitizeForModel(text) {
+    return String(text || "")
+      .replace(/<\/?\s*system[-_ ]?reminder[^>]*>/gi, " ")
+      .replace(INVISIBLE_RE, "�");
+  }
+
+  // Fields whose value must never ride along to a model, whatever else fails
+  // to name them: passwords, one-time codes, card details. Matched on type and
+  // autocomplete because that is what password managers and autofill key on,
+  // so it is what reliably marks the fields they filled.
+  function isSensitiveField(el) {
+    if (!el || !el.getAttribute) return false;
+    const type = (el.getAttribute("type") || "").toLowerCase();
+    if (type === "password" || type === "hidden") return true;
+    const auto = (el.getAttribute("autocomplete") || "").toLowerCase();
+    return /\b(?:current-password|new-password|one-time-code|cc-number|cc-csc|cc-exp(?:-month|-year)?)\b/.test(
+      auto,
+    );
+  }
 
   function roleOf(el) {
     const explicit = el.getAttribute("role");
@@ -2787,7 +2886,12 @@
   const SNAPSHOT_MAX = 60;
 
   function buildSnapshot() {
-    snapshotRefs = new Map();
+    // Sweep refs whose elements have been collected, so the map cannot grow
+    // without bound on a long-lived single-page app.
+    for (const [ref, weak] of elByRef) {
+      if (!weak.deref()) elByRef.delete(ref);
+    }
+
     const selector =
       "button, a[href], [role='button'], [role='link'], [role='menuitem'], " +
       "input:not([type=hidden]), textarea, select, summary, [contenteditable='true'], " +
@@ -2799,7 +2903,11 @@
       if (el.disabled || !isVisible(el)) continue;
       const name = accessibleName(el) || (roleOf(el) === "textbox" ? fieldLabel(el) : "");
       if (!name) continue;
-      rows.push({ el, role: roleOf(el), name: name.replace(/\s+/g, " ").slice(0, 60) });
+      rows.push({
+        el,
+        role: roleOf(el),
+        name: sanitizeForModel(name).replace(/\s+/g, " ").slice(0, 60),
+      });
     }
 
     // Nearest the cursor first, because when the list has to be truncated the
@@ -2807,20 +2915,36 @@
     rows.sort((a, b) => cursorDistance(a.el) - cursorDistance(b.el));
 
     const lines = [];
-    rows.slice(0, SNAPSHOT_MAX).forEach((row, index) => {
-      const ref = `e${index + 1}`;
-      snapshotRefs.set(ref, row.el);
+    rows.slice(0, SNAPSHOT_MAX).forEach((row) => {
+      // Reuse the element's existing ref; mint one only on first sight.
+      let ref = refByEl.get(row.el);
+      if (!ref) {
+        ref = `e${++refCounter}`;
+        refByEl.set(row.el, ref);
+      }
+      elByRef.set(ref, new WeakRef(row.el));
       // The "near cursor" flag is how deixis survives the trip: "this one"
       // means something specific and the model can see which.
       const near = cursorDistance(row.el) < 0.12 ? " [near cursor]" : "";
       lines.push(`${ref} ${row.role} "${row.name}"${near}`);
     });
 
+    // A capped list that does not say it is capped reads as the whole page,
+    // and "I can't find the export button" on a page that has one is the
+    // model believing exactly that. Say what was left out and how to reach it.
+    if (rows.length > SNAPSHOT_MAX) {
+      lines.push(
+        `[showing ${SNAPSHOT_MAX} of ${rows.length} elements, nearest the cursor first — ` +
+          "what you want may be off this list; scroll toward it or move the cursor near it, then look again]",
+      );
+    }
+
     return lines.join("\n");
   }
 
   function elementByRef(ref) {
-    const el = snapshotRefs.get(String(ref || "").trim());
+    const weak = elByRef.get(String(ref || "").trim());
+    const el = weak && weak.deref();
     // A ref from a stale snapshot can point at a node the page has since
     // replaced — clicking a detached element does nothing and looks like a bug.
     if (!el || !el.isConnected) return null;
@@ -2858,7 +2982,13 @@
   // argument and is answered by the existing pipeline, which reads the page but
   // holds no tools.
   function jcVoiceContext() {
-    return { snapshot: buildSnapshot(), host: location.hostname, title: document.title.slice(0, 120) };
+    // The title is page-authored text like everything else here, and it is the
+    // one string that rides along even when the snapshot is empty.
+    return {
+      snapshot: buildSnapshot(),
+      host: location.hostname,
+      title: sanitizeForModel(document.title).slice(0, 120),
+    };
   }
 
   // The model picks a verb from this table and supplies a string argument.
@@ -2867,9 +2997,27 @@
   const INTENT_VERBS = {
     navigate: (arg) => goToDestination(arg),
     home: () => goHome(),
-    site: (arg) => openSite(arg),
+    // Leaving for a different website is the one verb where a model acting on
+    // its own initiative and a model obeying the user look identical from the
+    // outside. The tell is the sentence: a site the user actually asked for
+    // appears in their own words. One they never said gets the same treatment
+    // as a destructive click — a question first, cheap to refuse.
+    site: (arg) => {
+      const name = String(arg || "").toLowerCase().split(/[./\s]/)[0];
+      const said = String(jcUtterance || "").toLowerCase();
+      if (!name || said.includes(name)) return openSite(arg);
+      return askConfirm(
+        `Head to ${arg}? You didn't name it — say yes or no.`,
+        () => openSite(arg),
+        `Opening ${arg}`,
+      );
+    },
     explain: (arg) =>
       arg ? explainPhrase(arg) : runOnTarget(jcResolveTarget(), "style", "default"),
+    // The whole page as the subject. The grammar catches the common phrasings
+    // of "what is this site" itself; this verb exists so the model can reach
+    // the same answer for every phrasing the grammar does not anticipate.
+    pageOverview: () => pageOverview(jcUtterance),
     expand: () => runOnTarget(jcResolveTarget(), "style", "detailed"),
     simplify: () => runOnTarget(jcResolveTarget(), "style", "eli5"),
     example: () => runOnTarget(jcResolveTarget(), "style", "example"),
@@ -2942,7 +3090,8 @@
     if (utterance) jcUtterance = String(utterance);
 
     // A ref is already resolved to a node, so it skips every name-matching
-    // heuristic below. Falls through to those only if the node has gone.
+    // heuristic below. Falls through to those only if the node has gone AND
+    // there is an argument to match by name.
     const ref = intent && intent.ref ? String(intent.ref).trim() : "";
     if (ref) {
       if (verb === "click") {
@@ -2952,6 +3101,17 @@
       if (verb === "type") {
         const done = typeIntoRef(ref, intent.arg);
         if (done) return done;
+      }
+      // This label is not for the user — it goes into the step history that
+      // the model reads before its next move. "That didn't work" teaches
+      // nothing; naming the staleness and the cure turns a wasted step into a
+      // recovery. (With an argument present, the name-matching below is still
+      // the better cure, so the message only fires when there is no fallback.)
+      if ((verb === "click" || verb === "type") && !String((intent && intent.arg) || "").trim()) {
+        return {
+          ok: false,
+          label: `${ref} is gone — the page has changed since that look. Check the fresh element list and pick from it.`,
+        };
       }
     }
 
