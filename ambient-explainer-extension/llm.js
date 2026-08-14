@@ -1662,9 +1662,13 @@ async function llmAskNow(prompt, reqId, originTabId, myGen, place) {
     return { ok: false, error: `Couldn't open a ${provider.name} window (${String(error).slice(0, 80)}).` };
   }
 
-  // The window exists now, so the next honest thing to say is that the question
-  // is going in.
-  say(`Asking ${provider.name}…`);
+  // Only an EXISTING window has a loaded page with a composer waiting, so only
+  // there is the question really going in right now. A FRESH window still has
+  // to load its page first, and saying "Asking ChatGPT…" over that load reads
+  // as a false loading state — the very stall the "Opening…" line above exists
+  // to avoid. Leave "Opening…" up; the fresh paths below narrate their own
+  // loading states.
+  if (tabInfo.mode === "existing") say(`Asking ${provider.name}\u2026`);
 
   // Counts toward the per-site "is this still wanted" cadence.
   if (host) llmKeepBump(host).catch(() => {});
