@@ -902,9 +902,8 @@ function TellmeInner() {
         {reports == null ? (
           <p className="text-sm opacity-60">Loading reports…</p>
         ) : loadFailed ? (
-          <p className="text-sm text-red-700">
-            The board didn&apos;t load. Nothing has been lost. Reload the page, and if it keeps
-            happening it is our end, not yours.
+          <p className="text-sm opacity-60">
+            Can&apos;t reach the board right now. Nothing is lost, give it a reload.
           </p>
         ) : live.length === 0 ? (
           <p className="text-sm opacity-60">Nothing reported yet. Yours would be the first.</p>

@@ -496,6 +496,39 @@ if (chrome.storage && chrome.storage.onChanged) {
   });
 }
 
+// --- the walk through's half of the baton ------------------------------------
+//
+// onboarding.js runs on the page and cannot see or draw over this popup, so the
+// two halves talk through chrome.storage.local. Opening this popup is also the
+// ONLY signal the page can get that the toolbar was clicked, which is why the
+// flag is written here rather than inferred there.
+(function jcWalkThrough() {
+  const banner = document.getElementById("jc-walk");
+  const text = document.getElementById("jc-walk-text");
+  if (!banner || !text) return;
+
+  const LINES = {
+    // Stage names mirror STAGES in onboarding.js.
+    toolbar: "Nice. Now pick Your LLM below, so answers come from the ChatGPT you already pay for.",
+    engine: "Pick Your LLM below. It costs you nothing extra, because you are already paying for it.",
+    voiceIntro: "Now choose Early access. It is free while it lasts, and it is what powers voice.",
+  };
+
+  chrome.storage.local.get("jcOnboard", (all) => {
+    const state = all?.jcOnboard;
+    if (!state || state.status !== "running") return;
+
+    // Tell the page the toolbar was clicked. Its first step is waiting on
+    // exactly this, and nothing else on a page can observe it.
+    chrome.storage.local.set({ jcOnboard: { ...state, popupOpen: true, at: Date.now() } });
+
+    const line = LINES[state.stage];
+    if (!line) return;
+    text.textContent = line;
+    banner.hidden = false;
+  });
+})();
+
 // Paint the popup with this load's shared random accent.
 try {
   if (typeof jcInitBrand === "function") jcInitBrand();

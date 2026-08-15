@@ -3,7 +3,7 @@
   "name": "Just Clarify",
   "version": "0.6.1",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnszo9vVxsdFStJgt5HOKjY0bFn65pDKkDK/PrmV6o9z2pmroqI7tbo8Yujam4qYE0sBJsiaTyMKlrfcWTZvsvIxIZIY2zab4vVSmkeLwPpLhhEVjcUH7BZRLpkXmC2QiaKW6ttRyOJsC2kdm4pmA7e1klXCmnnJcWWMFXBWa/hObRdYBbJz3yUK1UQq21wQwYryPGztPW4ZvzrFfbO4D8/yBYtqyNFkkCET79w+VgenRy1fWCFdIPTmOqd/CCAqh6g3hRqBu8UJJr0f1e75Kxg9gC8aJX/KmipBTEByd+ZKk8P6y2+a5kTjonVQ50fBLhVMmJFh5RA+k2fh9ALyj6QIDAQAB",
-  "description": "Understand anything you highlight — explanations, fact-checks and voice control, no account, no setup",
+  "description": "Understand anything you highlight \u2014 explanations, fact-checks and voice control, no account, no setup",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -23,7 +23,7 @@
     "tabGroups"
   ],
   "action": {
-    "default_title": "Just Clarify — conversations & focus mode",
+    "default_title": "Just Clarify \u2014 conversations & focus mode",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
@@ -50,7 +50,8 @@
         "brand.js",
         "content.js",
         "commands.js",
-        "voice.js"
+        "voice.js",
+        "onboarding.js"
       ],
       "css": [
         "styles.css"

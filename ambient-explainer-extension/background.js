@@ -684,7 +684,7 @@ async function voiceStep(msg) {
   return { ok: true, step };
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   jcRefreshBrand();
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
@@ -693,6 +693,19 @@ chrome.runtime.onInstalled.addListener(() => {
       contexts: ['selection'],
     });
   });
+
+  // Arm the walk through, on a fresh INSTALL only. An update must never
+  // interrupt someone who already knows the product, and a reload during
+  // development must not either.
+  //
+  // Armed, not shown: onboarding.js decides where it appears, because only the
+  // content script can tell whether the page in front of the person has enough
+  // text to teach highlighting on. A blank tab is not a lesson.
+  if (details?.reason === 'install') {
+    chrome.storage.local.set({
+      jcOnboard: { status: 'pending', stage: null, deferrals: 0, at: Date.now() },
+    });
+  }
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {

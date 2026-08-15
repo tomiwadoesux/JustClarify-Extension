@@ -50,12 +50,33 @@ async function classifyKind(text) {
   return KINDS.has(word) ? word : 'bug';
 }
 
+// PostgREST refuses the WHOLE query when one requested column is missing, so a
+// column that exists in the code but not yet in the database empties the board
+// rather than degrading it. That is a deploy-order trap: the site and the
+// migration can never land in the same instant.
+//
+// So the new column is asked for, and if the database has not got it yet the
+// same query runs without it. Reports keep flowing, `kind` reads as null, every
+// card falls back to its bug colours, and the moment the migration lands the
+// first branch starts working again with nothing to change here.
+const BASE_FIELDS =
+  'id,created_at,body,context,source,status,gist,ups,downs,category,' +
+  'fix_state,fix_pr_url,fix_target,fix_shipped_in,fix_ups,fix_downs,screenshot_url';
+
+async function loadReports() {
+  const query = (fields) =>
+    tellmeDb(`jc_reports?select=${fields}&order=created_at.desc&limit=200`);
+  try {
+    return await query(`${BASE_FIELDS},kind`);
+  } catch (_) {
+    return query(BASE_FIELDS);
+  }
+}
+
 export async function GET() {
   try {
     const [reports, votingEnabled] = await Promise.all([
-      tellmeDb(
-        'jc_reports?select=id,created_at,body,context,source,status,gist,kind,ups,downs,category,fix_state,fix_pr_url,fix_target,fix_shipped_in,fix_ups,fix_downs,screenshot_url&order=created_at.desc&limit=200',
-      ),
+      loadReports(),
       tellmeVotingEnabled(),
     ]);
     // Which reports have a conversation on them, in one query rather than one
@@ -145,11 +166,22 @@ export async function POST(request) {
   ]);
 
   try {
-    const rows = await tellmeDb('jc_reports', {
-      method: 'POST',
-      headers: { Prefer: 'return=representation' },
-      body: { body: text, context, source, gist, kind, screenshot_url: screenshot },
-    });
+    // Same fallback as the read, and it matters more here: a person has just
+    // typed out a problem, and losing it to a column that does not exist yet
+    // would be the single most insulting failure this page could have.
+    const save = (fields) =>
+      tellmeDb('jc_reports', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: fields,
+      });
+    const base = { body: text, context, source, gist, screenshot_url: screenshot };
+    let rows;
+    try {
+      rows = await save({ ...base, kind });
+    } catch (_) {
+      rows = await save(base);
+    }
     return Response.json({ report: rows?.[0] || null }, { status: 201 });
   } catch (_) {
     return Response.json(

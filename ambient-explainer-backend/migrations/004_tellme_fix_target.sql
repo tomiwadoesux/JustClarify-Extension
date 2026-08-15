@@ -3,6 +3,11 @@
 -- This file is the record. Both statements are idempotent, so re-running it
 -- through the CLI later is safe and would reconcile the two.
 --
+-- Numbered 004 rather than 002 despite landing first: 002 was taken by the
+-- report-notes migration in the same week, and a sequence with two 002s is a
+-- sequence you cannot read. The number is a label here, not an order of
+-- execution, because every file in this folder is independent.
+--
 -- It must land before the fix-target code deploys: the board's select list
 -- asks for these columns and PostgREST refuses the whole query if either is
 -- missing.

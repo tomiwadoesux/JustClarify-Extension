@@ -707,3 +707,22 @@ body {
     transform: none;
   }
 }
+/* ── the walk through's line ──────────────────────────────────────────────
+   Shown only while a first-run walk through is mid-flight, and only for the
+   steps that happen inside this menu. It borrows the accent so it reads as the
+   product talking rather than as a warning. */
+.jc-walk {
+  margin: 2px 2px 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  corner-shape: squircle;
+  background: color-mix(in oklab, var(--accent, #14110f) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--accent, #14110f) 32%, transparent);
+}
+
+.jc-walk-text {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--jc-ink);
+}
