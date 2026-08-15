@@ -15,10 +15,9 @@
 //     panel, never from here.
 
 import { useEffect, useRef, useState, Suspense } from "react";
-import Image from "next/image";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Analytics } from "@vercel/analytics/react";
+import SiteHeader from "@/components/site-header";
 
 function voterId() {
   try {
@@ -744,22 +743,7 @@ function TellmeInner() {
 
   return (
     <div className="min-h-screen bg-[#FFFFFF] text-[#171717]">
-      <header className="w-full px-4 py-5 md:px-10">
-        <Link href="/" className="group inline-flex items-center gap-2">
-          <Image
-            src="/diamond.svg"
-            alt="JustClarify logo"
-            width={32}
-            height={32}
-            priority
-            className="h-5 w-5 md:h-6 md:w-6"
-          />
-          <span className="text-base md:text-xl">JustClarify</span>
-          <span className="ml-1 text-xs text-[#000000] transition-colors group-hover:text-accent">
-            &larr; Home
-          </span>
-        </Link>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto max-w-2xl px-6 pb-24 pt-4 md:px-8">
         <h1 className="mb-2 text-2xl font-semibold text-accent md:text-3xl">
