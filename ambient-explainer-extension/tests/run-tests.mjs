@@ -412,8 +412,16 @@ check(
 
 // A click is a link as often as it is a button. Whatever survives the
 // navigation has to be written BEFORE the click, or it is never written.
+//
+// Matched on the call NAME, not on its arguments. This assertion used to look
+// for the literal "jcVoiceRunIntent(step" and went red the day a step grew the
+// ability to carry a batch and the call became jcVoiceRunIntent(action, …).
+// The ordering it guards was still correct; only the spelling had moved. A test
+// that fails when correct code is refactored teaches people to ignore it.
+const saveAt = runAgentSrc.indexOf("saveAgent(state)");
+const actAt = runAgentSrc.indexOf("jcVoiceRunIntent(");
 check(
-  runAgentSrc.indexOf("saveAgent(state)") < runAgentSrc.indexOf("jcVoiceRunIntent(step"),
+  saveAt !== -1 && actAt !== -1 && saveAt < actAt,
   "the resume record is saved before the step that might navigate away",
 );
 check(
@@ -439,8 +447,12 @@ check(
   !/^\s*done:/m.test(extractConst(commands, "INTENT_VERBS")),
   "'done' is not an executable verb",
 );
+// The DIGIT COUNT is not the point, the anchored shape check is: whatever the
+// ceiling, a ref must look like eNNN before it is allowed near the lookup.
+// Pinning the count meant widening e999 to e9999 for pages with more elements
+// failed a test about something else entirely.
 check(
-  /\/\^e\\d\{1,3\}\$\/\.test\(ref\)/.test(parseStepSrc),
+  /\/\^e\\d\{1,\d+\}\$\/\.test\(ref\)/.test(parseStepSrc),
   "parseStep shape-checks the ref so an invented one never reaches the lookup",
 );
 check(
