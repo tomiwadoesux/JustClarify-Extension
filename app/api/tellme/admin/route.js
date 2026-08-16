@@ -64,6 +64,17 @@ export async function POST(request) {
       return Response.json({ ok: true });
     }
 
+    // The WHOLE thread, every author. The dashboard cannot read it from the
+    // public endpoint, which deliberately serves only what has been published —
+    // and reading it from there is exactly the bug this action fixes: replies
+    // saved correctly, the agent read them on the next run, and the dashboard
+    // showed nothing, so the only visible evidence said the feature was broken.
+    if (action === 'notes') {
+      const id = String(body?.id || '');
+      if (!UUID_RE.test(id)) return Response.json({ error: 'Bad id.' }, { status: 400 });
+      return Response.json({ ok: true, notes: await tellmeNotes(id) });
+    }
+
     // Answering the agent. A blocked run usually ends with a question, and the
     // reply is both published on the board and read by the NEXT run, so "here
     // is the screenshot you asked for" actually changes what it does rather

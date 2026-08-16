@@ -76,9 +76,19 @@ function ReplyBox({ reportId, notes, onSend, onPublish }) {
       {notes.length > 0 && (
         <ol className="mb-2 space-y-1.5">
           {notes.map((n, i) => (
-            <li key={i} className="rounded bg-[#171717]/[0.04] p-2">
+            <li
+              key={i}
+              // A published note is the only line here the world can read, so it
+              // has to look different from the working conversation around it.
+              className={`rounded p-2 ${
+                n.author === "public"
+                  ? "border border-green-300 bg-green-50"
+                  : "bg-[#171717]/[0.04]"
+              }`}
+            >
               <span className="text-[10px] font-semibold uppercase tracking-wide opacity-50">
-                {n.author === "agent" ? "Agent" : "You"}
+                {n.author === "agent" ? "Agent" : n.author === "public" ? "On the board" : "You"}
+                {n.at ? ` · ${new Date(n.at).toLocaleString()}` : ""}
               </span>
               <p className="mt-0.5 whitespace-pre-wrap text-[11.5px] leading-relaxed">{n.body}</p>
             </li>
@@ -282,12 +292,16 @@ export default function TellmeAdminPage() {
   }, [authed, runs, key]);
 
   // The thread is public, so it comes from the same endpoint the board reads.
+  // Through the ADMIN endpoint, not the public one. The public one serves only
+  // what has been published, so reading the thread from there showed an empty
+  // conversation no matter how much had been said in it.
   async function loadNotes(id) {
     try {
-      const res = await fetch(`/api/tellme/fix?id=${id}`);
-      const data = await res.json().catch(() => ({}));
+      const data = await call({ key, action: "notes", id });
       if (Array.isArray(data.notes)) setNotes((prev) => ({ ...prev, [id]: data.notes }));
-    } catch (_) {}
+    } catch (error) {
+      setNote(String(error.message || error));
+    }
   }
 
   async function sendNote(id, body) {
