@@ -3303,3 +3303,72 @@ mark.jc-claim:hover {
   font-size: 10.5px;
   opacity: 0.55;
 }
+
+/* --- Typed commands: the correction line and the completion list ----------
+   Both sit under the ask input, inside the same panel, so nothing about the
+   box moves when they appear. Quiet by design: this is a filter over a command
+   list, not a menu demanding a decision. */
+
+.jc-ask-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.jc-ask-hints[hidden] { display: none; }
+
+/* What the typo became. A statement, not a prompt: Enter already runs this, so
+   it carries the return mark rather than a question. */
+.jc-ask-fix {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #faf9f8;
+}
+
+.jc-ask-fix-mark {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--accent);
+  color: #fff;
+  font: 600 9px/1 var(--font-family);
+}
+
+.jc-ask-fix-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #111;
+  font: 500 12.5px/1.3 var(--font-family);
+  letter-spacing: -0.01em;
+}
+
+.jc-ask-hint {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #6f6862;
+  font: 400 12.5px/1.3 var(--font-family);
+  letter-spacing: -0.01em;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.jc-ask-hint:hover,
+.jc-ask-hint.is-active {
+  background: #f4f2f0;
+  color: #111;
+}

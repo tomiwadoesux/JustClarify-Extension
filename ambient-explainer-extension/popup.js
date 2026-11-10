@@ -69,6 +69,7 @@ const liveFields = $("jc-live-fields");
 const deepgramInput = $("jc-deepgram-key");
 const factKeyInput = $("jc-factcheck-key");
 const rewriteBtn = $("jc-rewrite-btn");
+const researchBtn = $("jc-research-btn");
 const factcheckHead = $("jc-factcheck-head");
 const factcheckGroup = $("jc-fc-group");
 const factcheckBtn = $("jc-factcheck-btn");
@@ -355,6 +356,10 @@ factcheckHead.addEventListener("click", () => {
   const open = factcheckGroup.classList.toggle("is-open");
   factcheckHead.setAttribute("aria-expanded", String(open));
 });
+
+researchBtn.addEventListener("click", () =>
+  sendToPage(researchBtn, { type: "JC_RESEARCH_PAGE" }),
+);
 
 factcheckBtn.addEventListener("click", () =>
   sendToPage(factcheckBtn, { type: "JC_FACTCHECK_PAGE", kind: "page" }),

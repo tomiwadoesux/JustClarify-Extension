@@ -10,7 +10,7 @@ const interTight = Inter_Tight({
 
 const TITLE = "Explain Any Highlighted Text | JustClarify Chrome Extension";
 const DESCRIPTION =
-  "Highlight any word or sentence and get a plain-English explanation without leaving the page, or hold Shift and just say it. Free Chrome extension, on-device AI, no account and no setup.";
+  "Highlight any word or sentence and get a plain-English explanation without leaving the page, or hold Shift and just say it. No account, no setup.";
 const OG_IMAGE = "/Images/OgImage.webp";
 
 export const metadata = {
@@ -20,7 +20,10 @@ export const metadata = {
   title: { default: TITLE, template: "%s | JustClarify" },
   description: DESCRIPTION,
   applicationName: "JustClarify",
-  alternates: { canonical: "/" },
+  // `/` permanently redirects to /demo, so the canonical every route
+  // inherits by default has to be /demo. A canonical pointing at a redirect is
+  // a signal crawlers discard.
+  alternates: { canonical: "/demo" },
   robots: { index: true, follow: true },
   icons: {
     icon: [{ url: "/diamond.svg", type: "image/svg+xml" }],
@@ -65,13 +68,13 @@ const JSON_LD = {
   url: "https://justclarify.xyz",
   image: "https://justclarify.xyz" + OG_IMAGE,
   // The extension installs free and stays free on the two engines that cost us
-  // nothing (on-device, and the user's own chat subscription), so price 0 is the
-  // honest entry price. The hosted engine's $3.99/month is an in-app upgrade,
-  // not the price of the application.
+  // nothing (the user's own chat subscription, and their own API key going
+  // straight to the provider), so price 0 is the honest entry price. The hosted
+  // engine's $3.99/month is an in-app upgrade, not the price of the application.
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
     "Explain highlighted text in place",
-    "On-device AI with no account required",
+    "Works with no account, no sign-up and no setup",
     "Answer using your existing ChatGPT, Claude or Gemini subscription",
     "Bring your own API key (Anthropic, OpenAI, Google, Hugging Face) with no server in between",
     "Hold-Shift voice control: explain, navigate, scroll and read aloud",

@@ -8,10 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "package": "bash scripts/package-extension.sh",
-    "test:voice": "node ambient-explainer-extension/tests/run-tests.mjs && node ambient-explainer-extension/tests/voice-frame.mjs && node ambient-explainer-extension/tests/voice-coach.mjs",
+    "test:voice": "node ambient-explainer-extension/tests/run-tests.mjs && node ambient-explainer-extension/tests/voice-frame.mjs && node ambient-explainer-extension/tests/voice-coach.mjs && node ambient-explainer-extension/tests/voice-grammar.mjs",
     "test:llm": "node ambient-explainer-extension/tests/llm-insert.mjs && node ambient-explainer-extension/tests/keepalive.mjs && node ambient-explainer-extension/tests/llm-read.mjs && node ambient-explainer-extension/tests/llm-net.mjs",
     "test:e2e": "node ambient-explainer-extension/tests/e2e/llm-harness.mjs",
-    "test": "npm run test:voice && npm run test:llm && npm run test:ask && npm run test:popup && npm run test:mic && npm run test:domain && npm run test:providers",
+    "test": "npm run test:voice && npm run test:llm && npm run test:ask && npm run test:popup && npm run test:mic && npm run test:domain && npm run test:providers && npm run test:hosts && npm run test:tabs && npm run test:research && npm run test:research-panel && npm run test:typed && npm run test:factcheck",
     "test:ask": "node ambient-explainer-extension/tests/ask-settle.mjs",
     "test:e2e:nodom": "NODOM=1 node ambient-explainer-extension/tests/e2e/llm-harness.mjs",
     "test:popup": "node ambient-explainer-extension/tests/popup-place.mjs && node ambient-explainer-extension/tests/popup-keep.mjs && node ambient-explainer-extension/tests/popup-tile.mjs",
@@ -20,7 +20,14 @@
     "test:mic": "node ambient-explainer-extension/tests/mic-route.mjs",
     "test:domain": "node ambient-explainer-extension/tests/domain-rank.mjs",
     "test:frame": "node ambient-explainer-extension/tests/voice-frame.mjs",
-    "test:providers": "node ambient-explainer-extension/tests/providers.mjs"
+    "test:providers": "node ambient-explainer-extension/tests/providers.mjs",
+    "test:hosts": "node ambient-explainer-extension/tests/host-failover.mjs",
+    "test:tabs": "node ambient-explainer-extension/tests/tab-strip.mjs",
+    "test:research": "node ambient-explainer-extension/tests/research.mjs",
+    "test:research-panel": "node ambient-explainer-extension/tests/research-panel.mjs",
+    "test:typed": "node ambient-explainer-extension/tests/typed-commands.mjs",
+    "test:factcheck": "node ambient-explainer-extension/tests/factcheck.mjs",
+    "test:factcheck:live": "FC_LIVE=1 node ambient-explainer-extension/tests/factcheck.mjs"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.0-canary.107",
@@ -36,6 +43,7 @@
     "p5": "^2.3.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "thinking-orbs": "^0.3.1",
     "three": "^0.184.0",
     "zod": "^4.4.3"
   },

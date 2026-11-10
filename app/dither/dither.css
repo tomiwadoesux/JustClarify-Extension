@@ -1,0 +1,684 @@
+/* /dither — ordered dithering in pure CSS.
+ *
+ * Everything here is scoped under .dither-page. globals.css is global and
+ * Tailwind's preflight is already in the cascade, so nothing below is allowed
+ * to define a :root variable or bare element rule that could leak out.
+ *
+ * Keyframes are the one exception: @keyframes names are global no matter where
+ * they're written, so they're all prefixed dp-.
+ *
+ * The site is light-only (app/layout.js pins colorScheme to light), so there
+ * is deliberately no prefers-color-scheme block. Adding one would make this
+ * page dark while every other route stayed light.
+ */
+
+.dither-page {
+  /* Plate-room neutrals: a cool zinc that reads as an aluminium offset plate
+     rather than paper, so the accent never has to fight a warm ground. */
+  --dp-paper: #e6e8ea;
+  --dp-surface: #f2f4f5;
+  --dp-surface-2: #dbdfe2;
+  --dp-ink: #14171b;
+  --dp-ink-soft: #626a73;
+  --dp-rule: #c3c9ce;
+
+  /* The site mints one dull OKLCH accent per page load (app/layout.js), so
+     this page borrows it rather than picking a colour of its own. --dp-wrong
+     is the only fixed hue: it marks the deliberately broken swatches, and that
+     meaning has to survive whatever the accent turns out to be today. */
+  --dp-accent: var(--accent, #727cb0);
+  --dp-accent-ink: color-mix(in oklab, var(--dp-accent) 62%, var(--dp-ink));
+  --dp-wrong: #b4005f;
+
+  /* The two ends of the screen-then-multiply sandwich. */
+  --dp-lo: #14171b;
+  --dp-hi: #f4f6f7;
+
+  /* Inter Tight is mapped to both --font-sans and --font-mono in globals.css,
+     so there is no real monospace on the site. This page needs one: every
+     figure in it is a grid or a number in a column. */
+  --dp-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  /* The page sits on the same 8px lattice as the matrix. */
+  --dp-u: 8px;
+
+  /* THE ENTIRE ASSET. An 8x8 Bayer matrix, inverted, baked to exactly 50%
+     alpha so an ordinary source-over composite averages it with whatever is
+     underneath. 307 bytes. */
+  --dp-bayer8: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAA+klEQVR42gXBERDCYACA0f+CQTAYDIIgGAyCYBAMBkEQBMEgCIJBMAgG3TcIBkEQBEEQBEEwGAyCQTAYDAZBEASDYDDYXe+JpmnYbDa8Xi/m8zlVVbFer8nznNlshjBNkziO6Xa7nE4nDMMgDENUVeVwOCDSNGUymVCWJavViiRJGI1GfD4flsslQpZldrsd/X6f2+2GJElst1s0TeNyuSB+vx+u65JlGdPplLqu8TyPoiiwbRsxGAy43+8oisJ+v2c4HBJFEZ1Oh+PxiHg8HliWxfv9ZrFY8Hw+GY/HfL9fHMdBtFotfN+n1+txPp9pt9sEQYCu61yvV/6IVH+h/id6iQAAAABJRU5ErkJggg==");
+
+  min-height: 100vh; /* body is white; don't leave a strip of it under short content */
+  background: var(--dp-paper);
+  color: var(--dp-ink);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dither-page *,
+.dither-page *::before,
+.dither-page *::after {
+  box-sizing: border-box;
+}
+
+.dither-page .wrap {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 calc(var(--dp-u) * 3);
+}
+
+.dither-page h1,
+.dither-page h2,
+.dither-page h3 {
+  margin: 0;
+  text-wrap: balance;
+  font-weight: 500;
+}
+.dither-page p {
+  margin: 0;
+  max-width: 68ch;
+}
+.dither-page code,
+.dither-page pre {
+  font-family: var(--dp-mono);
+}
+.dither-page em {
+  font-style: italic;
+}
+.dither-page strong {
+  color: var(--dp-ink);
+  font-weight: 500;
+}
+
+.dither-page .label {
+  font-family: var(--dp-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dp-ink-soft);
+}
+
+.dither-page section {
+  border-top: 1px solid var(--dp-rule);
+  padding: calc(var(--dp-u) * 7) 0;
+}
+.dither-page .head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dp-u);
+  margin-bottom: calc(var(--dp-u) * 4);
+}
+.dither-page .head p {
+  color: var(--dp-ink-soft);
+  font-size: 15px;
+}
+.dither-page section h2 {
+  font-family: var(--dp-mono);
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
+
+/* ============================================================
+   THE DITHER STACK
+   Used by the hero, the workbench and every comparison swatch.
+
+   .stage  holds the low colour and multiplies the high one back
+   .od     thresholds: (ramp + matrix) / 2, then a hard cut at .5
+   .ramp   the gradient, the only thing that moves spatially
+   .lift / .sink   two flat sheets that walk the whole field up and
+                   down through the 64 thresholds
+   ============================================================ */
+.dither-page .stage {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--dp-lo);
+
+  --cut: 2000; /* high enough that NOTHING lands grey */
+  --dot: 16px;
+  --spin: 9s;
+  --pump: 4.5s;
+}
+.dither-page .stage > .tint {
+  position: absolute;
+  inset: 0;
+  background: var(--dp-hi);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.dither-page .od {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000; /* the floor the ramp fades toward */
+  filter: contrast(var(--cut));
+  mix-blend-mode: screen;
+  /* No grayscale(): the ramp below is already grey, and skipping it saves an
+     8-bit round trip. Feed it a grey ramp or you get RGB fringing. */
+}
+.dither-page .od::after {
+  /* the matrix. Screen-locked, never moves, never smoothed. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--dp-bayer8);
+  background-size: var(--dot) var(--dot);
+  image-rendering: pixelated;
+}
+
+/* "lighten" takes the max of the three blobs rather than adding them, so each
+   keeps its own falloff instead of washing out into a flat field. Stacked with
+   no blend mode at all, the first blob's opaque black hides the other two. */
+.dither-page .ramp {
+  position: absolute;
+  inset: -70%;
+  background:
+    radial-gradient(40% 58% at 17% 31%, #ffffff 0%, #000 74%),
+    radial-gradient(34% 50% at 77% 67%, #e6e6e6 0%, #000 70%),
+    radial-gradient(28% 42% at 51% 3%, #c8c8c8 0%, #000 66%), #000;
+  background-blend-mode: lighten;
+  will-change: transform;
+}
+
+/* The level pump. Two flat sheets in antiphase, white fading out as black
+   fades in, slide the whole field by roughly the same amount at every value,
+   so the gradient keeps its shape while the dot density swings. This is the
+   half you actually read as movement, because it flips dots across the entire
+   frame at once instead of only along one travelling edge.
+
+   One white sheet on its own is not enough: its effect is a * (1 - v), which
+   is nearly zero anywhere the field is already bright. */
+.dither-page .lift,
+.dither-page .sink {
+  position: absolute;
+  inset: 0;
+  will-change: opacity;
+}
+.dither-page .lift {
+  background: #fff;
+  opacity: 0.16;
+}
+.dither-page .sink {
+  background: #000;
+  opacity: 0.18;
+}
+
+/* Linear, and it returns to its own start, so it never stalls at an endpoint
+   the way ease-in-out + alternate does. */
+@keyframes dp-orbit {
+  0% {
+    transform: translate3d(0%, 0%, 0) scale(1);
+  }
+  25% {
+    transform: translate3d(-15%, -9%, 0) scale(1.2);
+  }
+  50% {
+    transform: translate3d(-6%, -19%, 0) scale(1.04);
+  }
+  75% {
+    transform: translate3d(11%, -10%, 0) scale(1.24);
+  }
+  100% {
+    transform: translate3d(0%, 0%, 0) scale(1);
+  }
+}
+@keyframes dp-lift {
+  from {
+    opacity: 0.34;
+  }
+  to {
+    opacity: 0.04;
+  }
+}
+@keyframes dp-sink {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.26;
+  }
+}
+@keyframes dp-sweep {
+  from {
+    transform: rotate(11deg) translate3d(0, 0, 0);
+  }
+  to {
+    transform: rotate(11deg) translate3d(-480px, 0, 0);
+  }
+}
+
+.dither-page [data-motion="all"] .ramp,
+.dither-page [data-motion="drift"] .ramp {
+  animation: dp-orbit var(--spin) linear infinite;
+}
+.dither-page [data-motion="all"] .lift,
+.dither-page [data-motion="boil"] .lift {
+  animation: dp-lift var(--pump) ease-in-out infinite alternate;
+}
+.dither-page [data-motion="all"] .sink,
+.dither-page [data-motion="boil"] .sink {
+  animation: dp-sink var(--pump) ease-in-out infinite alternate;
+}
+.dither-page [data-motion="sweep"] .ramp {
+  inset: -110%;
+  background: repeating-linear-gradient(
+    90deg,
+    #050505 0,
+    #c8c8c8 240px,
+    #050505 480px
+  );
+  background-blend-mode: normal;
+  animation: dp-sweep var(--spin) linear infinite;
+}
+
+/* the deliberately wrong version, for comparison */
+.dither-page [data-mode="naive"] .od {
+  filter: grayscale(1) contrast(12);
+}
+.dither-page [data-mode="naive"] .od::after {
+  image-rendering: auto;
+}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.dither-page .band {
+  height: 300px;
+  background: var(--dp-accent);
+  border-bottom: 1px solid var(--dp-rule);
+}
+.dither-page .stage.band > .tint {
+  background: #ffffff;
+}
+
+.dither-page .masthead {
+  padding: calc(var(--dp-u) * 6) 0 calc(var(--dp-u) * 5);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dp-u) * 2);
+}
+.dither-page .masthead h1 {
+  font-family: var(--dp-mono);
+  font-size: clamp(30px, 6.2vw, 54px);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 500;
+}
+.dither-page .masthead p {
+  color: var(--dp-ink-soft);
+  font-size: 17px;
+}
+.dither-page .masthead .bar {
+  display: flex;
+  gap: calc(var(--dp-u) * 2);
+  align-items: center;
+  padding-top: var(--dp-u);
+  flex-wrap: wrap;
+}
+
+.dither-page button.ghost {
+  font-family: var(--dp-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dp-ink);
+  background: transparent;
+  border: 1px solid var(--dp-rule);
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.dither-page button.ghost:hover {
+  border-color: var(--dp-accent);
+  color: var(--dp-accent);
+}
+.dither-page button.ghost:focus-visible {
+  outline: 2px solid var(--dp-accent);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   WORKBENCH
+   ============================================================ */
+.dither-page .bench {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dp-u) * 3);
+}
+.dither-page .bench > .stage {
+  aspect-ratio: 16 / 7;
+  border: 1px solid var(--dp-rule);
+}
+
+.dither-page .knobs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--dp-u) * 2) calc(var(--dp-u) * 4);
+}
+@media (max-width: 720px) {
+  .dither-page .knobs {
+    grid-template-columns: 1fr;
+  }
+}
+.dither-page .knob {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  align-items: center;
+}
+.dither-page .knob output {
+  font-family: var(--dp-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.dither-page .knob input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--dp-accent);
+}
+.dither-page .seg {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.dither-page .seg button {
+  flex: 1 1 auto;
+  font-family: var(--dp-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 4px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--dp-ink-soft);
+  border: 1px solid var(--dp-rule);
+}
+.dither-page .seg button[aria-pressed="true"] {
+  color: var(--dp-paper);
+  background: var(--dp-accent);
+  border-color: var(--dp-accent);
+}
+.dither-page .seg button:focus-visible {
+  outline: 2px solid var(--dp-accent);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   THE MATRIX, DRAWN OUT
+   ============================================================ */
+.dither-page .matrix-row {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: calc(var(--dp-u) * 5);
+  align-items: start;
+}
+@media (max-width: 800px) {
+  .dither-page .matrix-row {
+    grid-template-columns: 1fr;
+  }
+}
+.dither-page .matrix {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  border: 1px solid var(--dp-rule);
+  aspect-ratio: 1;
+}
+.dither-page .matrix i {
+  /* every cell painted at its own threshold, so the grid is its own legend */
+  --l: calc(var(--v) * 100% / 63);
+  background: color-mix(in srgb, var(--dp-hi) var(--l), var(--dp-lo));
+  color: var(--dp-hi);
+  font-family: var(--dp-mono);
+  font-style: normal;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  display: grid;
+  place-items: center;
+}
+/* flip the label hard at the midpoint: mixing it proportionally leaves the
+   middle of the grid grey on grey */
+.dither-page .matrix i.d {
+  color: var(--dp-lo);
+}
+
+.dither-page .stack {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dp-u) * 3);
+}
+.dither-page .stack p {
+  font-size: 15px;
+  color: var(--dp-ink-soft);
+}
+
+.dither-page .math {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--dp-rule);
+  background: var(--dp-surface);
+  font-family: var(--dp-mono);
+  font-size: 13px;
+}
+.dither-page .math > div {
+  display: grid;
+  grid-template-columns: 116px 1fr;
+  gap: calc(var(--dp-u) * 2);
+  padding: calc(var(--dp-u) * 1.5) calc(var(--dp-u) * 2);
+}
+.dither-page .math > div + div {
+  border-top: 1px solid var(--dp-rule);
+}
+.dither-page .math b {
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dp-ink-soft);
+}
+.dither-page .math span {
+  overflow-x: auto;
+}
+.dither-page .math .out {
+  color: var(--dp-accent-ink);
+}
+
+/* ============================================================
+   ACCURACY: paired swatches, wrong on the left
+   ============================================================ */
+.dither-page .fixes {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dp-u) * 6);
+}
+.dither-page .fix {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: calc(var(--dp-u) * 5);
+  align-items: start;
+}
+@media (max-width: 800px) {
+  .dither-page .fix {
+    grid-template-columns: 1fr;
+  }
+}
+.dither-page .pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--dp-rule);
+  border: 1px solid var(--dp-rule);
+}
+.dither-page .pair figure {
+  margin: 0;
+  background: var(--dp-paper);
+  display: flex;
+  flex-direction: column;
+}
+.dither-page .pair .stage {
+  aspect-ratio: 1;
+}
+.dither-page .pair figcaption {
+  font-family: var(--dp-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 8px;
+  color: var(--dp-ink-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dither-page .pair figcaption span:last-child {
+  opacity: 0.75;
+}
+.dither-page .pair .bad figcaption {
+  color: var(--dp-wrong);
+}
+.dither-page .pair .good figcaption {
+  color: var(--dp-accent-ink);
+}
+.dither-page .fix h3 {
+  font-family: var(--dp-mono);
+  font-size: 17px;
+  letter-spacing: -0.015em;
+}
+.dither-page .fix .stack p {
+  max-width: 62ch;
+}
+
+.dither-page .tally {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px calc(var(--dp-u) * 2);
+  font-family: var(--dp-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--dp-rule);
+  padding-top: calc(var(--dp-u) * 1.5);
+  margin: 0;
+}
+.dither-page .tally dt {
+  color: var(--dp-ink-soft);
+}
+.dither-page .tally dd {
+  margin: 0;
+}
+.dither-page .tally .no {
+  color: var(--dp-wrong);
+}
+.dither-page .tally .yes {
+  color: var(--dp-accent-ink);
+}
+
+/* ============================================================
+   CODE
+   ============================================================ */
+.dither-page .snip {
+  position: relative;
+}
+.dither-page .snip + .snip {
+  margin-top: var(--dp-u);
+}
+.dither-page .snip pre {
+  margin: 0;
+  background: var(--dp-surface);
+  border: 1px solid var(--dp-rule);
+  padding: calc(var(--dp-u) * 2);
+  padding-right: calc(var(--dp-u) * 9);
+  overflow-x: auto;
+  font-size: 12.5px;
+  line-height: 1.65;
+  tab-size: 2;
+}
+.dither-page .snip .cp {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-family: var(--dp-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: var(--dp-paper);
+  color: var(--dp-ink-soft);
+  border: 1px solid var(--dp-rule);
+  padding: 4px 9px;
+  cursor: pointer;
+}
+.dither-page .snip .cp:hover {
+  color: var(--dp-accent);
+  border-color: var(--dp-accent);
+}
+.dither-page .snip .cp:focus-visible {
+  outline: 2px solid var(--dp-accent);
+  outline-offset: 2px;
+}
+
+.dither-page details {
+  border: 1px solid var(--dp-rule);
+  background: var(--dp-surface);
+  padding: calc(var(--dp-u) * 2);
+}
+.dither-page details + details {
+  margin-top: var(--dp-u);
+}
+.dither-page summary {
+  cursor: pointer;
+  font-family: var(--dp-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dp-ink-soft);
+}
+.dither-page summary:hover {
+  color: var(--dp-accent);
+}
+.dither-page details[open] summary {
+  margin-bottom: calc(var(--dp-u) * 2);
+  color: var(--dp-ink);
+}
+.dither-page details .snip pre {
+  background: var(--dp-paper);
+}
+
+.dither-page .notes {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dp-u) * 3);
+}
+.dither-page .note {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: calc(var(--dp-u) * 3);
+  align-items: start;
+}
+.dither-page .note p {
+  font-size: 15px;
+  color: var(--dp-ink-soft);
+}
+@media (max-width: 700px) {
+  .dither-page .note {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+.dither-page footer {
+  padding: calc(var(--dp-u) * 5) 0 calc(var(--dp-u) * 10);
+}
+
+/* ============================================================
+   MOTION
+   ============================================================ */
+.dither-page[data-frozen="true"] .ramp,
+.dither-page[data-frozen="true"] .lift,
+.dither-page[data-frozen="true"] .sink {
+  animation-play-state: paused !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dither-page .ramp,
+  .dither-page .lift,
+  .dither-page .sink {
+    animation: none !important;
+  }
+}

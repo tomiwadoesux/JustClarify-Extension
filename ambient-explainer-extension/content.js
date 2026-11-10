@@ -2,6 +2,9 @@ let blobEl = null;
 let popupEl = null;
 let blobShowTimer = null;
 let blobDismissTimer = null;
+// Backend calls go through jcBackendFetch (hosts.js), which picks a hostname
+// this network will actually let through. Kept as a constant only for the
+// handful of places that need to SHOW the address rather than call it.
 const API_BASE_URL = "https://api.justclarify.xyz";
 
 // --- Semantic Window Extraction ---
@@ -453,10 +456,13 @@ function jcCursorScreenPoint() {
 // IDE/Spotlight-style double-shift works. Any other key resets the chain so it
 // won't fire while you're typing capital letters.
 const DOUBLE_SHIFT_MS = 400;
-// Voice owns Shift now. Keep the old handler here for a future explicit
-// setting, but leave it dormant so a quick Shift tap can never interrupt an
-// agentic voice session by opening a text box.
-const DOUBLE_SHIFT_ENABLED = false;
+// Voice used to own Shift on its own, which left this handler switched off.
+// Push-to-talk is Shift+Z now, so a bare Shift tap belongs to the box again.
+// One hazard survives that move and is still handled below: a Shift keyup that
+// ENDED A SPOKEN HOLD must never count as half of a double-tap, or finishing a
+// voice command would pop a text box on top of its own result. That guard is
+// the jcVoiceHoldActive() check, not this flag.
+const DOUBLE_SHIFT_ENABLED = true;
 let lastShiftUp = 0;
 let shiftChainBroken = false;
 
@@ -474,7 +480,8 @@ document.addEventListener(
     if (e.key !== "Shift") return;
     if (!DOUBLE_SHIFT_ENABLED) return;
 
-    // A HELD Shift is push-to-talk (voice.js), not half of a double-tap. Both
+    // A Shift released out of a Shift+Z hold is push-to-talk (voice.js), not
+    // half of a double-tap. Both
     // listeners are capture-phase and this one is registered first, so the hold
     // is still flagged here — voice.js ends it a moment later. Clearing the
     // chain matters as much as returning: without it, the keyup that finishes
@@ -1255,7 +1262,7 @@ function gatherNeighborBlocks(anchor, perSide = 3) {
 const collapsedRegistry = [];
 
 async function collapsePlan(highlightedText, blocks) {
-  const res = await fetch(`${API_BASE_URL}/collapse-plan`, {
+  const res = await jcBackendFetch("/collapse-plan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ highlighted_text: highlightedText, blocks }),
@@ -2156,7 +2163,7 @@ function isValidEmail(email) {
 
 // Fire-and-forget — the card thanks the reader whether or not the POST lands.
 function captureAccessEmail(email) {
-  return fetch(`${API_BASE_URL}/capture-email`, {
+  return jcBackendFetch("/capture-email", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
@@ -2408,7 +2415,10 @@ function jcTellmeUrl(message) {
     version = chrome.runtime.getManifest().version;
   } catch (_) {}
   const ctx = `[extension v${version} on ${location.host}] ${String(message || "").slice(0, 600)}`;
-  return `https://justclarify.xyz/tellme?src=extension&ctx=${encodeURIComponent(ctx)}`;
+  // jcSiteUrl, not a literal: if the reason they are seeing an error card is
+  // that their network blocks justclarify.xyz, a link to justclarify.xyz is a
+  // second dead end stapled to the first.
+  return jcSiteUrl(`/tellme?src=extension&ctx=${encodeURIComponent(ctx)}`);
 }
 
 function jcOfferErrorReport(popup, message) {
@@ -3379,7 +3389,14 @@ function jcParsePlain(segment) {
 
     // Number-heavy line — 3+ numeric tokens ($, %, plain) in a short paragraph.
     // Lift the numbers into a compact chip strip above the sentence.
-    const nums = (para.match(/\$?\d[\d,]*(?:\.\d+)?(?:\s?%|[kmbKMB]\b)?/g) || [])
+    //
+    // Citation markers are stripped BEFORE counting. A cited sentence carries
+    // [1] [2] [3] and nothing else numeric, and without this the stat strip
+    // fires on it and hoists "1 2 3" above the paragraph as though they were
+    // figures the sentence was about. A bracketed index is a reference, never a
+    // statistic — true of the research briefing and of any cited answer.
+    const scan = para.replace(/\[\d{1,2}\]/g, " ");
+    const nums = (scan.match(/\$?\d[\d,]*(?:\.\d+)?(?:\s?%|[kmbKMB]\b)?/g) || [])
       .map((n) => n.replace(/[,\s]+$/, "").trim())
       .filter(Boolean);
     if (nums.length >= 3 && para.length < 240) {
@@ -3610,9 +3627,12 @@ function renderAskForm(popup, data) {
     <div class="popup-divider"></div>
 
     <form id="jc-ask-form" class="jc-ask-form">
-      <input id="jc-ask-input" class="jc-ask-input" type="text" placeholder="${escapeHTML(placeholder)}" autocomplete="off" />
+      <input id="jc-ask-input" class="jc-ask-input" type="text" placeholder="${escapeHTML(placeholder)}"
+        autocomplete="off" autocapitalize="off" spellcheck="false" role="combobox"
+        aria-expanded="false" aria-autocomplete="list" aria-controls="jc-ask-hints" />
       <button type="submit" class="jc-ask-submit" aria-label="Ask">↵</button>
     </form>
+    <div id="jc-ask-hints" class="jc-ask-hints" role="listbox" hidden></div>
 
     <div class="popup-footer">
       <span class="footer-meta">© 2026 JustClarify</span>
@@ -3623,6 +3643,7 @@ function renderAskForm(popup, data) {
   const input = content.querySelector("#jc-ask-input");
   input.focus({ preventScroll: true });
   clampPopupPosition(popup);
+  jcAskHints(popup, content, input);
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -3634,7 +3655,13 @@ function renderAskForm(popup, data) {
     // it isn't a command does it become a question for the model — which is
     // exactly the voice pipeline's order (grammar first, model second).
     if (typeof jcVoiceExecute === "function") {
-      const command = jcVoiceExecute(question);
+      // The corrected sentence, when the correction actually produced a
+      // command. Typing "reserch these tabz" has to run, or the whole
+      // suggestion strip is decoration.
+      const suggestion =
+        typeof jcVoiceSuggest === "function" ? jcVoiceSuggest(question) : null;
+      const phrase = suggestion && suggestion.exact ? suggestion.exact.phrase : question;
+      const command = jcVoiceExecute(phrase);
       if (command !== null) {
         removePopup();
         if (!command.quiet && typeof jcVoiceChip === "function") {
@@ -5013,3 +5040,723 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
 });
+
+// --- Research: several tabs, one briefing ------------------------------------
+//
+// The reader has three tabs open about the same story. This joins them into one
+// piece of research that cites which tab said what, and says out loud where
+// they contradict each other — the part serial reading hides.
+//
+// Nothing here opens, focuses or reloads a tab to collect text. The worker
+// reads the pages that are already loaded (research.js), and the only
+// navigation in the whole feature is a citation the reader clicks on purpose.
+//
+// EVERYTHING LIVES IN A CLOSED SHADOW ROOT, and that is a security boundary
+// rather than a style choice. This panel is the only surface in JustClarify
+// that puts text from OTHER TABS onto the current page. In the light DOM the
+// host page could read that text straight out of its own document — someone's
+// bank statement or private doc, joined and rendered inside an attacker's page.
+// A closed root has no .shadowRoot to reach through, so the briefing is visible
+// to the reader and to nothing else.
+//
+// The offer chip is closed for the twin reason: a page that can find
+// .jc-rs-chip-go can call .click() on it and start a run nobody asked for. The
+// isTrusted guards below are the second half of that lock — a synthetic click
+// carries isTrusted false, and only a real one from a real input device is
+// allowed to spend anything or move anybody's tabs.
+
+let jcRsHost = null;
+let jcRsRoot = null;
+let jcRsRunId = 0;
+// Clusters this page load has already offered. A suggestion declined once is a
+// suggestion, twice is nagging.
+const jcRsDeclined = new Set();
+
+// A real click from a real input device. Everything in this feature costs
+// something — a model call, or moving the reader to another tab — so nothing
+// here fires on an event a script dispatched.
+function jcRsReal(e) {
+  return !!(e && e.isTrusted);
+}
+
+// The panel's stylesheet has to travel with it: a shadow root does not see
+// styles.css. Same clothes as the fact-check overlay, so two standing panels
+// read as one product rather than two strangers.
+const JC_RS_CSS = `
+:host { all: initial; }
+* { box-sizing: border-box; }
+
+.panel {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  width: 348px;
+  max-height: calc(100vh - 36px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid rgba(17, 17, 17, 0.14);
+  border-radius: 14px;
+  corner-shape: squircle;
+  box-shadow: 0 1px 2px rgba(17,17,17,0.06), 0 12px 32px rgba(17,17,17,0.13);
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+/* The fact-check overlay owns this exact rectangle. When it is up, step aside
+   rather than covering it and its close button pixel for pixel. */
+.panel.aside { right: 378px; }
+
+.head { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px 10px; }
+.titles { flex: 1 1 auto; min-width: 0; }
+.kicker {
+  display: block; color: oklch(0.58 0.08 16);
+  font: 700 9px/1.1 inherit; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.subject {
+  display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; color: #111; font: 600 13px/1.25 inherit;
+  letter-spacing: -0.025em;
+}
+.close {
+  flex: 0 0 auto; width: 22px; height: 22px; display: grid; place-items: center;
+  margin: -2px -4px 0 0; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: #b0a9a3; font: 400 15px/1 inherit;
+  cursor: pointer; transition: background-color 140ms ease, color 140ms ease;
+}
+.close:hover { background: #f4f2f0; color: #111; }
+
+.scroll { overflow-y: auto; padding: 0 16px 16px; }
+.status {
+  position: sticky; top: 0; z-index: 1; margin: 0 0 12px; padding: 2px 0 9px;
+  background: linear-gradient(#fff 72%, rgba(255,255,255,0));
+  color: #a49d97; font: 400 11px/1.4 inherit;
+}
+.panel.err .status { color: #111; }
+
+.sources { margin: 0 0 14px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.source { display: flex; align-items: flex-start; gap: 9px; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; }
+.num {
+  flex: 0 0 auto; width: 17px; height: 17px; display: grid; place-items: center;
+  border-radius: 5px; background: #f4f2f0; color: #6f6862;
+  font: 600 10px/1 inherit; font-variant-numeric: tabular-nums;
+}
+.meta { min-width: 0; display: block; }
+.title {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: #111; font: 500 12px/1.3 inherit; letter-spacing: -0.01em;
+}
+.host {
+  display: block; margin-top: 1px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; color: #a49d97; font: 400 10.5px/1.3 inherit;
+}
+.source:hover .title { text-decoration: underline; }
+/* A source that contributed nothing is dimmed but never hidden — a number the
+   briefing skips must be visibly accounted for, or it reads as an oversight. */
+.source.out { opacity: 0.5; }
+.source.out .num { background: #faf9f8; color: #b0a9a3; }
+
+.body { color: #111; font: 400 13px/1.55 inherit; }
+.body p { margin: 0 0 10px; }
+.body strong { font-weight: 600; }
+/* While the answer streams it is plain text in a <pre>: re-parsing markup
+   twelve times a second is what destroys selection and swallows clicks. */
+.body pre.live {
+  margin: 0; white-space: pre-wrap; word-wrap: break-word;
+  font: 400 13px/1.55 inherit; color: #111;
+}
+.key { margin: 0 0 10px; padding-left: 10px; border-left: 2px solid oklch(0.58 0.08 16); }
+
+.cite {
+  display: inline-grid; place-items: center; min-width: 14px; height: 14px;
+  margin: 0 1px; padding: 0 3px; border: 0; border-radius: 4px;
+  vertical-align: baseline; background: #f4f2f0; color: #6f6862;
+  font: 600 9.5px/1 inherit; font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.cite:hover { background: oklch(0.58 0.08 16); color: #fff; }
+
+/* --- The offer. A suggestion the reader is free to never look at, so it must
+   never behave like a notification. --- */
+.chip {
+  position: fixed; bottom: 18px; right: 18px; display: flex; align-items: stretch;
+  max-width: 300px; background: #fff; border: 1px solid rgba(17,17,17,0.14);
+  border-radius: 14px; corner-shape: squircle;
+  box-shadow: 0 1px 2px rgba(17,17,17,0.06), 0 12px 32px rgba(17,17,17,0.13);
+  font-family: inherit;
+  animation: fade 260ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+/* The fact-check tally chip already owns the bottom-right corner. Stack, never
+   overlap — an overlapped "Not now" button is a suggestion you cannot decline. */
+.chip.stacked { bottom: 76px; }
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .chip { animation: none; } }
+
+.go { flex: 1 1 auto; display: flex; align-items: center; gap: 10px; min-width: 0;
+      padding: 10px 4px 10px 12px; border: 0; background: none; text-align: left; cursor: pointer; }
+.count {
+  flex: 0 0 auto; width: 20px; height: 20px; display: grid; place-items: center;
+  border-radius: 6px; background: oklch(0.58 0.08 16); color: #fff;
+  font: 600 11px/1 inherit; font-variant-numeric: tabular-nums;
+}
+.ctext { min-width: 0; display: block; }
+.clabel {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: #111; font: 600 12px/1.3 inherit; letter-spacing: -0.02em;
+}
+.chint { display: block; color: #a49d97; font: 400 10.5px/1.35 inherit; }
+.no {
+  flex: 0 0 auto; width: 28px; display: grid; place-items: center; padding: 0;
+  border: 0; background: none; color: #b0a9a3; font: 400 14px/1 inherit;
+  cursor: pointer; transition: color 140ms ease;
+}
+.no:hover { color: #111; }
+`;
+
+// One host element, one closed root, both surfaces inside it. A single host
+// keeps the page's node count honest and means one place can be torn down.
+function jcRsEnsureRoot() {
+  if (jcRsRoot && jcRsHost && jcRsHost.isConnected) return jcRsRoot;
+  jcRsHost = document.createElement("div");
+  jcRsHost.id = "jc-research";
+  // The page must not be able to hide or move this from a stylesheet.
+  jcRsHost.style.setProperty("all", "initial", "important");
+  jcRsHost.style.setProperty("position", "fixed", "important");
+  jcRsHost.style.setProperty("z-index", "2147483646", "important");
+  jcRsHost.style.setProperty("inset", "0", "important");
+  jcRsHost.style.setProperty("pointer-events", "none", "important");
+  jcRsRoot = jcRsHost.attachShadow({ mode: "closed" });
+  const style = document.createElement("style");
+  style.textContent = JC_RS_CSS;
+  jcRsRoot.appendChild(style);
+  // The host covers the viewport so its fixed children position against the
+  // viewport rather than the page, but it must not eat the page's own clicks —
+  // only the two surfaces inside it take pointer events.
+  const lane = document.createElement("style");
+  lane.textContent = `.panel, .chip { pointer-events: auto; }`;
+  jcRsRoot.appendChild(lane);
+  (document.body || document.documentElement).appendChild(jcRsHost);
+  return jcRsRoot;
+}
+
+function jcRsPanelEl() {
+  return jcRsRoot ? jcRsRoot.querySelector(".panel") : null;
+}
+
+function jcRsChipEl() {
+  return jcRsRoot ? jcRsRoot.querySelector(".chip") : null;
+}
+
+function jcRsStatus(text) {
+  const el = jcRsRoot && jcRsRoot.querySelector(".status");
+  if (el) el.textContent = text;
+}
+
+function jcRsFail(text) {
+  const panel = jcRsPanelEl();
+  if (panel) panel.classList.add("err");
+  jcRsStatus(text);
+}
+
+function jcRsClose() {
+  const panel = jcRsPanelEl();
+  if (panel) panel.remove();
+  // A panel that closes releases the run it was bound to, so the next one
+  // adopts its own id rather than inheriting a stale ceiling.
+  jcRsRunId = 0;
+}
+
+function jcRsOpen(label) {
+  const root = jcRsEnsureRoot();
+  jcRsClose();
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  // The fact-check overlay owns this rectangle when it is up.
+  if (document.querySelector(".jc-fc-overlay:not(.is-collapsed)")) panel.classList.add("aside");
+  panel.innerHTML = `
+    <div class="head">
+      <div class="titles">
+        <span class="kicker">Research</span>
+        <span class="subject"></span>
+      </div>
+      <button class="close" type="button" aria-label="Close research">×</button>
+    </div>
+    <div class="scroll">
+      <p class="status">Reading the tabs</p>
+      <ol class="sources"></ol>
+      <div class="body"></div>
+    </div>
+  `;
+  // textContent, not interpolation: the label is built from other tabs' titles.
+  panel.querySelector(".subject").textContent = label || "These tabs";
+  panel.querySelector(".close").addEventListener("click", (e) => {
+    if (jcRsReal(e)) jcRsClose();
+  });
+  // One handler for every citation, present and future — the body is rewritten
+  // as the answer streams, so per-button listeners would be re-bound constantly
+  // and leak every one of them.
+  panel.addEventListener("click", (e) => {
+    if (!jcRsReal(e)) return;
+    const cite = e.target.closest(".cite, .source");
+    if (!cite) return;
+    const tabId = Number(cite.dataset.jcTab);
+    if (Number.isInteger(tabId)) jcSend({ type: "JC_RESEARCH_FOCUS", tabId }, () => {});
+  });
+  root.appendChild(panel);
+  return panel;
+}
+
+// Source numbers the briefing can cite. Rendered before a single word of prose
+// arrives, so the panel says what it is working from while it works.
+let jcRsSources = [];
+
+function jcRsRenderSources() {
+  const list = jcRsRoot && jcRsRoot.querySelector(".sources");
+  if (!list) return;
+  list.textContent = "";
+  for (const s of jcRsSources) {
+    const li = document.createElement("li");
+    li.className = s.unread ? "source out" : "source";
+    li.dataset.jcTab = String(s.id);
+
+    const num = document.createElement("span");
+    num.className = "num";
+    num.textContent = String(s.n);
+
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    const title = document.createElement("span");
+    title.className = "title";
+    // Titles come from other people's pages. textContent, always.
+    title.textContent = s.title || s.host || "Untitled";
+    const host = document.createElement("span");
+    host.className = "host";
+    const note = jcRsUnreadNote(s.unread);
+    host.textContent = note ? `${s.host} · ${note}` : s.host;
+
+    meta.append(title, host);
+    li.append(num, meta);
+    list.appendChild(li);
+  }
+}
+
+// Why a source contributed nothing. Said plainly, because a numbered source the
+// briefing never cites looks like the briefing ignored it.
+function jcRsUnreadNote(unread) {
+  if (unread === "asleep") return "asleep, not read";
+  if (unread === "thin") return "no readable text";
+  if (unread === "blocked") return "couldn't be read";
+  return "";
+}
+
+// Turn every [1] / [2] in the finished prose into something clickable, by
+// walking text nodes rather than rewriting HTML. Rewriting the HTML string
+// would happily match inside a code block or an attribute; a text-node walk
+// cannot, and it needs no escaping of its own because the text is already text
+// by the time it is in the DOM.
+function jcRsLinkCitations(root) {
+  const byNumber = new Map(jcRsSources.map((s) => [String(s.n), s]));
+  if (!byNumber.size) return;
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const targets = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (node.parentElement && node.parentElement.closest("code, .cite")) continue;
+    if (/\[\d{1,2}\]/.test(node.nodeValue)) targets.push(node);
+  }
+
+  for (const node of targets) {
+    const text = node.nodeValue;
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    let replaced = false;
+    const re = /\[(\d{1,2})\]/g;
+    let m;
+    while ((m = re.exec(text))) {
+      const source = byNumber.get(m[1]);
+      // A number with no source stays literal text — the reader should see that
+      // the briefing cited something the panel cannot show.
+      if (!source) continue;
+      if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "cite";
+      chip.dataset.jcTab = String(source.id);
+      chip.title = source.title || source.host;
+      chip.textContent = m[1];
+      frag.appendChild(chip);
+      last = m.index + m[0].length;
+      replaced = true;
+    }
+    if (!replaced) continue;
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    node.parentNode.replaceChild(frag, node);
+  }
+}
+
+// While it streams, the briefing is PLAIN TEXT. Running the block formatter on
+// every chunk — a dozen times a second — rebuilt the whole subtree each time,
+// which threw away the reader's text selection, swallowed any citation click
+// that landed between two chunks, and made collapsible blocks open and shut on
+// their own. The formatter runs exactly once, when the answer is complete.
+function jcRsRenderBody(text, done) {
+  const body = jcRsRoot && jcRsRoot.querySelector(".body");
+  if (!body) return;
+  if (!done) {
+    let live = body.querySelector("pre.live");
+    if (!live) {
+      body.textContent = "";
+      live = document.createElement("pre");
+      live.className = "live";
+      body.appendChild(live);
+    }
+    live.textContent = text || "";
+    return;
+  }
+  body.innerHTML = formatExplanation(text || "");
+  // Nothing in a briefing should arrive pre-collapsed: the reader asked for the
+  // whole thing.
+  body.querySelectorAll("details").forEach((d) => {
+    d.open = true;
+  });
+  jcRsLinkCitations(body);
+}
+
+function jcRsStart(tabIds, label) {
+  if (!Array.isArray(tabIds) || tabIds.length < 2) return;
+  jcRsSources = [];
+  jcRsOpen(label);
+  jcSend(
+    { type: "JC_RESEARCH_RUN", tabIds },
+    (resp) => {
+      // A refusal the worker made BEFORE the run opened its own reporting
+      // channel arrives here and nowhere else. `superseded` is the one case
+      // that must stay quiet: another run already owns the panel.
+      if (!jcRsPanelEl()) return;
+      if (!resp) return jcRsFail("JustClarify stopped responding. Refresh the page and try again.");
+      if (resp.ok === false && resp.error && resp.error !== "superseded") jcRsFail(resp.error);
+    },
+    () => {
+      if (jcRsPanelEl()) jcRsFail("JustClarify was reloaded. Refresh the page and try again.");
+    },
+  );
+}
+
+// The explicit path: the reader asked for this from the popup rather than
+// waiting to be offered it. Everything the passive offer is careful about — the
+// settle delay, the cooldown, a cluster already declined — is deliberately
+// ignored here, because none of those are true of a button someone just
+// pressed. The panel opens first and reports what it found, so the ask is never
+// answered with silence.
+function jcRsStartFromScan(query) {
+  jcRsCloseChip();
+  jcRsSources = [];
+  const said = String(query || "").trim();
+  jcRsOpen(said || "Related tabs");
+  jcRsStatus(said ? `Finding your tabs about ${said}` : "Looking for related tabs");
+
+  jcSend(
+    { type: "JC_RESEARCH_SCAN", query: said },
+    (resp) => {
+      if (!jcRsPanelEl()) return;
+      if (!resp || !resp.ok || !resp.cluster || resp.cluster.tabs.length < 2) {
+        jcRsFail(
+          said
+            ? `I could only find one tab about ${said}. Open another and try again.`
+            : resp && resp.reason === "few"
+              ? "Open a couple more tabs on the same subject and try again."
+              : "Nothing open looks related enough to join. Open the pages you want read together first.",
+        );
+        return;
+      }
+      jcRsStart(
+        resp.cluster.tabs.map((t) => t.id),
+        resp.cluster.label,
+      );
+    },
+    () => {
+      if (jcRsPanelEl()) jcRsFail("JustClarify was reloaded. Refresh the page and try again.");
+    },
+  );
+}
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (!msg || typeof msg.type !== "string" || !msg.type.startsWith("JC_RESEARCH_")) return;
+
+  // From the popup. Answered synchronously so the popup can tell the difference
+  // between "the page took it" and "there is no content script here" — that
+  // callback is what drives its "only works on normal websites" message.
+  if (msg.type === "JC_RESEARCH_PAGE") {
+    jcRsStartFromScan();
+    sendResponse({ ok: true });
+    return;
+  }
+
+  if (msg.type === "JC_RESEARCH_OFFER") {
+    jcRsOfferCluster(msg.cluster);
+    return;
+  }
+
+  if (!jcRsPanelEl()) return;
+
+  // A panel adopts the FIRST run it hears from and then answers to that run
+  // only. Comparing against a high-water mark instead was wrong in both
+  // directions: a worker restart mints a lower id and the panel ignored a run
+  // it was waiting for, and an older still-streaming run could paint over a
+  // panel that had already moved on.
+  if (msg.runId) {
+    if (!jcRsRunId) jcRsRunId = msg.runId;
+    else if (msg.runId !== jcRsRunId) return;
+  }
+
+  if (msg.type === "JC_RESEARCH_SOURCES") {
+    jcRsSources = msg.sources.map((s) => ({ ...s, unread: null }));
+    jcRsRenderSources();
+    return;
+  }
+
+  if (msg.type === "JC_RESEARCH_READ") {
+    const state = new Map(msg.read.map((r) => [r.n, r.unread]));
+    jcRsSources = jcRsSources.map((s) => ({ ...s, unread: state.get(s.n) || null }));
+    jcRsRenderSources();
+    const readable = jcRsSources.filter((s) => !s.unread).length;
+    jcRsStatus(readable >= 2 ? `Joining ${readable} sources` : "Reading the tabs");
+    return;
+  }
+
+  if (msg.type === "JC_RESEARCH_PROGRESS") {
+    jcRsRenderBody(msg.text || "", !!msg.done);
+    return;
+  }
+
+  if (msg.type === "JC_RESEARCH_DONE") {
+    jcRsStatus(`${msg.count} source${msg.count === 1 ? "" : "s"} joined`);
+    return;
+  }
+
+  if (msg.type === "JC_RESEARCH_ERROR") {
+    jcRsFail(msg.error);
+    return;
+  }
+});
+
+// --- The passive offer -------------------------------------------------------
+//
+// The whole point is that the reader never has to think of this. So the chip
+// appears on its own when the open tabs suggest it, and the scan behind it is
+// local token overlap in the worker — no model, no network, nothing spent. It
+// is deliberately quiet: bottom corner, no motion beyond a fade, and it never
+// asks twice about the same set of tabs.
+
+function jcRsCloseChip() {
+  const chip = jcRsChipEl();
+  if (chip) chip.remove();
+}
+
+function jcRsClusterKey(cluster) {
+  return cluster.tabs.map((t) => t.id).sort((a, b) => a - b).join(",");
+}
+
+function jcRsOfferCluster(cluster) {
+  if (!cluster || !Array.isArray(cluster.tabs) || cluster.tabs.length < 2) return;
+  if (jcRsPanelEl() || jcRsChipEl()) return;
+  const key = jcRsClusterKey(cluster);
+  if (jcRsDeclined.has(key)) return;
+
+  const root = jcRsEnsureRoot();
+  const chip = document.createElement("div");
+  chip.className = "chip";
+  // The fact-check tally already owns the bottom-right corner when it is up.
+  if (document.querySelector(".jc-claim-chip")) chip.classList.add("stacked");
+  chip.innerHTML = `
+    <button class="go" type="button">
+      <span class="count"></span>
+      <span class="ctext">
+        <span class="clabel"></span>
+        <span class="chint">Join these tabs into one read</span>
+      </span>
+    </button>
+    <button class="no" type="button" aria-label="Not now">×</button>
+  `;
+  chip.querySelector(".count").textContent = String(cluster.tabs.length);
+  // The label is built from other tabs' titles — never interpolated.
+  chip.querySelector(".clabel").textContent = cluster.label;
+
+  chip.querySelector(".go").addEventListener("click", (e) => {
+    // A scripted click must never start a run: this is the one control on the
+    // page that spends money and reads other tabs.
+    if (!jcRsReal(e)) return;
+    jcRsCloseChip();
+    jcRsStart(cluster.tabs.map((t) => t.id), cluster.label);
+  });
+  chip.querySelector(".no").addEventListener("click", (e) => {
+    if (!jcRsReal(e)) return;
+    jcRsDeclined.add(key);
+    jcRsCloseChip();
+  });
+  root.appendChild(chip);
+}
+
+// When to look. Not on load — that fires in every tab the reader opens,
+// including the ones they are not looking at. Only when this tab becomes the
+// visible one, and then only after it has stayed visible long enough to mean
+// they are reading it rather than passing through.
+let jcRsScanTimer = null;
+const JC_RS_SETTLE_MS = 2500;
+const JC_RS_MIN_GAP_MS = 120000;
+let jcRsLastScan = 0;
+
+function jcRsMaybeScan() {
+  if (document.visibilityState !== "visible") return;
+  if (jcRsPanelEl() || jcRsChipEl()) return;
+  if (Date.now() - jcRsLastScan < JC_RS_MIN_GAP_MS) return;
+  clearTimeout(jcRsScanTimer);
+  jcRsScanTimer = setTimeout(() => {
+    if (document.visibilityState !== "visible" || jcRsPanelEl() || jcRsChipEl()) return;
+    // This is the only send in the extension that nobody asked for, so it is
+    // also the only one that must check first. jcSend's dead-context path calls
+    // jcWarnStale, which drops a "reload this page" banner onto a page where
+    // the reader never touched JustClarify at all.
+    if (!jcContextAlive()) return;
+    jcRsLastScan = Date.now();
+    jcSend({ type: "JC_RESEARCH_SCAN" }, (resp) => {
+      // includesYou: the offer belongs in the tab the reader is looking at, not
+      // in all four members of the cluster at once.
+      if (resp && resp.ok && resp.includesYou) jcRsOfferCluster(resp.cluster);
+    });
+  }, JC_RS_SETTLE_MS);
+}
+
+document.addEventListener("visibilitychange", jcRsMaybeScan);
+if (document.visibilityState === "visible") jcRsMaybeScan();
+
+// commands.js is a separate content script in the same world, so the spoken
+// verbs reach the panel through the shared global rather than a message that
+// would have to leave the page and come straight back.
+globalThis.jcResearchStart = jcRsStartFromScan;
+
+// --- Typed commands: correction and suggestions ------------------------------
+//
+// The ask box has always run the voice grammar before treating a line as a
+// question. What it never had was any tolerance for how people type, or any way
+// to see what the grammar knows. 104 rules, discoverable only by guessing one.
+//
+// Two things happen under the input, and they are deliberately different:
+//
+//   THE CORRECTION LINE  appears only when a typo was actually fixed, and says
+//                        what will run. It is a statement, not a question:
+//                        Enter already does this, so there is nothing to accept.
+//   THE LIST             is a filter over the grammar. Arrow keys move through
+//                        it, Enter runs the highlighted one. This is how anyone
+//                        finds out "compare these tabs" exists.
+//
+// Nothing here executes on its own. A correction that guessed wrong costs one
+// glance, never a closed tab — which is the whole reason the guess is allowed
+// to be generous in the first place.
+
+function jcAskHints(popup, content, input) {
+  const box = content.querySelector("#jc-ask-hints");
+  if (!box || typeof jcVoiceSuggest !== "function") return;
+
+  let rows = [];
+  let active = -1;
+
+  const paint = () => {
+    const value = input.value.trim();
+    if (!value) {
+      box.hidden = true;
+      box.textContent = "";
+      rows = [];
+      active = -1;
+      input.setAttribute("aria-expanded", "false");
+      return;
+    }
+
+    let s;
+    try {
+      s = jcVoiceSuggest(value);
+    } catch (_) {
+      box.hidden = true;
+      return;
+    }
+
+    box.textContent = "";
+    rows = [];
+
+    // What the typo became. Shown only when something changed, and shown as the
+    // sentence that will actually run rather than a list of word swaps, because
+    // "research these tabs" is the thing worth checking.
+    if (s.exact && s.changed.length) {
+      const fix = document.createElement("div");
+      fix.className = "jc-ask-fix";
+      const arrow = document.createElement("span");
+      arrow.className = "jc-ask-fix-mark";
+      arrow.textContent = "↵";
+      const said = document.createElement("span");
+      said.className = "jc-ask-fix-text";
+      said.textContent = s.exact.phrase;
+      fix.append(arrow, said);
+      box.appendChild(fix);
+    }
+
+    // Completions. The exact match is not repeated here: it is already the
+    // thing Enter does, and listing it twice invites a second guess about which
+    // one is real.
+    for (const item of s.browse) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "jc-ask-hint";
+      row.setAttribute("role", "option");
+      row.textContent = item.label;
+      // A completion is typed INTO, not fired. Filling the input rather than
+      // running it keeps the reader in control of a sentence they did not write.
+      row.addEventListener("click", (e) => {
+        if (!e.isTrusted) return;
+        input.value = item.label;
+        input.focus({ preventScroll: true });
+        paint();
+      });
+      box.appendChild(row);
+      rows.push(row);
+    }
+
+    const any = box.childNodes.length > 0;
+    box.hidden = !any;
+    input.setAttribute("aria-expanded", String(any));
+    active = -1;
+    clampPopupPosition(popup);
+  };
+
+  const move = (delta) => {
+    if (!rows.length) return;
+    if (active >= 0) rows[active].classList.remove("is-active");
+    active = (active + delta + rows.length) % rows.length;
+    rows[active].classList.add("is-active");
+    rows[active].setAttribute("aria-selected", "true");
+  };
+
+  input.addEventListener("input", paint);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      move(1);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      move(-1);
+      return;
+    }
+    if (e.key === "Tab" && active >= 0) {
+      // Tab completes into the input. Enter is the only key that runs anything.
+      e.preventDefault();
+      input.value = rows[active].textContent;
+      paint();
+      return;
+    }
+    if (e.key === "Enter" && active >= 0) {
+      e.preventDefault();
+      input.value = rows[active].textContent;
+      paint();
+    }
+  });
+}

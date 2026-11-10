@@ -557,7 +557,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 0;
-  padding: 7px 4px;
+  padding: 9px 4px;
   border: 0;
   border-radius: 8px;
   corner-shape: squircle;
@@ -588,23 +588,32 @@ body {
     0 1px 2px rgba(20, 17, 15, 0.08);
 }
 
+/* The icon rides above the label, so each segment is a small stacked tile
+   rather than a strip of text. Sized in its own rule and not by .jc-ico's 14px,
+   because at 14 the glyph reads as a bullet next to a 12px label instead of the
+   thing being named. The slot keeps its box when it holds no drawing yet — the
+   LLM segment shows a provider logo, and the three segments have to sit on one
+   baseline while that mark is still being made. */
+.jc-seg-ico {
+  width: 19px;
+  height: 19px;
+  margin-bottom: 4px;
+  opacity: 0.75;
+  transition: opacity 0.16s var(--ease-out-quad);
+}
+
+.jc-seg-btn.is-on .jc-seg-ico {
+  opacity: 1;
+}
+
+.jc-seg-ico-slot {
+  display: block;
+  flex: none;
+}
+
 .jc-seg-label {
   font-size: 12px;
   font-weight: 600;
-}
-
-.jc-seg-hint {
-  font-size: 9.5px;
-  color: var(--jc-muted);
-  opacity: 0.85;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.jc-seg-btn.is-on .jc-seg-hint {
-  color: var(--jc-muted);
 }
 
 /* An engine that isn't shipped yet. Sits back rather than disappearing, so the
@@ -693,6 +702,7 @@ body {
   .jc-fc-options,
   .jc-fc-caret,
   .jc-seg-btn,
+  .jc-seg-ico,
   .jc-row-byok {
     transition: none;
   }

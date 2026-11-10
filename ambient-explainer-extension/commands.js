@@ -2494,6 +2494,94 @@
     return { ok: true, label };
   }
 
+
+  // ------------------------------------------------- the tab strip as a whole
+  //
+  // tabCommand above acts on ONE tab, the one in front of you. These act on a
+  // SET, chosen by a description: the ones playing audio, the ones you stopped
+  // reading yesterday, the GitHub ones.
+  //
+  // The whole family is deliberately plural, in the verb names, in the grammar
+  // and in the prompt, because a web page can contain something called a tab.
+  // "The Billing tab" is a control on the page and belongs to click; "my
+  // billing tabs" is the browser's tab strip. Singular and named means the
+  // page. Plural, or singular with a browser property attached ("the tab
+  // that's playing audio"), means the browser. Every rule below holds that
+  // line, and the ambiguous phrasings are left to the page on purpose.
+  //
+  // The counts come back asynchronously, so the chip is corrected once the
+  // work is done — "Closing tabs" first, "Closed 6 tabs" a moment later.
+  function tabsCommand(action, filter, pending, describe, options) {
+    const message = { type: "JC_VOICE_TABS", action, filter: filter || {}, ...(options || {}) };
+    jcSendAsync(message)
+      .then((res) => {
+        if (!res || !res.ok) {
+          globalThis.jcVoiceChip?.(
+            "error",
+            res && res.reason === "few"
+              ? "Not enough tabs open to sort."
+              : "I couldn't find any tabs like that.",
+            null,
+            2600,
+          );
+          return;
+        }
+        globalThis.jcVoiceChip?.("done", describe(res), null, 2600);
+      })
+      .catch(() => {});
+    return { ok: true, label: pending };
+  }
+
+  // The research panel lives in content.js, which is a separate content script
+  // sharing this world — so this is a direct call, not a message that would
+  // leave the page and come straight back. The panel reports its own progress
+  // and its own failures from there, which is why nothing here waits on it.
+  function jcResearchTabs(subject) {
+    const start = globalThis.jcResearchStart;
+    if (typeof start !== "function") {
+      return { ok: false, label: "Reload the page and try that again." };
+    }
+    const said = String(subject || "").trim();
+    start(said);
+    return { ok: true, label: said ? `Joining your ${said} tabs` : "Joining your tabs" };
+  }
+
+  // Closing a set is the only irreversible thing here, so it is the only one
+  // that arms undo. The worker remembers the set it closed; undo puts it back.
+  function tabsClose(filter, pending) {
+    const result = tabsCommand("close", filter, pending, (res) =>
+      res.count === 1 ? "Closed 1 tab" : `Closed ${res.count} tabs`,
+    );
+    pushUndo("closing those tabs", () =>
+      jcSendAsync({ type: "JC_VOICE_TABS", action: "undoClose" }),
+    );
+    return result;
+  }
+
+  // Spoken numbers arrive as words about as often as digits.
+  const SPOKEN_NUMBERS = {
+    one: 1, two: 2, three: 3, four: 4, five: 5,
+    six: 6, seven: 7, eight: 8, nine: 9, ten: 10, a: 1, an: 1, couple: 2, few: 3,
+  };
+  function spokenCount(word, fallback) {
+    const raw = String(word || "").trim().toLowerCase();
+    if (/^\d+$/.test(raw)) return Math.min(20, Math.max(1, Number(raw)));
+    return SPOKEN_NUMBERS[raw] || fallback;
+  }
+
+  // "haven't looked at today" / "in a while" / "since yesterday" all mean the
+  // same thing to the person saying it: long enough that I've forgotten them.
+  function staleHoursFromPhrase(phrase) {
+    const said = String(phrase || "").toLowerCase();
+    if (/hour/.test(said)) return Math.max(1, Number(said.match(/(\d+)\s*hour/)?.[1] || 1));
+    if (/week/.test(said)) return 24 * 7;
+    if (/month/.test(said)) return 24 * 30;
+    if (/yesterday|today|day/.test(said)) return 12;
+    // "in a while" and the bare "haven't used" case. Half a day is the point
+    // at which a tab has stopped being something you are in the middle of.
+    return 12;
+  }
+
   // ---------------------------------------------------------------- grammar
 
   // Ordered — the first pattern that matches wins, so specific phrasings sit
@@ -2523,6 +2611,114 @@
         pushUndo("reading", jcVoiceStopSpeaking);
         return { ok: true, label: "Reading the page" };
       } },
+
+    // -- the tab strip. These sit ABOVE the semantic jump rule because that
+    //    rule's verbs include "find" and "go to", and "find the tab where I
+    //    was reading about MCP" would otherwise be read as a search for the
+    //    phrase "the tab where..." inside the current page. Every rule here
+    //    is plural, or names a property only the browser knows, so none of
+    //    them can swallow a phrase that meant a control on the page. The one
+    //    genuinely ambiguous phrasing — "switch to the billing tab" — is left
+    //    below the jump rule on purpose, so the page wins it.
+    { re: /^(?:find|show me|take me to|go to|switch to|open|jump to) (?:the |my )?tabs? (?:where|which|that|with|about|playing|containing|i(?:'m| am| was| had| left)) (.+)$/,
+      run: (m) => tabsCommand(
+        "find",
+        { query: m[1].replace(/^(?:i (?:was |am )?(?:reading|looking) (?:about|at|for) |talking about |about )/, "") },
+        "Looking through your tabs",
+        (res) => `Switched to ${res.title || "that tab"}`,
+      ) },
+
+    // "close the tabs I haven't looked at today" — a predicate, not a tab.
+    { re: /^close (?:all (?:the )?|the |my )?tabs? (?:i )?(?:haven'?t|have not|hadn'?t|didn'?t)(?: even)? (?:used|opened|looked at|touched|visited|been on|read)(?: in| for| since)?\s*(.*)$/,
+      run: (m) => tabsClose(
+        { staleHours: staleHoursFromPhrase(m[1]), pinned: false },
+        "Closing the ones you're done with",
+      ) },
+    { re: /^close (?:all (?:the )?|the |my )?(?:old|stale|unused|dead|idle) tabs$/,
+      run: () => tabsClose({ staleHours: 12, pinned: false }, "Closing the old ones") },
+    // Named by site: plural "tabs" is the whole safeguard here.
+    { re: /^close (?:all (?:the |of )?|the |my )?(.+?) tabs$/,
+      run: (m) => tabsClose({ query: m[1], pinned: false }, `Closing the ${m[1]} tabs`) },
+
+    // Audio. "Mute the tab that's playing" is singular but names a browser
+    // property, which no page control has.
+    { re: /^(?:mute|silence|shut up) (?:the |whatever |whichever )?tabs?(?: that(?:'s| is| are)?)? (?:playing|making|blaring)(?: the)?(?: audio| sound| noise| music| video)?$/,
+      run: () => tabsCommand("mute", { audible: true }, "Finding the noise", (res) =>
+        `Muted ${res.title || "it"}`) },
+    { re: /^(?:what|which|where(?:'s| is)) (?:the )?tabs? (?:is )?(?:playing|making)(?: the)?(?: audio| sound| noise| music)?\??$/,
+      run: () => tabsCommand("find", { audible: true }, "Finding the noise", (res) =>
+        `That's ${res.title || "the one"}`) },
+    // The blanket twin of the unmute rule below. The mute rule above only fires
+    // with a "playing audio" clause attached, so "mute all tabs" matched
+    // nothing at all while its opposite worked — you could undo a state you had
+    // no way to ask for. Anchored, so the specific rule above still wins for
+    // "mute the tabs that are playing audio".
+    //
+    // Selects every tab, not just the audible ones: a tab that starts making
+    // noise a second later is exactly what someone saying this wants silenced,
+    // and `unmute all tabs` reverses it exactly.
+    { re: /^(?:mute|silence) (?:all |the |my |every )?tabs$/,
+      run: () => tabsCommand("mute", {}, "Muting", (res) =>
+        res.count === 1 ? "Muted 1 tab" : `Muted ${res.count} tabs`) },
+    { re: /^unmute (?:all |the |my )?(?:muted )?tabs$/,
+      run: () => tabsCommand("unmute", { muted: true }, "Unmuting", (res) =>
+        `Unmuted ${res.count}`) },
+
+    // Joining several tabs into one piece of research. Local, so the panel
+    // opens the instant the sentence lands — the only model call in the whole
+    // feature is the briefing itself.
+    //
+    // PLURAL THROUGHOUT, and singular is deliberately left out. The rest of
+    // this family holds the same line for the same reason: a page can contain
+    // something called a tab, and "research this tab" would be a coin flip
+    // between the browser and the thing the reader is looking at. Every
+    // phrasing below can only mean the tab strip.
+    { re: /^(?:research|join|combine|merge|compare|summari[sz]e|read) (?:up )?(?:all (?:of )?)?(?:my |the |these |those )?tabs(?: together)?$/,
+      run: () => jcResearchTabs("") },
+    { re: /^(?:read|put|join|pull) (?:all (?:of )?)?(?:my |the |these |those )tabs? together$/,
+      run: () => jcResearchTabs("") },
+    { re: /^what do (?:all (?:of )?)?(?:my |the |these |those )?tabs say(?: about (?:it|this|that))?$/,
+      run: () => jcResearchTabs("") },
+    // With a subject named out loud, which beats any clustering heuristic —
+    // the reader has just told us what the set is.
+    { re: /^(?:research|join|combine|merge|compare|summari[sz]e) (?:all (?:of )?)?(?:my |the |these |those )?tabs (?:about|on|for|covering) (.+)$/,
+      run: (m) => jcResearchTabs(m[1]) },
+    { re: /^(?:research|join|combine|merge|compare|summari[sz]e) (?:all (?:of )?)?(?:my |the |these |those )?(.+?) tabs(?: together)?$/,
+      run: (m) => jcResearchTabs(m[1]) },
+
+    // Grouping.
+    { re: /^(?:tidy|organi[sz]e|clean|clear|sort|arrange)(?: up)? (?:my |the |these |all my )?tabs$/,
+      run: () => tabsCommand("autoGroup", {}, "Sorting your tabs", (res) =>
+        `Grouped ${res.count} into ${(res.groups || []).join(", ")}`) },
+    { re: /^(?:make|turn) (?:this|my|these) (?:browser )?(?:tabs? )?less cluttered$/,
+      run: () => tabsCommand("autoGroup", {}, "Sorting your tabs", (res) =>
+        `Grouped ${res.count} into ${(res.groups || []).join(", ")}`) },
+    { re: /^group (?:all (?:the |of )?|the |my )?(.+?) tabs(?: together)?$/,
+      run: (m) => tabsCommand("group", { query: m[1] }, `Grouping the ${m[1]} tabs`, (res) =>
+        `Grouped ${res.count} as ${res.title}`, { title: m[1] }) },
+    { re: /^ungroup (?:all |the |my )?tabs$/,
+      run: () => tabsCommand("ungroup", {}, "Ungrouping", (res) => `Ungrouped ${res.count}`) },
+
+    // Windows.
+    { re: /^move (?:all (?:the |of )?|the |my )?(.+?) tabs? (?:in)?to (?:a |their |its )?(?:own |new |separate |different )?window$/,
+      run: (m) => tabsCommand("toWindow", { query: m[1] }, `Moving the ${m[1]} tabs`, (res) =>
+        `Moved ${res.count} to a new window`) },
+
+    // Reopening more than one, which the single-tab "reopen tab" cannot do.
+    { re: /^(?:reopen|restore|bring back|undo closing) (?:my |the )?(?:last |recently )?(?:closed )?(\d+|one|two|three|four|five|six|seven|eight|nine|ten|a few|a couple(?: of)?) (?:closed )?tabs$/,
+      run: (m) => tabsCommand("reopen", {}, "Bringing them back", (res) =>
+        `Reopened ${res.count}`, { count: spokenCount(m[1].replace(/^a /, ""), 5) }) },
+
+    // Read-only questions about the strip.
+    { re: /^how many tabs (?:do i have|are open|have i got)\??$/,
+      run: () => tabsCommand("list", {}, "Counting", (res) =>
+        `${res.count} tabs${res.audible ? `, ${res.audible} playing audio` : ""}`) },
+    { re: /^(?:what|which) tabs? (?:is|are) (?:using|eating|taking) (?:the )?most (?:memory|ram|resources)\??$/,
+      run: () => tabsCommand("list", {}, "Checking", (res) =>
+        res.heaviest ? `Probably ${res.heaviest.title}` : "Nothing stands out") },
+    { re: /^(?:free up|save|reclaim) (?:some )?(?:memory|ram)$/,
+      run: () => tabsCommand("discardHeavy", {}, "Putting tabs to sleep", (res) =>
+        `Slept ${res.count} tabs`, { count: 5 }) },
 
     // -- semantic jump. Sits above plain scrolling so "go to the pricing bit"
     //    isn't read as a scroll. The negative lookahead is what stops the
@@ -2659,6 +2855,16 @@
       run: () => { history.forward(); return { ok: true, label: "Forward" }; } },
     { re: /^(?:previous|last) page$/, run: () => { history.back(); return { ok: true, label: "Back" }; } },
     { re: /^(?:reload|refresh)(?: the page)?$/, run: () => { location.reload(); return { ok: true, label: "Reloading" }; } },
+    // The genuinely ambiguous one, and the reason it lives down here rather
+    // than with the rest of the tab-strip rules. "Switch to the settings tab"
+    // is a tab control on the page at least as often as it is a browser tab,
+    // and everything above has already had its chance to claim it — the page
+    // search, the semantic jump, click-by-description. Reaching this line
+    // means nothing on the page answered to that name, so the tab strip is
+    // the remaining reading.
+    { re: /^(?:switch|swap|jump|go over) to (?:my |the )?(.+?)(?:['\u2019]s)? tab$/,
+      run: (m) => tabsCommand("find", { query: m[1] }, `Looking for the ${m[1]} tab`, (res) =>
+        `Switched to ${res.title || "it"}`) },
     { re: /^(?:open a |open )?new tab$/, run: () => tabCommand("new", "New tab") },
     { re: /^close (?:this |the )?tab$/, run: () => tabCommand("close", "Closed tab") },
     { re: /^(?:next tab|switch tabs?)$/, run: () => tabCommand("next", "Next tab") },
@@ -3067,6 +3273,45 @@
     pause: () => withMedia((m) => m.pause(), "Paused"),
     louder: () => withMedia((m) => { m.muted = false; m.volume = Math.min(1, m.volume + 0.2); }, "Louder"),
     quieter: () => withMedia((m) => { m.volume = Math.max(0, m.volume - 0.2); }, "Quieter"),
+    // Browser-wide, and plural in every name for the same reason the grammar
+    // is: the model reads a page snapshot alongside this list, and a page can
+    // contain a control called a tab. A singular verb named closeTab next to a
+    // snapshot element labelled "Billing tab" is an invitation to confuse the
+    // two. Plural names, plus the rule in the system prompt, keep the tab
+    // strip and the page apart.
+    tabsFind: (arg) =>
+      tabsCommand("find", { query: arg }, "Looking through your tabs", (res) =>
+        `Switched to ${res.title || "that tab"}`),
+    tabsClose: (arg) =>
+      tabsClose({ query: arg, pinned: false }, `Closing the ${arg} tabs`),
+    tabsCloseStale: (arg) =>
+      tabsClose(
+        { staleHours: staleHoursFromPhrase(arg), pinned: false },
+        "Closing the ones you're done with",
+      ),
+    tabsGroup: (arg) =>
+      tabsCommand("group", { query: arg }, `Grouping the ${arg} tabs`, (res) =>
+        `Grouped ${res.count} as ${res.title}`, { title: arg }),
+    tabsTidy: () =>
+      tabsCommand("autoGroup", {}, "Sorting your tabs", (res) =>
+        `Grouped ${res.count} into ${(res.groups || []).join(", ")}`),
+    tabsMuteAudible: () =>
+      tabsCommand("mute", { audible: true }, "Finding the noise", (res) =>
+        `Muted ${res.title || "it"}`),
+    tabsToWindow: (arg) =>
+      tabsCommand("toWindow", { query: arg }, `Moving the ${arg} tabs`, (res) =>
+        `Moved ${res.count} to a new window`),
+    tabsReopen: (arg) =>
+      tabsCommand("reopen", {}, "Bringing them back", (res) => `Reopened ${res.count}`, {
+        count: spokenCount(arg, 5),
+      }),
+    tabsList: () =>
+      tabsCommand("list", {}, "Checking your tabs", (res) =>
+        `${res.count} tabs${res.audible ? `, ${res.audible} playing audio` : ""}`),
+    // Several open tabs on one subject, joined into a single cited briefing.
+    // The argument is the subject when the reader named one, empty when they
+    // just said "these tabs" and the clustering should decide.
+    tabsResearch: (arg) => jcResearchTabs(arg),
     zoomIn: () => tabCommand("zoomIn", "Bigger"),
     zoomOut: () => tabCommand("zoomOut", "Smaller"),
     copyLink: () => { copyText(location.href, "Copied the link"); return { ok: true, quiet: true }; },
@@ -3076,6 +3321,86 @@
     undo: () => jcVoiceUndo(),
     stop: () => (jcVoiceStopSpeaking(), autoScrollStop(null), { ok: true, label: "Stopped" }),
   };
+
+  // ------------------------------------------------- typed commands
+  //
+  // The ask box (double-tap Shift) runs the same grammar the microphone does,
+  // and has since it was written: "One command system, two mouths." What it
+  // lacked was any tolerance for the way people actually type, and any way to
+  // SEE what the grammar knows — 104 rules, discoverable only by guessing.
+  //
+  // Both are answered here, and the order matters. The typed phrase is
+  // corrected against the grammar's own vocabulary, then run through THE REAL
+  // RULES. Nothing scores a rule by resemblance and then executes something
+  // else: a suggestion is offered only because the corrected sentence genuinely
+  // matched it, so what the list promises is exactly what running it does.
+
+  // Built once, lazily: harvesting is cheap but pointless until somebody types.
+  let jcVocab = null;
+  let jcRuleIndex = null;
+
+  function jcCommandIndex() {
+    if (jcRuleIndex) return jcRuleIndex;
+    const sources = GRAMMAR.map((rule) => rule.re.source);
+    jcVocab = jcBuildVocabulary(sources);
+    jcRuleIndex = GRAMMAR.map((rule, i) => ({
+      i,
+      re: rule.re,
+      run: rule.run,
+      // The shortest sentence that matches, for the list. A rule whose
+      // canonical form comes out unreadable (a capture group carrying the whole
+      // meaning) is still matchable — it just does not advertise itself.
+      label: jcCanonicalPhrase(rule.re.source),
+    }));
+    return jcRuleIndex;
+  }
+
+  // What the reader most likely meant, best first.
+  //
+  // Two lanes, deliberately kept apart:
+  //   EXACT   the corrected sentence matched a rule. This is the only kind of
+  //           suggestion that can be run, because it is the only one where we
+  //           know which rule to run.
+  //   BROWSE  the sentence matched nothing, so the list becomes a filter over
+  //           the grammar — typing "tab" shows every tab command. These are
+  //           completions to keep typing into, not things to execute.
+  function jcVoiceSuggest(typed) {
+    const raw = String(typed || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (!raw) return { corrected: "", changed: [], exact: null, browse: [] };
+
+    const index = jcCommandIndex();
+    const { text: corrected, changed } = jcCorrectPhrase(raw, jcVocab);
+
+    // The real rules, in their real order, so first-match-wins is preserved.
+    let exact = null;
+    for (const entry of index) {
+      if (entry.re.test(corrected)) {
+        exact = { label: entry.label, phrase: corrected, i: entry.i };
+        break;
+      }
+    }
+
+    // Completions: rules whose canonical sentence contains every word typed so
+    // far. Cheap, and it behaves the way a person expects a filter to.
+    const words = corrected.split(" ").filter(Boolean);
+    const browse = [];
+    for (const entry of index) {
+      if (exact && entry.i === exact.i) continue;
+      if (!entry.label || entry.label.length > 46) continue;
+      if (!words.every((w) => entry.label.includes(w))) continue;
+      browse.push({ label: entry.label, i: entry.i });
+      if (browse.length >= 6) break;
+    }
+
+    return { corrected, changed, exact, browse };
+  }
+
+  // Run a suggestion the reader chose from the list. Goes through the same
+  // executor a spoken sentence does, so a typed command and a spoken one cannot
+  // diverge in behaviour.
+  function jcVoiceRunPhrase(phrase) {
+    return jcVoiceExecute(phrase);
+  }
 
   // One source of truth for the enum the model is offered, so the prompt can
   // never drift from what's actually executable.
@@ -3126,6 +3451,8 @@
 
   Object.assign(globalThis, {
     jcVoiceExecute,
+    jcVoiceSuggest,
+    jcVoiceRunPhrase,
     jcResolveTarget,
     jcVoiceUndo,
     jcVoiceStopSpeaking,

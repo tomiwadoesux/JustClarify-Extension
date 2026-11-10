@@ -36,6 +36,8 @@
     "<all_urls>",
     "https://justclarify.xyz/*",
     "https://api.justclarify.xyz/*",
+    "https://just-clarify-extension-bckend.vercel.app/*",
+    "https://just-clarify.vercel.app/*",
     "https://ai-gateway.vercel.sh/*",
     "https://api.dictionaryapi.dev/*",
     "https://factchecktools.googleapis.com/*"
@@ -47,7 +49,9 @@
       ],
       "js": [
         "lib/gsap.min.js",
+        "hosts.js",
         "brand.js",
+        "fuzzy.js",
         "content.js",
         "commands.js",
         "voice.js",

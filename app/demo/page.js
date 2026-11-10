@@ -634,7 +634,7 @@ export default function DemoPage() {
             ? "Reading the sentence around your highlight…"
             : phase === "textarea"
               ? "The Text area: paste anything and reshape it. Humanize, shorten, expand, summarize."
-              : "You never left the page. In the real extension this is generated on-device in ~1 second.";
+              : "You never left the page. In the real extension this comes back in about a second.";
 
   return (
     <main className="jcd-root" style={{ "--a": `var(--accent, ${ACCENT})` }}>
@@ -664,7 +664,7 @@ export default function DemoPage() {
 
       {/* ── 1 · The hook ─────────────────────────────────────────────── */}
       <section className="jcd-hero">
-        <p className="jcd-eyebrow">Free · On-device · Open source</p>
+        <p className="jcd-eyebrow">Free · Private · Open source</p>
         <h1>
           You should never have to pay
           <br className="jcd-br" /> to understand something.
@@ -677,9 +677,11 @@ export default function DemoPage() {
             sidebar that does the pasting for you.
           </p>
           <p>
-            JustClarify&apos;s on-device engine and <b>Your LLM</b> option are free. Want a cloud
-            model? Bring your own API key (BYOK), or choose the optional hosted engine: 30 asks
-            free, then $3.99 a month. It never switches you there without you choosing it.
+            Two of JustClarify&apos;s engines cost you nothing extra: <b>Your LLM</b> answers on the
+            chatbot subscription you already pay for, and your own API key (BYOK) goes straight to
+            Anthropic, OpenAI or Google with nothing of ours in between. Want one that needs no
+            setup at all? <b>Early access</b> runs on our hardware: 30 asks free, then $3.99 a
+            month. It never switches you there without you choosing it.
           </p>
           <p className="jcd-hero-kicker">
             Here&apos;s the alternative. Highlight a phrase, or speak about anything in the article.
@@ -897,9 +899,9 @@ export default function DemoPage() {
           </div>
           <p>
             Tools like this charge a subscription because every answer costs them server money.
-            Three of the four ways JustClarify can answer cost us nothing: your computer&apos;s own
-            model, the chatbot subscription you already pay for, or your own API key going straight
-            to Anthropic, OpenAI or Google. Those are{" "}
+            Two of the three ways JustClarify can answer cost us nothing: the chatbot subscription
+            you already pay for, or your own API key going straight to Anthropic, OpenAI or Google.
+            Those are{" "}
             <span className="jcd-hi">free, forever, with no account and no credit counter</span>.
             Only the hosted engine runs on our hardware, so only the hosted engine costs money. You
             pick; nothing switches to a paid one behind your back.
@@ -909,10 +911,12 @@ export default function DemoPage() {
           <span className="jcd-creed-ico" aria-hidden="true"><Glyph name="lock" /></span>
           <h3><span className="jcd-creed-n">02</span>Private by architecture, up to the line you draw.</h3>
           <p>
-            On the on-device engine, what you highlight never touches our servers, because{" "}
-            <span className="jcd-hi">there are no servers in the loop</span>. The model runs on
-            your machine and airplane mode works. Choose the hosted engine and your text goes to our
-            server to be answered, because that is the only way that engine can exist. Fact-checks
+            On <b>Your LLM</b> and your own API key, what you highlight never touches our servers,
+            because{" "}
+            <span className="jcd-hi">there are no servers of ours in the loop</span>. Your text goes
+            to the provider you already chose, and nowhere else. Choose <b>Early access</b> and your
+            text goes to our server to be answered, because that is the only way that engine can
+            exist. Fact-checks
             always send the claim and the article&apos;s URL, so an article is checked once and the
             verdict is served to everyone after you. The engine badge on every answer tells you
             which of those just happened, and the <a href="/privacy-policy">privacy policy</a>{" "}

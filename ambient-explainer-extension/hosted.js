@@ -21,7 +21,11 @@
 // Exposes:
 //   hostedAsk(prompt, reqId, tabId) -> { ok, answer, ... } | { ok:false, error }
 
-const HOSTED_URL = "https://justclarify.xyz/api/explain";
+// Paths, not URLs. hosts.js decides which of JustClarify's hostnames is
+// reachable from THIS network and walks to a mirror when the branded one is
+// blocked — see the header of hosts.js for the filter that made that
+// necessary.
+const HOSTED_PATH = "/api/explain";
 const HOSTED_ENGINE = "justclarify";
 const HOSTED_MODEL = "JustClarify hosted";
 
@@ -101,7 +105,7 @@ async function hostedAsk(prompt, reqId, tabId) {
 
   let response;
   try {
-    response = await jcFetchBounded(HOSTED_URL, {
+    response = await jcApiFetch(HOSTED_PATH, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -109,13 +113,11 @@ async function hostedAsk(prompt, reqId, tabId) {
       },
       body: JSON.stringify({ messages, reqId }),
     });
-  } catch (_) {
-    return {
-      ok: false,
-      error:
-        "JustClarify couldn't reach its own AI service. Check your connection, " +
-        "or add your own AI key in the popup to answer through that instead.",
-    };
+  } catch (error) {
+    // Every hostname we have is spent. jcUnreachableMessage separates "you are
+    // offline" from "your network is refusing us specifically", because a user
+    // whose connection is fine was being told to check their connection.
+    return { ok: false, error: jcUnreachableMessage(error), blocked: error?.blocked === true };
   }
 
   if (!response.ok) {
@@ -172,8 +174,8 @@ async function hostedAsk(prompt, reqId, tabId) {
 // policy, so it would reach justclarify.xyz as the page's origin and be turned
 // away. Only the worker carries chrome-extension://<id>.
 
-const HOSTED_TRANSCRIBE_URL = "https://justclarify.xyz/api/transcribe";
-const HOSTED_SPEAK_URL = "https://justclarify.xyz/api/speak";
+const HOSTED_TRANSCRIBE_PATH = "/api/transcribe";
+const HOSTED_SPEAK_PATH = "/api/speak";
 
 // Messaging can't carry a Blob or an ArrayBuffer intact, so audio crosses the
 // boundary as base64 in both directions and is rebuilt on the other side.
@@ -202,7 +204,7 @@ async function hostedTranscribe(audioBase64, mimeType, context) {
     // Words the user is looking at are words they are likely to say.
     if (context) form.append("context", String(context).slice(0, 400));
 
-    const response = await jcFetchBounded(HOSTED_TRANSCRIBE_URL, {
+    const response = await jcApiFetch(HOSTED_TRANSCRIBE_PATH, {
       method: "POST",
       headers: { "x-jc-install": await hostedInstallId() },
       body: form,
@@ -222,7 +224,7 @@ async function hostedSpeak(text) {
   const value = String(text || "").trim();
   if (!value) return { ok: false, error: "Nothing to say." };
   try {
-    const response = await jcFetchBounded(HOSTED_SPEAK_URL, {
+    const response = await jcApiFetch(HOSTED_SPEAK_PATH, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -276,7 +278,13 @@ function hostedFailure() {
 function hostedFailureMessage(fallback) {
   const f = hostedLastFailure;
   if (!f) return fallback;
-  if (f.kind === "network") return "Couldn't reach JustClarify — check your connection and try again.";
+  if (f.kind === "network") {
+    return f.blocked
+      ? "Your network is blocking JustClarify. Everything else on the internet is reachable, so " +
+        "it's a filter on your router, school or workplace. Try another network, or add your own " +
+        "AI key in the popup."
+      : "Couldn't reach JustClarify. Check your connection and try again.";
+  }
   if (f.kind === "empty") return "JustClarify answered with nothing — try that again.";
   if (f.status === 429) return "That's a lot of questions at once — give it a few seconds and try again.";
   if (f.status === 402) return "You've used your free asks — $3.99/month or your own API key makes it unlimited.";
@@ -288,7 +296,7 @@ function hostedFailureMessage(fallback) {
 async function hostedComplete(messages, options = {}) {
   hostedLastFailure = null;
   try {
-    const response = await jcFetchBounded(HOSTED_URL, {
+    const response = await jcApiFetch(HOSTED_PATH, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -310,8 +318,8 @@ async function hostedComplete(messages, options = {}) {
     const text = (data.text || "").trim();
     if (!text) hostedLastFailure = { kind: "empty" };
     return text || null;
-  } catch (_) {
-    hostedLastFailure = { kind: "network" };
+  } catch (error) {
+    hostedLastFailure = { kind: "network", blocked: error?.blocked === true };
     return null;
   }
 }

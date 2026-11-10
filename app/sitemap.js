@@ -7,6 +7,10 @@ export default function sitemap() {
     // `/` is intentionally absent: it 308s to /demo, and listing a redirecting
     // URL in a sitemap is a Search Console warning.
     { url: `${base}/demo`, changeFrequency: "weekly", priority: 1 },
+    // The public report board. It self-canonicalises and is indexable, so it
+    // belongs here — an indexable page missing from the sitemap gets found
+    // anyway, just later and through a route you never declared.
+    { url: `${base}/tellme`, changeFrequency: "daily", priority: 0.6 },
     { url: `${base}/privacy-policy`, changeFrequency: "yearly", priority: 0.3 },
   ];
 }

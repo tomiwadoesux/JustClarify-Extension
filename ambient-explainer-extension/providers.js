@@ -381,16 +381,16 @@ function providerFailureMessage() {
   return providerLastFailure;
 }
 
-async function providerClassify(systemPrompt, userPrompt) {
+async function providerClassify(systemPrompt, userPrompt, maxTokens) {
   providerLastFailure = null;
   const settings = await providerGetSettings();
   if (!settings) return null;
-  if (settings.provider === "vercel") return gatewayClassify(systemPrompt, userPrompt);
+  if (settings.provider === "vercel") return gatewayClassify(systemPrompt, userPrompt, maxTokens);
 
   const spec = JC_PROVIDERS[settings.provider];
   const req = providerRequest(settings, [], userPrompt, {
     stream: false,
-    maxTokens: 160,
+    maxTokens: maxTokens || 160,
     temperature: 0,
   });
   // The classifier's instructions ride the system slot.

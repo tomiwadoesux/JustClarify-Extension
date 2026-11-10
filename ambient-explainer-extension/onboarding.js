@@ -544,8 +544,8 @@
     voice() {
       const phrase = (chosen && chosen.phrase) || "this page";
       say({
-        title: "Hold Shift and talk",
-        body: `Hold the Shift key down, say "what do they mean by ${phrase}", and let go. Holding is what listens; letting go is what sends it.`,
+        title: "Hold Shift+Z and talk",
+        body: `Hold Shift+Z down, say "what do they mean by ${phrase}", and let go. Holding is what listens; letting go is what sends it.`,
         hint: "Say anything else you like, it will still answer. Nothing is recorded unless the key is held.",
         step: "Step 6 of 6",
       });
@@ -569,7 +569,7 @@
       say({
         title: "Ask it for a sequence",
         body:
-          "Hold Shift and try \"find their contact page and read me the address\". It takes one step, looks at what changed, then decides the next one.",
+          "Hold Shift+Z and try \"find their contact page and read me the address\". It takes one step, looks at what changed, then decides the next one.",
         hint: "Say \"stop\" at any time and it stops, mid-sentence if need be.",
         buttons: [{ label: "Finish", primary: true, run: () => finish("done") }],
       });

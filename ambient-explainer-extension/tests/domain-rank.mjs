@@ -186,7 +186,8 @@ check(
   "that would ship the token to every install",
 );
 check(
-  /justclarify\.xyz\/api\/domain/.test(background),
+  /JC_DOMAIN_PATH = '\/api\/domain'/.test(background) &&
+    /jcApiFetch\(JC_DOMAIN_PATH/.test(background),
   "the extension goes through the server instead",
 );
 

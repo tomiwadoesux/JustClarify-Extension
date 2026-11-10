@@ -1,0 +1,423 @@
+/* Everything on a report card that a Tailwind utility cannot say: the dither
+   chip, and the disclosures that take their colour from it.
+
+   ---------------------------------------------------------------------------
+   The dither chip — a 72x18 window onto the stack documented at /dither.
+
+   One comparison per pixel: light up if the grey ramp here is brighter than
+   the Bayer cell under it. The matrix is baked into a 307-byte PNG at 50%
+   alpha, so an ordinary source-over composite averages the two, and asking
+   whether that average clears one half is the same question. contrast() asks.
+
+   Everything is the same as the full-size version except the numbers. The
+   periods are roughly doubled, because at 72px wide the field crosses the
+   whole chip in a fraction of the time it crosses a hero band, and a chip that
+   boils is a chip you cannot read past. Speed is changed at runtime through
+   the Web Animations API, never by swapping these durations: re-declaring a
+   duration re-derives the phase from elapsed time and snaps the field to a new
+   position on every hover.
+   ------------------------------------------------------------------------- */
+
+.jc-dither {
+  /* the entire asset: an inverted 8x8 Bayer matrix at 50% alpha */
+  --jc-bayer8: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAA+klEQVR42gXBERDCYACA0f+CQTAYDIIgGAyCYBAMBkEQBMEgCIJBMAgG3TcIBkEQBEEQBEEwGAyCQTAYDAZBEASDYDDYXe+JpmnYbDa8Xi/m8zlVVbFer8nznNlshjBNkziO6Xa7nE4nDMMgDENUVeVwOCDSNGUymVCWJavViiRJGI1GfD4flsslQpZldrsd/X6f2+2GJElst1s0TeNyuSB+vx+u65JlGdPplLqu8TyPoiiwbRsxGAy43+8oisJ+v2c4HBJFEZ1Oh+PxiHg8HliWxfv9ZrFY8Hw+GY/HfL9fHMdBtFotfN+n1+txPp9pt9sEQYCu61yvV/6IVH+h/id6iQAAAABJRU5ErkJggg==");
+
+  /* Keep it a whole number of DEVICE pixels per tile. 8px is one CSS px per
+     cell at 1x; on retina the tile doubles so a cell stays one device pixel
+     wide rather than falling to a half. */
+  --jc-dot: 8px;
+
+  /* The periods /dither itself runs at. The first cut doubled them on the
+     theory that a 72px window crosses far quicker than a hero band, which was
+     true and still wrong: at 16s the chip did not read as moving, it read as
+     broken. A thing that is obviously alive and slow beats a thing you have to
+     stare at to catch. */
+  --jc-spin: 9s;
+  --jc-pump: 4.5s;
+
+  /* Overridden inline with the report's status colour. The ink is only the
+     fallback for a state that somehow has no tone. */
+  --jc-lo: #171717;
+  --jc-hi: #ffffff;
+  --jc-fade: 0.9;
+
+  --jc-w: 56px;
+  --jc-h: 14px;
+  --jc-radius: 3px;
+
+  position: relative;
+  display: block;
+  flex: none;
+  width: var(--jc-w);
+  height: var(--jc-h);
+  border-radius: var(--jc-radius);
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--jc-lo);
+
+  /* Full strength. This ran at 0.3 and lifted to 0.5 on hover, on the theory
+     that a status mark should sit back until you go looking for it — which
+     meant the actual colour of a state only appeared once you pointed at the
+     card, and the resting state of the board was five washes you had to tell
+     apart by guessing. A status you have to hover to read is not a status.
+
+     Undiluted is not as loud as it sounds, because the mark is dithered: the
+     dots cover about half the band and the paper shows through the rest, so
+     even pure #c00000 lands as a tint. The dither is doing the job the opacity
+     was doing, and doing it without taking the hue away.
+
+     0.9 rather than a flat 1, and 1 on hover. A tenth is not enough to hide a
+     colour behind — every state is still itself at rest, which is the whole
+     point — but it is enough that pointing at a card lands somewhere, and it
+     leaves the speed change with something to arrive WITH rather than doing
+     the whole gesture alone. */
+  opacity: var(--jc-fade);
+  box-shadow: 0 0 0 1px rgba(23, 23, 23, 0.07);
+  transition: opacity 340ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* On the stamp line, at the head of a row of 11.5px text and now the only
+   thing on the card that states the report's status.
+
+   align-self escapes the row's baseline alignment. The chip has no text in it,
+   so its baseline is its bottom edge, and left to align that way it hangs below
+   the line rather than sitting on it.
+
+   The Bayer tile does NOT shrink with the chip. Halving it to keep the cell
+   count up would put the matrix at one device pixel per cell on retina, which
+   stops resolving as a pattern and turns to flat grey — the exact failure the
+   /dither page calls out. Coarse and legible beats fine and muddy. */
+.jc-dither[data-size="stamp"] {
+  --jc-w: 56px;
+  --jc-h: 14px;
+  align-self: center;
+}
+
+/* In the key, where it teaches the colour rather than reports one. Smaller,
+   because five of them stack down a margin next to five short labels and a
+   key that outweighs the board it explains has the emphasis backwards. */
+.jc-dither[data-size="key"] {
+  --jc-w: 36px;
+  --jc-h: 12px;
+}
+
+/* Reference material does not move. No animation is declared at all rather
+   than being paused, so there is nothing for the hover ramp to find and the
+   key costs a static composite. */
+.jc-dither[data-motion="still"] .jc-dither-ramp,
+.jc-dither[data-motion="still"] .jc-dither-lift,
+.jc-dither[data-motion="still"] .jc-dither-sink {
+  animation: none;
+}
+
+/* Filed-away cards sit back INTO the page, so their chip does too. There is no
+   state to misread down there — everything in the drawer is filed — so it can
+   afford to go much further back than the live board. */
+.jc-dither[data-quiet="true"] {
+  --jc-fade: 0.45;
+}
+
+.jc-dither[data-hot="true"] {
+  opacity: 1;
+}
+
+@media (min-resolution: 2dppx) {
+  .jc-dither {
+    --jc-dot: 16px;
+  }
+}
+
+/* multiplies the light colour back over the 1-bit result */
+.jc-dither-tint {
+  position: absolute;
+  inset: 0;
+  background: var(--jc-hi);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.jc-dither-cut {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000; /* the floor the ramp fades toward */
+  filter: contrast(2000); /* high enough that nothing lands grey */
+  mix-blend-mode: screen;
+  /* No grayscale(): the ramp below is already grey, and skipping it saves an
+     8-bit round trip. */
+}
+
+/* the matrix. Screen-locked, never moves, never smoothed. */
+.jc-dither-cut::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--jc-bayer8);
+  background-size: var(--jc-dot) var(--jc-dot);
+  image-rendering: pixelated;
+}
+
+/* "lighten" takes the max of the three blobs rather than adding them, so each
+   keeps its own falloff instead of washing out into a flat field. */
+.jc-dither-ramp {
+  position: absolute;
+  inset: -70%;
+  background:
+    radial-gradient(40% 58% at 17% 31%, #ffffff 0%, #000 74%),
+    radial-gradient(34% 50% at 77% 67%, #e6e6e6 0%, #000 70%),
+    radial-gradient(28% 42% at 51% 3%, #c8c8c8 0%, #000 66%), #000;
+  background-blend-mode: lighten;
+  /* No will-change: a board can hold twenty of these, and twenty permanently
+     promoted layers cost more than the one the animation gets on its own. */
+}
+
+/* The level pump. Two flat sheets in antiphase, white fading out as black
+   fades in, walk the whole field up and down through the 64 thresholds. This
+   is the half you read as movement, because it flips dots across the entire
+   chip at once instead of only along one travelling edge. */
+.jc-dither-lift,
+.jc-dither-sink {
+  position: absolute;
+  inset: 0;
+}
+.jc-dither-lift {
+  background: #fff;
+  opacity: 0.16;
+}
+.jc-dither-sink {
+  background: #000;
+  opacity: 0.18;
+}
+
+/* ---------------------------------------------------------------------------
+   The four motions, one per card, picked from the report's id.
+
+   Not decoration for its own sake: a column of identical chips all orbiting in
+   lockstep reads as one animated background that happens to be cut into
+   pieces. Giving each card its own motion breaks the lockstep, so the chips
+   read as twenty separate things running rather than one thing showing
+   through twenty windows.
+   ------------------------------------------------------------------------- */
+
+/* both / orbit — the gradient travels */
+.jc-dither[data-motion="both"] .jc-dither-ramp,
+.jc-dither[data-motion="orbit"] .jc-dither-ramp {
+  animation: jc-dither-orbit var(--jc-spin) linear infinite;
+}
+
+/* both / pump — the level walks up and down through the 64 thresholds */
+.jc-dither[data-motion="both"] .jc-dither-lift,
+.jc-dither[data-motion="pump"] .jc-dither-lift {
+  animation: jc-dither-lift var(--jc-pump) ease-in-out infinite alternate;
+}
+.jc-dither[data-motion="both"] .jc-dither-sink,
+.jc-dither[data-motion="pump"] .jc-dither-sink {
+  animation: jc-dither-sink var(--jc-pump) ease-in-out infinite alternate;
+}
+
+/* sweep — the three blobs are replaced by one band crossing the chip.
+
+   The period is 96px, not the 480px the full-size version uses. 480px on a
+   72px chip would be five chip-widths of travel per cycle, which at 16s is a
+   band that never arrives; 96px puts a little over one bright edge on screen
+   at a time and crosses in a quarter of the loop. The 11deg tilt is the same,
+   and it is what stops the edge from lining up with the Bayer grid and
+   banding. */
+.jc-dither[data-motion="sweep"] .jc-dither-ramp {
+  inset: -110%;
+  background: repeating-linear-gradient(90deg, #050505 0, #c8c8c8 32px, #050505 64px);
+  background-blend-mode: normal;
+  animation: jc-dither-sweep var(--jc-spin) linear infinite;
+}
+
+/* 64px, down from the hero's 480px, and down again with the chip's width. The period has to be near the chip's own
+   width or there is never a whole band inside it at once, and a sweep you only
+   see as the whole thing brightening and dimming is a pump wearing the wrong
+   name. The 11deg tilt is the hero's, and it is what keeps the band's edge off
+   the Bayer grid's own axes. */
+@keyframes jc-dither-sweep {
+  from {
+    transform: rotate(11deg) translate3d(0, 0, 0);
+  }
+  to {
+    transform: rotate(11deg) translate3d(-64px, 0, 0);
+  }
+}
+
+/* Linear, and it returns to its own start, so it never stalls at an endpoint
+   the way ease-in-out + alternate does. */
+@keyframes jc-dither-orbit {
+  0% {
+    transform: translate3d(0%, 0%, 0) scale(1);
+  }
+  25% {
+    transform: translate3d(-15%, -9%, 0) scale(1.2);
+  }
+  50% {
+    transform: translate3d(-6%, -19%, 0) scale(1.04);
+  }
+  75% {
+    transform: translate3d(11%, -10%, 0) scale(1.24);
+  }
+  100% {
+    transform: translate3d(0%, 0%, 0) scale(1);
+  }
+}
+@keyframes jc-dither-lift {
+  from {
+    opacity: 0.34;
+  }
+  to {
+    opacity: 0.04;
+  }
+}
+@keyframes jc-dither-sink {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.26;
+  }
+}
+
+/* The static opacities above are the midpoint of the pump, so a stopped chip
+   is still a correctly exposed one. */
+@media (prefers-reduced-motion: reduce) {
+  .jc-dither[data-motion] .jc-dither-ramp,
+  .jc-dither[data-motion] .jc-dither-lift,
+  .jc-dither[data-motion] .jc-dither-sink {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Disclosures
+
+   The controls on a card are written in the card's own state colour rather
+   than in grey. Grey said "this is a control" and nothing else, which left the
+   chip to carry the state entirely on its own — one band of colour on an
+   otherwise monochrome card, easy to read past. Tinting the things you press
+   ties them to it: the whole card is now visibly about one state, and the
+   words that open it are that state's words.
+
+   Not at full strength. A control is still subordinate to what it opens, so it
+   rests at 82% of the tone with its rule at 26%, and comes up to the tone
+   itself on hover. The alpha is doing what a lighter shade would, without
+   inventing a second version of every colour to keep in step with the first.
+
+   --jc-tone is set inline, per card, from the same STATES entry the chip uses.
+   ------------------------------------------------------------------------- */
+
+.jc-disclosure {
+  color: color-mix(in srgb, var(--jc-tone, #171717) 82%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--jc-tone, #171717) 26%, transparent);
+  transition:
+    color 160ms ease,
+    text-decoration-color 160ms ease;
+}
+
+.jc-disclosure:hover {
+  color: var(--jc-tone, #171717);
+  text-decoration-color: color-mix(in srgb, var(--jc-tone, #171717) 55%, transparent);
+}
+
+/* Filed away is the one state whose colour is a grey, and a grey control that
+   brightens on hover is indistinguishable from the old behaviour — which is
+   correct. Nothing to special-case. */
+
+@media (prefers-reduced-motion: reduce) {
+  .jc-disclosure {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   The band
+
+   The strip across the head of every card. It started as ruled hatching and is
+   now the same dithered field as the chip on the stamp line, in the same state
+   colour: one texture on the page instead of two, and the card is now bracketed
+   by its own status - dither at the top, dither at the foot.
+
+   What changes for a band is the geometry of the light behind it, not the
+   matrix. The chip's ramp is three radial blobs sized in PERCENTAGES of a
+   56x14 box; stretched across a card four hundred pixels wide those become
+   ellipses forty times wider than they are tall, and the band comes out as
+   flat vertical stripes. Sizing the blobs in pixels instead keeps them roughly
+   round whatever the card's width, so the density varies along the strip the
+   way it varies across the chip.
+
+   The vertical inset is deep for the same reason: at 12px tall the band is a
+   slot cut through the middle of the light, and pushing the falloff far above
+   and below it keeps the top and bottom rows at the same density. A band that
+   is denser at one edge reads as a gradient someone forgot to finish.
+
+   The dot pitch is NOT reduced to fit the height. 8px is one Bayer cell per
+   CSS pixel, and halving it to get more cells into 12px would put the matrix
+   below one device pixel per cell on retina, where it stops resolving as a
+   pattern and turns to flat grey.
+   ------------------------------------------------------------------------- */
+
+.jc-card {
+  position: relative;
+}
+
+.jc-dither[data-size="band"] {
+  position: absolute;
+  inset: 0 0 auto 0;
+  width: auto;
+  height: 12px;
+  border-radius: 0;
+  box-shadow: none;
+
+  /* It fades out across the right half rather than stopping at the edge. A
+     band that runs the full width is a header bar and competes with the title
+     under it; one that thins out is a mark on the paper. */
+  -webkit-mask-image: linear-gradient(90deg, #000 0 52%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0 52%, transparent 100%);
+}
+
+.jc-dither[data-size="band"] .jc-dither-ramp {
+  inset: -260% -12%;
+  background:
+    radial-gradient(170px 120px at 12% 50%, #ffffff 0%, #000 72%),
+    radial-gradient(120px 90px at 47% 32%, #dcdcdc 0%, #000 70%),
+    radial-gradient(210px 140px at 81% 64%, #c0c0c0 0%, #000 68%), #000;
+  background-blend-mode: lighten;
+}
+
+/* The sweep's period is the chip's scaled to the band: near enough to the
+   width that a whole bright edge is inside the strip at any moment, and far
+   enough from it that the edge is still travelling rather than pulsing. */
+.jc-dither[data-size="band"][data-motion="sweep"] .jc-dither-ramp {
+  inset: -260% -12%;
+  background: repeating-linear-gradient(90deg, #050505 0, #c8c8c8 80px, #050505 160px);
+  background-blend-mode: normal;
+  animation: jc-dither-band-sweep var(--jc-spin) linear infinite;
+}
+
+@keyframes jc-dither-band-sweep {
+  from {
+    transform: rotate(11deg) translate3d(0, 0, 0);
+  }
+  to {
+    transform: rotate(11deg) translate3d(-160px, 0, 0);
+  }
+}
+
+/* The rule that closes the band. Full width and crisp, so the strip has a
+   bottom edge even where the dither above it has faded away. */
+.jc-card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 12px;
+  height: 1px;
+  background: color-mix(in srgb, var(--jc-tone, #171717) 15%, transparent);
+  pointer-events: none;
+}
+
+.jc-card[data-quiet="true"]::after {
+  background: color-mix(in srgb, var(--jc-tone, #171717) 9%, transparent);
+}

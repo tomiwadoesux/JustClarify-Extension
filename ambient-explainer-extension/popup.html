@@ -57,16 +57,33 @@
                  existing stored choice keeps working. -->
           <button class="jc-seg-btn" id="jc-eng-device" type="button" role="radio" aria-checked="false"
             data-engine="device">
+            <!-- A ticket, not a key: this slot is a pass that is open for now,
+                 and it stays the right word when the free window closes. The
+                 two side notches carry the whole read; a dotted perforation
+                 down the middle was drawn at first and cut, because at 19px a
+                 1.5px round cap closes its own gaps and the dots fused into a
+                 solid line that split the ticket in half. -->
+            <svg viewBox="0 0 24 24" class="jc-ico jc-seg-ico" aria-hidden="true">
+              <path
+                d="M4.5 6.5H19.5A2 2 0 0 1 21.5 8.5V9.8A2.2 2.2 0 0 0 21.5 14.2V16.5A2 2 0 0 1 19.5 18.5H4.5A2 2 0 0 1 2.5 16.5V14.2A2.2 2.2 0 0 0 2.5 9.8V8.5A2 2 0 0 1 4.5 6.5Z" />
+            </svg>
             <span class="jc-seg-label">Early access</span>
-            <span class="jc-seg-hint">Free until Aug 28</span>
           </button>
           <button class="jc-seg-btn" id="jc-eng-llm" type="button" role="radio" aria-checked="false" data-engine="llm">
+            <!-- Slot reserved for the provider logo — the mark of whichever LLM
+                 is selected. Kept empty rather than removed so all three
+                 segments keep the same height while it is being drawn. -->
+            <span class="jc-seg-ico jc-seg-ico-slot" id="jc-eng-llm-logo" aria-hidden="true"></span>
             <span class="jc-seg-label">Your LLM</span>
-            <span class="jc-seg-hint">ChatGPT &amp; co</span>
           </button>
           <button class="jc-seg-btn" id="jc-eng-api" type="button" role="radio" aria-checked="true" data-engine="api">
+            <!-- A plug, not a key: you bring the connection, JustClarify is the
+                 socket. A key would also collide with the BYOK row below. -->
+            <svg viewBox="0 0 24 24" class="jc-ico jc-seg-ico" aria-hidden="true">
+              <path d="M9 7.5V2.5M15 7.5V2.5M12 21.5V16.9" />
+              <path d="M17.5 7.5V10.9A5.5 5.5 0 0 1 6.5 10.9V7.5Z" />
+            </svg>
             <span class="jc-seg-label">API</span>
-            <span class="jc-seg-hint">Voice included</span>
           </button>
         </div>
 
@@ -164,7 +181,7 @@
     <!-- ── Voice ────────────────────────────────────────────────────────── -->
     <h2 class="jc-sec">Voice</h2>
     <div class="jc-card">
-      <p class="jc-note jc-card-pad" id="jc-voice-note">Hold <b>Shift</b>, speak, let go. Commands run on this device;
+      <p class="jc-note jc-card-pad" id="jc-voice-note">Hold <b>Shift+Z</b>, speak, let go. Commands run on this device;
         anything else asks the AI on whichever engine is picked.</p>
 
       <!-- Shown only while the extension has no microphone of its own. Websites
@@ -199,6 +216,23 @@
         <span class="jc-btn-text">
           <span class="jc-btn-label">Text tools</span>
           <span class="jc-btn-hint">Humanize, shorten, expand, summarize, fix grammar.</span>
+        </span>
+      </button>
+
+      <!-- Research: join the tabs that are already open on one subject. -->
+      <button id="jc-research-btn" class="jc-btn" type="button">
+        <span class="jc-chip" aria-hidden="true">
+          <svg viewBox="0 0 24 24" class="jc-ico">
+            <g fill="none" stroke="currentColor">
+              <rect x="3" y="6" width="11" height="14" rx="2.5" />
+              <path d="M7.5 3.5h11a2 2 0 0 1 2 2v11" />
+              <path d="M6.5 11h5M6.5 15h3" />
+            </g>
+          </svg>
+        </span>
+        <span class="jc-btn-text">
+          <span class="jc-btn-label">Join related tabs</span>
+          <span class="jc-btn-hint">One briefing from the tabs you already have open, with sources.</span>
         </span>
       </button>
 

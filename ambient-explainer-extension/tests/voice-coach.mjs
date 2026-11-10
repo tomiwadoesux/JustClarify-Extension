@@ -57,6 +57,10 @@ function makeVoice(holds) {
      const navigator = { userAgent: "TestBrowser/1.0" };
      const console = { debug: () => {} };
      const chrome = { runtime: { getManifest: () => ({ version: "0.0.0-test" }) } };
+     // hosts.js in the real extension. Stubbed as the primary host, because
+     // what this file asserts is that the link is a PAGE and not a mailto:,
+     // not which of our hostnames answers today. host-failover.mjs owns that.
+     const jcSiteUrl = (path) => "https://justclarify.xyz" + path;
      const remember = (k, v) => { stored[k] = v; };
      const showChip = (state, text, actions) => shown.push({ state, text, actions: actions || null });
      const hideChip = () => {};

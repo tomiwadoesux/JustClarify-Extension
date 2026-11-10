@@ -158,7 +158,7 @@ async function gatewayReadStream(response, onGrow) {
 // for the next explanation, and the streaming/progress machinery exists to
 // paint prose into a popup that no classifier ever opens. Low temperature and
 // a small token cap because the answer is one short object.
-async function gatewayClassify(systemPrompt, userPrompt) {
+async function gatewayClassify(systemPrompt, userPrompt, maxTokens) {
   const settings = await gatewayGetSettings();
   if (!settings) return null;
 
@@ -181,7 +181,7 @@ async function gatewayClassify(systemPrompt, userPrompt) {
         // (this function returns null on !ok, so it looked like "the model had
         // no idea" rather than "the request was malformed"). Temperature 0 and
         // a prompt demanding JSON do the work; parseStep strips fences.
-        max_tokens: 120,
+        max_tokens: maxTokens || 120,
         temperature: 0,
       }),
     });

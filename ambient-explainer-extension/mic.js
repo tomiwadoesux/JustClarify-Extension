@@ -66,7 +66,7 @@ async function request() {
     await chrome.storage.local.set({ jcMicGranted: true });
   } catch (_) {}
 
-  show("ok", "Done. Hold Shift on any page and JustClarify will hear you.");
+  show("ok", "Done. Hold Shift+Z on any page and JustClarify will hear you.");
   grantButton.hidden = true;
 
   setTimeout(() => {
@@ -83,6 +83,6 @@ grantButton.addEventListener("click", request);
 alreadyGranted().then((granted) => {
   if (!granted) return;
   chrome.storage.local.set({ jcMicGranted: true }).catch(() => {});
-  show("ok", "The microphone is already allowed. Hold Shift on any page to talk.");
+  show("ok", "The microphone is already allowed. Hold Shift+Z on any page to talk.");
   grantButton.textContent = "Check again";
 });

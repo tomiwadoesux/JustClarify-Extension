@@ -1,8 +1,8 @@
 // voice-frame.js — make push-to-talk work when focus is inside an iframe.
 //
-// THE BUG THIS EXISTS FOR: "sometimes I hold Shift and nothing happens at all."
+// THE BUG THIS EXISTS FOR: "sometimes I hold Shift+Z and nothing happens at all."
 //
-// voice.js listens for Shift on the top document. A keydown is dispatched in the
+// voice.js listens for Shift+Z on the top document. A keydown is dispatched in the
 // document that owns the focused element, so the moment focus sits inside any
 // iframe — an embedded editor, a doc, a video player, a chat widget, a comment
 // box — the event never reaches the top frame's listener. No chip, no timer, no
@@ -15,7 +15,7 @@
 // that spins up an offscreen document in the worker. The cost is paid on every
 // page load forever, to serve a gesture that fires occasionally.
 //
-// So: this file runs in all frames instead, and does nothing but notice Shift
+// So: this file runs in all frames instead, and does nothing but notice Shift+Z
 // and tell the top frame. Roughly thirty lines, two key listeners, no DOM, no
 // storage, no styling. In the top frame it does not run at all.
 //
@@ -32,6 +32,11 @@
 
   let armed = false;
 
+  // Matches voice.js: the physical Z key, qualified by Shift.
+  function isVoiceKey(e) {
+    return e.code === "KeyZ" || e.key === "z" || e.key === "Z";
+  }
+
   function tell(down) {
     try {
       chrome.runtime.sendMessage({ type: "JC_VOICE_FRAME_KEY", down });
@@ -46,10 +51,11 @@
   document.addEventListener(
     "keydown",
     (e) => {
-      if (e.key !== "Shift" || e.repeat) return;
-      // Shift+click, Shift+arrow and every other combination must keep working.
+      if (!isVoiceKey(e) || e.repeat) return;
+      if (!e.shiftKey) return;
+      // Ctrl/Cmd/Alt+Shift+Z is redo, and must keep being redo.
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      // Typing a capital letter must never open a microphone. Checked here in
+      // Typing must never open a microphone. Checked here in
       // the frame that actually holds the focus, which is the whole point —
       // the top frame sees only `IFRAME` as its activeElement and cannot make
       // this judgement on the sub-frame's behalf.
@@ -65,7 +71,8 @@
   document.addEventListener(
     "keyup",
     (e) => {
-      if (e.key !== "Shift" || !armed) return;
+      // Either half of the chord ends the hold, in whatever order they lift.
+      if ((!isVoiceKey(e) && e.key !== "Shift") || !armed) return;
       armed = false;
       tell(false);
     },

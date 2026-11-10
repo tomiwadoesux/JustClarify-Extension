@@ -648,7 +648,7 @@ async function micStop() {
   // Matched to voice.js: 800 bytes rejected genuine one-word commands, which
   // is most of what push-to-talk is used for. Below this really is a key
   // brush rather than speech.
-  if (blob.size < 220) return { ok: false, error: "That was too short to hear — hold Shift a moment longer." };
+  if (blob.size < 220) return { ok: false, error: "That was too short to hear — hold Shift+Z a moment longer." };
 
   // Base64 because extension messaging can't carry a Blob.
   const bytes = new Uint8Array(await blob.arrayBuffer());

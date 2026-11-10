@@ -46,6 +46,10 @@ const FRAG = {
   SCROLL: "down|page down",
   CLICK: "click|press|tap",
   SEARCH: "search|look up|search for",
+  RESEARCH: "research|join|combine|merge|compare",
+  // The "what do my tabs say" phrasing is the one research rule with no verb
+  // list in it, so it is pinned by its own distinctive fragment.
+  RESEARCH_ASK: "tabs say",
 };
 
 function winner(sentence) {
@@ -95,6 +99,58 @@ route("is this site legit", "MODEL");
 route("scroll down", "SCROLL");
 route("click the sign up button", "CLICK");
 route("search for mango recipes", "SEARCH");
+
+// Joining several tabs into one briefing. Plural throughout, because a page can
+// contain something called a tab: "the billing tab" is a control on the page,
+// "my billing tabs" is the browser. Every phrasing here can only mean the
+// browser, and the singular ones below must stay with the page.
+route("research these tabs", "RESEARCH");
+route("research my tabs", "RESEARCH");
+route("join these tabs", "RESEARCH");
+route("combine these tabs", "RESEARCH");
+route("merge my tabs", "RESEARCH");
+route("compare these tabs", "RESEARCH");
+route("summarize these tabs", "RESEARCH");
+route("summarise these tabs", "RESEARCH");
+route("read these tabs together", "RESEARCH");
+route("what do these tabs say", "RESEARCH_ASK");
+route("research my tabs about the election", "RESEARCH");
+route("join my tabs about climate policy", "RESEARCH");
+route("research the github tabs", "RESEARCH");
+
+// The line that must not move: singular, or named without "tabs", belongs to
+// the page and its existing verbs.
+route("summarize this page", "PAGE");
+route("summarize", "PAGE");
+check(
+  "\"click the billing tab\" is still a click on the page, not a research run",
+  (winner("click the billing tab") || "").includes("click|press|tap"),
+);
+
+// The research rules must not have stolen anything from the tab-strip family
+// that sits below them.
+for (const [sentence, frag] of [
+  ["close my github tabs", "^close "],
+  ["tidy up my tabs", "tidy|organi"],
+  ["group the github tabs", "^group "],
+  ["unmute all tabs", "^unmute "],
+  // Both halves of the pair, because only one of them used to exist: you could
+  // say "unmute all tabs" but "mute all tabs" matched nothing.
+  ["mute all tabs", "mute|silence"],
+  ["silence my tabs", "mute|silence"],
+  ["mute the tabs that are playing audio", "playing|making|blaring"],
+  ["reopen the last three tabs", "reopen|restore"],
+]) {
+  const won = winner(sentence) || "";
+  check(`"${sentence}" still reaches its own rule`, won.includes(frag));
+  if (!won.includes(frag)) console.log(`      won instead: ${won.slice(0, 80)}`);
+}
+
+// And the model verb exists for the phrasings the grammar does not anticipate.
+check(
+  "the model verb table includes tabsResearch",
+  /tabsResearch:/.test(src),
+);
 
 // "explain this site" matches the explain rule, whose runner must hand the
 // page — not the literal words — to the pipeline. The runner lives in

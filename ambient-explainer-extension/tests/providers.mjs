@@ -148,7 +148,10 @@ check(
 );
 check(
   "the voice classifier rides the provider chain too",
-  /providerClassify\(system, user\)/.test(background),
+  // Argument-count-agnostic on purpose: this pins WHERE the classifier goes,
+  // not how many parameters it takes. It broke once when a token cap was
+  // threaded through, which is not the thing this assertion is guarding.
+  /providerClassify\(system, user\b/.test(background),
 );
 check(
   "popup never writes the saved key back into an editable input",

@@ -1,10 +1,12 @@
-// voice.js — hold Shift, say what you want, let go.
+// voice.js — hold Shift+Z, say what you want, let go.
 //
-// The gesture is deliberately the sibling of the one that already exists:
-// content.js opens the ask box on a double-tap of Shift, so a HOLD of the same
-// key means "talk instead of type". Tap-tap to write, hold to speak — one key,
-// two moods, nothing new to learn. content.js checks jcVoiceHoldActive() on
-// keyup so a hold never counts as one half of a double-tap.
+// The gesture sits next to the one that already exists: content.js opens the
+// ask box on a double-tap of Shift, and HOLDING Shift with Z means "talk
+// instead of type". Tap-tap to write, hold the chord to speak. Shift alone was
+// the old gesture and it cost too much — every capital letter and every
+// Shift+click on a page was a near miss for an open microphone, so the letter
+// key now has to agree. content.js checks jcVoiceHoldActive() on keyup so a
+// hold never counts as one half of a double-tap.
 //
 // Why push-to-talk rather than a wake word or an open mic:
 //   - Releasing the key IS the end-of-turn signal. Voice agents spend their
@@ -41,10 +43,18 @@
   const SpeechRecognitionCtor =
     globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
 
-  // How long Shift must be down before it means "talk" instead of "tap". Long
-  // enough that a real double-tap never trips it, short enough that it doesn't
-  // feel like waiting.
+  // How long Shift+Z must be down before it means "talk" instead of "tap".
+  // Short enough that it doesn't feel like waiting, long enough that brushing
+  // the chord never opens a microphone.
   const HOLD_MS = 350;
+
+  // e.code, because e.key for this chord is "Z" on a US layout and something
+  // else entirely on AZERTY or Dvorak. The physical key is the gesture. e.key
+  // is kept as a fallback for anything that dispatches synthetic events
+  // without a code.
+  function isVoiceKey(e) {
+    return e.code === "KeyZ" || e.key === "z" || e.key === "Z";
+  }
 
   let holdTimer = null;
   let holding = false; // a push-to-talk hold is live right now
@@ -622,7 +632,7 @@
   //
   // "I didn't hear anything." is a true sentence that has never once helped
   // anybody. It names the symptom and none of the three things a first-time
-  // user actually gets wrong: letting go of Shift before speaking, tapping
+  // user actually gets wrong: letting go of Shift+Z before speaking, tapping
   // instead of holding, and talking before the key has been down long enough.
   // So for the first few holds a failure teaches the gesture instead of
   // reporting on it, and the raw error is held back until it is the answer —
@@ -656,9 +666,9 @@
 
   // What goes wrong, in roughly the order it goes wrong.
   const COACH_GESTURE = [
-    "Hold Shift down while you talk, then let go when you're finished.",
-    "Keep Shift held for the whole sentence — releasing it is what sends it.",
-    "Did you hold Shift and talk? Press and hold, say it in one go, then let go.",
+    "Hold Shift+Z down while you talk, then let go when you're finished.",
+    "Keep Shift+Z held for the whole sentence — releasing it is what sends it.",
+    "Did you hold Shift+Z and talk? Press and hold, say it in one go, then let go.",
   ];
   // A transcript arrived and nothing matched: the gesture is fine, the words
   // aren't. Different problem, different coaching.
@@ -737,7 +747,7 @@
       `Site: ${location.host}`,
       `Microphone: ${lane} lane · extension grant ${micGranted ? "yes" : "no"} · site permission ${pageMicState}`,
     ].join("\n");
-    return `https://justclarify.xyz/tellme?src=extension&ctx=${encodeURIComponent(ctx)}`;
+    return jcSiteUrl(`/tellme?src=extension&ctx=${encodeURIComponent(ctx)}`);
   }
 
   // An anchor click rather than window.open or a location assignment: a popup
@@ -762,7 +772,7 @@
 
   function startEngine() {
     if (!SpeechRecognitionCtor) {
-      // No coaching: holding Shift more carefully cannot install Web Speech.
+      // No coaching: holding Shift+Z more carefully cannot install Web Speech.
       voiceTrouble("This browser can't do speech recognition, sorry.", null);
       return false;
     }
@@ -776,7 +786,7 @@
 
     recognition.lang = navigator.language || "en-US";
     // Interim results are the whole trick: the transcript is built WHILE the
-    // user speaks, so by the time they release Shift there is nothing left to
+    // user speaks, so by the time they release Shift+Z there is nothing left to
     // wait for. This is why a command can land in ~50ms rather than ~500ms.
     recognition.interimResults = true;
     recognition.continuous = false;
@@ -854,7 +864,7 @@
               ? "Speech recognition couldn't reach the network."
               : `Voice error: ${event.error}`;
       // Clear the hold. Without this, every error except the two handled above
-      // left `holding` true, and the NEXT press of Shift returned instantly at
+      // left `holding` true, and the NEXT press of Shift+Z returned instantly at
       // `if (holding) return` with no chip and no microphone -- one of the
       // "sometimes it just does nothing" reports. Web Speech fires `no-speech`
       // on its own after a few seconds of quiet, so this is reachable in the
@@ -1054,7 +1064,7 @@
             label: "Switch to API",
             run: () => {
               try { chrome.storage.local.set({ jcEngine: "api" }); } catch (_) {}
-              return { ok: true, label: "Switched \u2014 hold Shift and talk." };
+              return { ok: true, label: "Switched \u2014 hold Shift+Z and talk." };
             },
           },
         ],
@@ -1128,7 +1138,7 @@
             // They would rather grant per site. Honour it: the very next hold
             // takes the page lane and this site does the asking.
             preferPageLane = true;
-            return { ok: true, label: "Hold Shift again to talk." };
+            return { ok: true, label: "Hold Shift+Z again to talk." };
           },
         },
       ],
@@ -1613,11 +1623,12 @@
   document.addEventListener(
     "keydown",
     (e) => {
-      if (e.key !== "Shift" || e.repeat) return;
-      // Shift+click, Shift+arrow and every other modifier combo must still work
-      // — a hold only counts when Shift is genuinely alone.
+      if (!isVoiceKey(e) || e.repeat) return;
+      // Z is the key; Shift is what makes it a gesture rather than a letter.
+      if (!e.shiftKey) return;
+      // Ctrl/Cmd/Alt+Shift+Z is redo in half the software ever written.
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      // Typing a capital letter should never open a microphone.
+      // Typing should never open a microphone.
       const el = document.activeElement;
       if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
 
@@ -1630,7 +1641,10 @@
   document.addEventListener(
     "keyup",
     (e) => {
-      if (e.key !== "Shift") return;
+      // Either half of the chord ends it. Fingers come off two keys in
+      // whatever order they like, and waiting for the other one would leave a
+      // live microphone open after the gesture is visibly over.
+      if (!isVoiceKey(e) && e.key !== "Shift") return;
       clearTimeout(holdTimer);
       endHold();
     },
@@ -1638,7 +1652,7 @@
   );
 
   // Escape during a hold abandons it — mic closed, audio discarded, nothing
-  // transcribed and nothing spent. Releasing Shift SENDS; this is the way to
+  // transcribed and nothing spent. Releasing Shift+Z SENDS; this is the way to
   // take it back. Outside a hold, Escape just clears whatever chip is up.
   document.addEventListener(
     "keydown",
@@ -1682,7 +1696,7 @@
 
   // The same gesture, relayed from an IFRAME. A keydown is dispatched in the
   // document owning the focused element, so with focus inside a frame the
-  // listeners above never fire and holding Shift did nothing whatsoever — no
+  // listeners above never fire and holding Shift+Z did nothing whatsoever — no
   // chip, no microphone, nothing to report. voice-frame.js runs in every frame
   // and forwards the press through the worker (not postMessage, which a page
   // could forge to open the microphone unprompted).

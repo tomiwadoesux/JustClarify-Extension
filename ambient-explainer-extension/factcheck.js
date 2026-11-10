@@ -19,7 +19,9 @@
 //
 // Loaded by background.js after gateway.js (reuses gatewayGetSettings).
 
-const FC_LOOKUP_PROXY = "https://api.justclarify.xyz/factcheck/lookup";
+// A path, resolved by hosts.js against whichever backend hostname this network
+// allows — the .xyz is blocked outright by some consumer and school filters.
+const FC_LOOKUP_PATH = "/factcheck/lookup";
 const FC_GOOGLE_ENDPOINT =
   "https://factchecktools.googleapis.com/v1alpha1/claims:search";
 
@@ -66,12 +68,15 @@ async function factCheckLookup(claim) {
     .get(["jcGoogleFactKey"])
     .catch(() => ({}));
 
-  const url = jcGoogleFactKey
+  // The user's own Google key goes straight to Google; ours goes through our
+  // backend, which is the only one of the two that a network filter blocks.
+  const ownKey = Boolean(jcGoogleFactKey);
+  const url = ownKey
     ? `${FC_GOOGLE_ENDPOINT}?query=${encodeURIComponent(query)}&languageCode=en&pageSize=5&key=${encodeURIComponent(jcGoogleFactKey)}`
-    : `${FC_LOOKUP_PROXY}?query=${encodeURIComponent(query)}`;
+    : `${FC_LOOKUP_PATH}?query=${encodeURIComponent(query)}`;
 
   try {
-    const res = await fetch(url);
+    const res = ownKey ? await fetch(url) : await jcBackendFetch(url);
     if (!res.ok) {
       console.warn("JustClarify: fact-check lookup failed", res.status, url.split("?")[0]);
       return { ok: false, results: [] };
@@ -442,8 +447,8 @@ async function factCheckExtractClaims(text, limit = 6) {
 // already been checked for somebody else. On a page anyone has read before this
 // is the whole flow: no key, no model call, no wait.
 
-const FC_ERRATA_READ = "https://api.justclarify.xyz/errata";
-const FC_ERRATA_CHECK = "https://api.justclarify.xyz/errata/check";
+const FC_ERRATA_READ_PATH = "/errata";
+const FC_ERRATA_CHECK_PATH = "/errata/check";
 
 // Must produce the same digest as errata.content_hash on the server, or the
 // two sides will never agree on a cache key. Normalizing away whitespace and
@@ -462,8 +467,8 @@ async function factCheckContentHash(text) {
 // the caller ("nothing cached, do it yourself"), so they collapse on purpose.
 async function factCheckCacheRead(url, hash) {
   try {
-    const res = await fetch(
-      `${FC_ERRATA_READ}?url=${encodeURIComponent(url)}&content_hash=${hash}`,
+    const res = await jcBackendFetch(
+      `${FC_ERRATA_READ_PATH}?url=${encodeURIComponent(url)}&content_hash=${hash}`,
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -480,7 +485,7 @@ async function factCheckCacheRead(url, hash) {
 // page that nobody has read yet.
 async function factCheckServerCheck(url, text, title) {
   try {
-    const res = await fetch(FC_ERRATA_CHECK, {
+    const res = await jcBackendFetch(FC_ERRATA_CHECK_PATH, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, text, title: title || "" }),
