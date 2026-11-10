@@ -3372,3 +3372,167 @@ mark.jc-claim:hover {
   background: #f4f2f0;
   color: #111;
 }
+
+/* ============================================================================
+   Study features on the answer card (learn.js, checkui.js)
+   ============================================================================
+   The source the answer drew on, a "Check me" button and the quick question it
+   opens. Everything is scoped under #ambient-popup and sets its own margins,
+   colours and box model explicitly: this card sits inside someone else's page,
+   and their styles for p, button and textarea would otherwise leak in. */
+
+#ambient-popup .jc-learn {
+  margin: var(--space-sm) 0 var(--space-md);
+}
+
+#ambient-popup .jc-learn-source {
+  margin: 0 0 var(--space-sm);
+  padding: 10px 12px;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+#ambient-popup .jc-learn-label,
+#ambient-popup .jc-check-label {
+  display: inline;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+}
+
+#ambient-popup .jc-learn-quote {
+  margin: 4px 0 6px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+#ambient-popup .jc-learn-link {
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+#ambient-popup .jc-learn-actions,
+#ambient-popup .jc-check-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#ambient-popup .jc-learn-btn,
+#ambient-popup .jc-check-btn {
+  margin: 0;
+  padding: 7px 12px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+#ambient-popup .jc-learn-btn:hover,
+#ambient-popup .jc-check-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#ambient-popup .jc-learn-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+#ambient-popup .jc-check-primary {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: #ffffff;
+}
+
+#ambient-popup .jc-check-primary:hover {
+  color: #ffffff;
+  opacity: 0.9;
+}
+
+#ambient-popup .jc-learn-quiz {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-color);
+}
+
+#ambient-popup .jc-learn-quiz[hidden] {
+  display: none;
+}
+
+#ambient-popup .jc-check-status,
+#ambient-popup .jc-check-text,
+#ambient-popup .jc-check-due,
+#ambient-popup .jc-check-q,
+#ambient-popup .jc-check-verdict,
+#ambient-popup .jc-check-answer {
+  margin: 0 0 6px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+#ambient-popup .jc-check-status,
+#ambient-popup .jc-check-due {
+  color: var(--text-secondary);
+}
+
+#ambient-popup .jc-check-q,
+#ambient-popup .jc-check-verdict {
+  font-weight: 600;
+}
+
+#ambient-popup .jc-check-right {
+  color: #1a7f37;
+}
+
+#ambient-popup .jc-check-wrong {
+  color: #b3261e;
+}
+
+#ambient-popup .jc-check-answer {
+  padding: 8px 10px;
+  background: var(--bg-color);
+  border-radius: var(--radius-sm);
+}
+
+#ambient-popup .jc-check-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  resize: vertical;
+}
+
+#ambient-popup .jc-check-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

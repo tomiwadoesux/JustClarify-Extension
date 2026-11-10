@@ -72,6 +72,16 @@ Because of this, **do not run fact-checks on private, internal, paywalled, or ot
 
 Stored verdicts are not linked to you. We do not store an account identifier, IP-based identity, or any user identifier alongside them.
 
+## The study panel
+
+The extension can keep a study panel: a list of what you asked it to explain, whether you answered a quick question about it correctly, and when it is due for another look.
+
+- **It is stored only on your device,** in the extension's own storage. It is never sent to JustClarify's servers, never shared with other users, and never written into the web pages you visit.
+- **What it holds:** the text you highlighted, the explanation, a short passage from the same page that the explanation drew on, the page's title and its address without the query string, and your quiz results.
+- **Private windows are not recorded.**
+- **Quick questions use the same AI engine as explanations.** When you press "Check me", the highlighted text, the explanation and your answer are sent to that engine to write and grade the question, in the same way as an explanation request, and are not retained by JustClarify.
+- **You can export or delete it** from the bottom of the study panel at any time. Removing the extension deletes it.
+
 ## The student interview
 
 JustClarify sometimes invites students to a short research interview at `justclarify.xyz/interview`. It is separate from the extension. It applies only if you open an invite link and agree to take part.

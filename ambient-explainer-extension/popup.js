@@ -76,6 +76,7 @@ const factcheckBtn = $("jc-factcheck-btn");
 const factcheckVideoBtn = $("jc-factcheck-video-btn");
 const liveBtn = $("jc-factcheck-live-btn");
 const historyBtn = $("jc-history-btn");
+const studyBtn = $("jc-study-btn");
 const enginePick = $("jc-engine-pick");
 const engineNote = $("jc-engine-note");
 const llmRow = $("jc-llm-row");
@@ -492,6 +493,31 @@ historyBtn.addEventListener("click", () => {
   chrome.tabs.create({ url: chrome.runtime.getURL("history.html") });
   window.close();
 });
+
+// The study panel (sidepanel.html). Chrome only lets a side panel open while
+// the call still counts as part of the click, and an await in the handler ends
+// that. So the window id is looked up NOW, when the popup opens, and the
+// handler calls chrome.sidePanel.open with nothing in front of it.
+let jcPopupWindowId = null;
+try {
+  chrome.windows.getCurrent((win) => {
+    void chrome.runtime.lastError;
+    jcPopupWindowId = win && win.id != null ? win.id : null;
+  });
+} catch (_) {}
+
+if (studyBtn) {
+  // Older Chrome without the API: no button rather than a button that does nothing.
+  if (!chrome.sidePanel || typeof chrome.sidePanel.open !== "function") studyBtn.hidden = true;
+  studyBtn.addEventListener("click", () => {
+    try {
+      if (jcPopupWindowId != null) {
+        chrome.sidePanel.open({ windowId: jcPopupWindowId }).catch(() => {});
+      }
+    } catch (_) {}
+    window.close();
+  });
+}
 
 // Keep in sync if another surface changes settings while this is open.
 if (chrome.storage && chrome.storage.onChanged) {

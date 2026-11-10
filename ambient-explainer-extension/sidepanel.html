@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JustClarify study panel</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="sp-header">
+      <span class="sp-mark" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="16" height="16" rx="3.6" transform="rotate(45 12 12)" fill="currentColor" />
+          <rect x="8.6" y="8.6" width="6.8" height="6.8" rx="1.8" transform="rotate(45 12 12)" fill="var(--sp-bg)" />
+        </svg>
+      </span>
+      <div class="sp-titles">
+        <h1 class="sp-title">Study panel</h1>
+        <p class="sp-sub">What you looked up, and what is due for another look.</p>
+      </div>
+    </header>
+
+    <section id="sp-stats" class="sp-stats" aria-live="polite"></section>
+
+    <!-- A selection sent here from a PDF's right-click menu is explained in this slot. -->
+    <section id="sp-live" class="sp-live" hidden></section>
+
+    <main id="sp-list" class="sp-list" aria-live="polite"></main>
+
+    <footer class="sp-footer">
+      <p class="sp-note">Stored only on this device. Nothing here is sent anywhere.</p>
+      <div class="sp-footer-row">
+        <button id="sp-export" class="sp-link" type="button">Export</button>
+        <button id="sp-clear" class="sp-link sp-danger" type="button">Delete all</button>
+      </div>
+      <div id="sp-confirm" class="sp-confirm" hidden>
+        <span>Delete everything in the study panel?</span>
+        <button id="sp-clear-yes" class="sp-link sp-danger" type="button">Yes, delete</button>
+        <button id="sp-clear-no" class="sp-link" type="button">Keep it</button>
+      </div>
+    </footer>
+
+    <script src="brand.js"></script>
+    <script src="checkui.js"></script>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

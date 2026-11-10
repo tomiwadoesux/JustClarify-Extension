@@ -193,6 +193,51 @@ export default function PrivacyPolicyPage() {
           </p>
         </Section>
 
+        <Section title="The study panel">
+          <p className="mb-3">
+            The extension can keep a study panel: a list of what you asked it
+            to explain, whether you answered a quick question about it
+            correctly, and when it is due for another look.
+          </p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>
+              <span className="font-semibold">
+                It is stored only on your device,
+              </span>{" "}
+              in the extension&apos;s own storage. It is never sent to
+              JustClarify&apos;s servers, never shared with other users, and
+              never written into the web pages you visit.
+            </li>
+            <li>
+              <span className="font-semibold">What it holds:</span> the text
+              you highlighted, the explanation, a short passage from the same
+              page that the explanation drew on, the page&apos;s title and its
+              address without the query string, and your quiz results.
+            </li>
+            <li>
+              <span className="font-semibold">
+                Private windows are not recorded.
+              </span>
+            </li>
+            <li>
+              <span className="font-semibold">
+                Quick questions use the same AI engine as explanations.
+              </span>{" "}
+              When you press &quot;Check me&quot;, the highlighted text, the
+              explanation and your answer are sent to that engine to write and
+              grade the question, in the same way as an explanation request,
+              and are not retained by JustClarify.
+            </li>
+            <li>
+              <span className="font-semibold">
+                You can export or delete it
+              </span>{" "}
+              from the bottom of the study panel at any time. Removing the
+              extension deletes it.
+            </li>
+          </ul>
+        </Section>
+
         <Section title="The student interview">
           <p className="mb-3">
             JustClarify sometimes invites students to a short research

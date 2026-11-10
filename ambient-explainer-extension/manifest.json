@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Just Clarify",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnszo9vVxsdFStJgt5HOKjY0bFn65pDKkDK/PrmV6o9z2pmroqI7tbo8Yujam4qYE0sBJsiaTyMKlrfcWTZvsvIxIZIY2zab4vVSmkeLwPpLhhEVjcUH7BZRLpkXmC2QiaKW6ttRyOJsC2kdm4pmA7e1klXCmnnJcWWMFXBWa/hObRdYBbJz3yUK1UQq21wQwYryPGztPW4ZvzrFfbO4D8/yBYtqyNFkkCET79w+VgenRy1fWCFdIPTmOqd/CCAqh6g3hRqBu8UJJr0f1e75Kxg9gC8aJX/KmipBTEByd+ZKk8P6y2+a5kTjonVQ50fBLhVMmJFh5RA+k2fh9ALyj6QIDAQAB",
   "description": "Understand anything you highlight \u2014 explanations, fact-checks and voice control, no account, no setup",
   "icons": {
@@ -20,8 +20,12 @@
     "sessions",
     "history",
     "scripting",
-    "tabGroups"
+    "tabGroups",
+    "sidePanel"
   ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
   "action": {
     "default_title": "Just Clarify \u2014 conversations & focus mode",
     "default_popup": "popup.html",
@@ -52,6 +56,9 @@
         "hosts.js",
         "brand.js",
         "fuzzy.js",
+        "ground.js",
+        "checkui.js",
+        "learn.js",
         "content.js",
         "commands.js",
         "voice.js",
