@@ -49,7 +49,7 @@ export default function PrivacyPolicyPage() {
           Privacy Policy
         </h1>
         <p className="text-sm text-[#000000] mb-10">
-          Last updated: July 28, 2026
+          Last updated: November 10, 2026
         </p>
 
         <Section title="Overview">
@@ -193,6 +193,70 @@ export default function PrivacyPolicyPage() {
           </p>
         </Section>
 
+        <Section title="The student interview">
+          <p className="mb-3">
+            JustClarify sometimes invites students to a short research
+            interview at justclarify.xyz/interview. It is separate from the
+            extension. It applies only if you open an invite link and agree to
+            take part.
+          </p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>
+              <span className="font-semibold">
+                You talk to an AI interviewer, not a person.
+              </span>{" "}
+              It asks about six questions on how you study. It does not give
+              study help or advice.
+            </li>
+            <li>
+              <span className="font-semibold">
+                We store the text of your answers and a short summary of them.
+              </span>{" "}
+              Before anything is stored we automatically remove email
+              addresses, phone numbers, links, ID numbers and the names we can
+              detect. Detection is not perfect, so please leave names out.
+            </li>
+            <li>
+              <span className="font-semibold">
+                Voice notes are transcribed and discarded.
+              </span>{" "}
+              If you answer by voice, the recording is turned into text and
+              thrown away. We never store audio.
+            </li>
+            <li>
+              <span className="font-semibold">We do not ask who you are.</span>{" "}
+              The interview does not ask for your name or email, and we do not
+              store your IP address or details of your device.
+            </li>
+            <li>
+              <span className="font-semibold">The AI services keep nothing.</span>{" "}
+              Your answers are processed only by providers set to zero data
+              retention, and they are not used to train models.
+            </li>
+            <li>
+              <span className="font-semibold">
+                If you mention being in distress,
+              </span>{" "}
+              the interview stops and shows a support message. What you wrote
+              in that message is not stored.
+            </li>
+            <li>
+              <span className="font-semibold">
+                The interview is for people aged 18 or over.
+              </span>{" "}
+              If you tell us you are under 18, the interview stops and your
+              answers are deleted.
+            </li>
+            <li>
+              <span className="font-semibold">
+                You can have your answers deleted.
+              </span>{" "}
+              At the end you are given a reference code. Email it to us and we
+              will delete everything stored under it.
+            </li>
+          </ul>
+        </Section>
+
         <Section title="How We Use Information">
           <p className="mb-3">We use collected information to:</p>
           <ul className="list-disc pl-5 space-y-1 mb-3">
@@ -275,6 +339,11 @@ export default function PrivacyPolicyPage() {
               while you remain on the early access list, until you ask us to
               delete it.
             </li>
+            <li>
+              <span className="font-semibold">Student interview answers:</span>{" "}
+              kept until you ask us to delete them, and for no longer than 12
+              months. They are deleted automatically after that.
+            </li>
           </ul>
         </Section>
 
@@ -286,7 +355,19 @@ export default function PrivacyPolicyPage() {
           <ul className="list-disc pl-5 space-y-1">
             <li>
               <span className="font-semibold">Supabase</span>: database hosting
-              for shared fact-check results
+              for shared fact-check results and student interview answers
+            </li>
+            <li>
+              <span className="font-semibold">Mistral, xAI</span>: transcribing
+              student interview voice notes, with zero data retention (via
+              Vercel AI Gateway)
+            </li>
+            <li>
+              <span className="font-semibold">
+                Open-weight model hosts (via Vercel AI Gateway)
+              </span>
+              : writing interview questions and summaries, on providers with
+              zero data retention
             </li>
             <li>
               <span className="font-semibold">Vercel</span>: hosting for the

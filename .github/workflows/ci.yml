@@ -66,6 +66,13 @@ jobs:
       - name: Install site dependencies
         run: npm ci
 
+      - name: Student interview tests
+        # After npm ci, because the schemas import zod. Offline only: ten
+        # scripted students against a stub model that misbehaves on purpose.
+        # The hard gates are here: explicit distress and under-18 always stop
+        # the script, nothing personal reaches storage, every quote is real.
+        run: npm run test:interview
+
       - name: Build the site
         # The API routes read env at request time, not build time, so this
         # needs no secrets — which is the point: CI must never hold the

@@ -1,6 +1,6 @@
 # JustClarify Privacy Policy
 
-Last updated: August 5, 2026
+Last updated: November 10, 2026
 
 ## Overview
 
@@ -72,6 +72,19 @@ Because of this, **do not run fact-checks on private, internal, paywalled, or ot
 
 Stored verdicts are not linked to you. We do not store an account identifier, IP-based identity, or any user identifier alongside them.
 
+## The student interview
+
+JustClarify sometimes invites students to a short research interview at `justclarify.xyz/interview`. It is separate from the extension. It applies only if you open an invite link and agree to take part.
+
+- **You talk to an AI interviewer, not a person.** It asks about six questions on how you study. It does not give study help or advice.
+- **We store the text of your answers and a short summary of them.** Before anything is stored we automatically remove email addresses, phone numbers, links, ID numbers and the names we can detect. Detection is not perfect, so please leave names out.
+- **Voice notes are transcribed and discarded.** If you answer by voice, the recording is turned into text and thrown away. We never store audio.
+- **We do not ask who you are.** The interview does not ask for your name or email, and we do not store your IP address or details of your device.
+- **The AI services keep nothing.** Your answers are processed only by providers set to zero data retention, and they are not used to train models.
+- **If you mention being in distress,** the interview stops and shows a support message. What you wrote in that message is not stored.
+- **The interview is for people aged 18 or over.** If you tell us you are under 18, the interview stops and your answers are deleted.
+- **You can have your answers deleted.** At the end you are given a reference code. Email it to us and we will delete everything stored under it.
+
 ## How We Use Information
 
 We use collected information to:
@@ -109,6 +122,7 @@ Stored in our database, hosted with Supabase, as described in **Shared fact-chec
 - **Audio:** not retained.
 - **Voice recordings:** uploaded only when a phrase needs re-transcribing; transcribed and discarded, not retained.
 - **Email address:** retained while you remain on the early access list, until you ask us to delete it.
+- **Student interview answers:** kept until you ask us to delete them, and for no longer than 12 months. They are deleted automatically after that.
 
 ## Third-Party Services
 
@@ -116,7 +130,7 @@ JustClarify uses the following services, which may process the information neede
 
 | Service | Purpose |
 |---|---|
-| Supabase | Database hosting for shared fact-check results |
+| Supabase | Database hosting for shared fact-check results and student interview answers |
 | Vercel | Hosting for the JustClarify backend |
 | Hugging Face | AI-generated explanations |
 | Vercel AI Gateway | Routes AI requests to model providers |
@@ -124,6 +138,8 @@ JustClarify uses the following services, which may process the information neede
 | Perplexity | Web-grounded fact-check verdicts |
 | OpenAI | Identifying which sentences contain checkable claims; transcribing voice recordings and generating read-aloud speech (via Vercel AI Gateway) |
 | Google Fact Check Tools | Retrieving fact-checks already published by organisations such as PolitiFact, Snopes and FactCheck.org |
+| Mistral, xAI | Transcribing student interview voice notes, with zero data retention (via Vercel AI Gateway) |
+| Open-weight model hosts (via Vercel AI Gateway) | Writing interview questions and summaries, on providers with zero data retention |
 | DictionaryAPI | Dictionary lookups |
 | Resend | Storing email contacts and sending email |
 
