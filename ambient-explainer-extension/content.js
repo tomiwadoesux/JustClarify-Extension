@@ -1419,9 +1419,13 @@ function splitTopic(text) {
 }
 
 // Strip the tag (even a half-streamed opener) so it never flashes in the popup.
+// The grounding source line ("[[SRC]] 2", see ground.js) arrives just before
+// the topic and is hidden the same way.
 function stripTopicForDisplay(text) {
   if (!text) return "";
-  const m = /\[\[\s*TOPIC/i.exec(text);
+  // The second half catches a tag that has only partly arrived ("[[SR",
+  // "[[TOP") at the very end of the stream, so not even that flashes.
+  const m = /\[\[\s*(?:TOPIC|SRC)|\[\[\s*(?:T|TO|TOP|TOPI|S|SR)$/i.exec(text);
   return (m ? text.slice(0, m.index) : text).trimEnd();
 }
 
@@ -1544,8 +1548,20 @@ async function askChatGPT(prompt, onProgress) {
         }
         jcSetEngine(resp.engine, resp.model);
         jcPanelActivity("done");
-        const { body, topic } = splitTopic(resp.answer || "");
-        finishOk({ answer: body, thinking: resp.thinking || "", url: resp.url || "", topic });
+        // The source line comes off first, from the whole answer, so it is
+        // found whether the model wrote it before or after the topic line.
+        const grounded =
+          typeof groundParseSrc === "function"
+            ? groundParseSrc(resp.answer || "")
+            : { body: resp.answer || "", src: 0 };
+        const { body, topic } = splitTopic(grounded.body);
+        finishOk({
+          answer: body,
+          thinking: resp.thinking || "",
+          url: resp.url || "",
+          topic,
+          src: grounded.src,
+        });
       },
       // The send itself failed, or the channel died before a reply. Previously
       // this went nowhere and the caller waited forever.
@@ -2452,11 +2468,15 @@ async function fetchExplanation(mode, isNew = false) {
   setPopupLoading(popup);
 
   try {
+    // Other parts of this page that bear on the highlight (ground.js). Empty
+    // for modes that do not explain, and whenever nothing on the page fits.
+    const ground = jcGroundFor(mode, currentExplainData);
     const result = await askChatGPT(
-      buildClaudePrompt(mode, currentExplainData),
+      buildClaudePrompt(mode, currentExplainData) + ground.block,
       (chunk) => renderStreaming(popup, chunk),
     );
     renderAnswer(popup, result.answer, "EXPLANATION", result.thinking);
+    jcAfterAnswer(popup, { result, mode, ground, data: currentExplainData });
     // A style button on an existing answer (Simplify/Expand/…) continues the
     // thread; opening a fresh explanation from the action menu starts a new one.
     if (isNew || !currentThreadId) {
@@ -2497,11 +2517,13 @@ async function fetchFollowUpQuestion(question) {
   setPopupLoading(popup);
 
   try {
+    const ground = jcGroundFor("followup", currentExplainData, question);
     const result = await askChatGPT(
-      buildClaudePrompt("followup", currentExplainData, question),
+      buildClaudePrompt("followup", currentExplainData, question) + ground.block,
       (chunk) => renderStreaming(popup, chunk),
     );
     renderAnswer(popup, result.answer, "ANSWER", result.thinking);
+    jcAfterAnswer(popup, { result, mode: "followup", ground, data: currentExplainData, question });
     recordReply(currentThreadId, question, result.answer, result);
   } catch (err) {
     console.warn("Claude ask failed:", err);
@@ -3694,13 +3716,19 @@ function submitAsk(popup, data, question) {
 
   (async () => {
     try {
+      // Only an ask about a highlight is grounded in the page; a bare question
+      // has no place on the page to be near.
+      const ground = hasSel
+        ? jcGroundFor("followup", data, question)
+        : { block: "", passages: [] };
       const prompt = hasSel
-        ? buildClaudePrompt("followup", data, question)
+        ? buildClaudePrompt("followup", data, question) + ground.block
         : buildAskPrompt(question);
       const result = await askChatGPT(prompt, (chunk) =>
         renderStreaming(popup, chunk),
       );
       renderAnswer(popup, result.answer, "ANSWER", result.thinking);
+      jcAfterAnswer(popup, { result, mode: "followup", ground, data: currentExplainData, question });
       recordAsk({
         question,
         answer: result.answer,

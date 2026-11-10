@@ -63,6 +63,14 @@ jobs:
         # animation frames.
         run: npm run test:llm
 
+      - name: Study panel tests
+        # The learning record, passage ranking, "check me" and the side panel's
+        # wiring. Several of these are assertions about source, because what
+        # they guard against is silent in a browser: a side panel that will not
+        # open because an await crept in before the call, and a learning record
+        # that leaks into the page it was written on.
+        run: npm run test:study
+
       - name: Install site dependencies
         run: npm ci
 

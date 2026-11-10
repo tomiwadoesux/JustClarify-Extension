@@ -428,7 +428,12 @@ function researchOwnKeyError(detail) {
 // means the hosted tier is off limits. If the reader's own provider fails, the
 // run fails and says whose fault it was. It does not quietly re-run on
 // JustClarify's account.
-async function researchStream(prompt, onGrow) {
+//
+// `system` defaults to the research rules. The study panel passes its own (see
+// study.js): it needs the same history-free streaming, with different
+// instructions.
+async function researchStream(prompt, onGrow, system) {
+  const rules = system || RESEARCH_SYSTEM;
   const settings = await providerGetSettings();
 
   if (settings) {
@@ -442,10 +447,10 @@ async function researchStream(prompt, onGrow) {
     });
     // The research rules ride the system slot, whichever shape this provider
     // wants them in.
-    if (settings.provider === 'anthropic') req.body.system = RESEARCH_SYSTEM;
+    if (settings.provider === 'anthropic') req.body.system = rules;
     else if (settings.provider === 'gemini') {
-      req.body.systemInstruction = { parts: [{ text: RESEARCH_SYSTEM }] };
-    } else if (req.body.messages) req.body.messages[0].content = RESEARCH_SYSTEM;
+      req.body.systemInstruction = { parts: [{ text: rules }] };
+    } else if (req.body.messages) req.body.messages[0].content = rules;
 
     let response;
     try {
@@ -501,7 +506,7 @@ async function researchStream(prompt, onGrow) {
         'x-jc-install': await hostedInstallId(),
       },
       body: JSON.stringify({
-        messages: [{ role: 'user', content: `${RESEARCH_SYSTEM}\n\n${prompt}` }],
+        messages: [{ role: 'user', content: `${rules}\n\n${prompt}` }],
         maxTokens: RESEARCH_MAX_TOKENS,
       }),
     });

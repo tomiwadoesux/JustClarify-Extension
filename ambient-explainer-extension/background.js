@@ -11,6 +11,11 @@ importScripts(
   // research.js AFTER providers/hosted: it reuses their engine chain, their SSE
   // readers and jcFetchBounded rather than carrying its own copies.
   'factcheck.js', 'research.js',
+  // The study panel. record.js owns the learning record (IndexedDB, this worker
+  // only); checkme.js writes and grades the quick question; study.js opens the
+  // panel and streams to it, so it comes after research.js, whose streaming it
+  // borrows.
+  'record.js', 'checkme.js', 'study.js',
 );
 
 // --- Brand colour -----------------------------------------------------------
@@ -953,6 +958,13 @@ chrome.runtime.onInstalled.addListener((details) => {
       title: 'Explain with JustClarify',
       contexts: ['selection'],
     });
+    // On the toolbar icon's own right-click menu only, so it adds nothing to
+    // the menu people see on every page.
+    chrome.contextMenus.create({
+      id: 'open-study-panel',
+      title: 'Open study panel',
+      contexts: ['action'],
+    });
   });
 
   // Arm the walk through, on a fresh INSTALL only. An update must never
@@ -970,10 +982,22 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
+  // Both panel routes open it synchronously, before anything else happens:
+  // Chrome only allows that while it still counts as the user's click.
+  if (info.menuItemId === 'open-study-panel') {
+    studyPanelOpen(tab);
+    return;
+  }
   if (info.menuItemId === 'explain-selection' && tab?.id != null) {
+    // A PDF has no content script to show the answer card, so the study panel
+    // takes it. Everywhere else the page's own card does, exactly as before.
+    if (studyHandleMenu(info, tab)) return;
     chrome.tabs.sendMessage(tab.id, { type: 'EXPLAIN_SELECTION' }).catch(() => {});
   }
 });
+
+// The study panel's streamed explanations arrive over a Port (study.js).
+chrome.runtime.onConnect.addListener(studyHandleConnect);
 
 // The tab currently holding the extension-origin microphone, or null. Only set
 // between JC_VOICE_MIC_START and JC_VOICE_MIC_STOP, and only ever used to route
@@ -984,6 +1008,16 @@ let jcVoiceMicTab = null;
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg) return;
+
+  // An announcement addressed to the study panel. runtime.sendMessage is a
+  // broadcast, so the worker hears its own; it is not for us.
+  if (msg.target === 'sidepanel') return;
+
+  // The study panel, the learning record and "check me". Each handler returns
+  // true only for its own message types, having arranged to call sendResponse.
+  if (studyHandleMessage(msg, _sender, sendResponse)) return true;
+  if (recordHandleMessage(msg, _sender, sendResponse)) return true;
+  if (checkmeHandleMessage(msg, _sender, sendResponse)) return true;
 
   if (msg.type === 'ASK_CLAUDE') {
     const originTabId = _sender.tab?.id;
