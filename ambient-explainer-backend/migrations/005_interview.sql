@@ -1,7 +1,9 @@
 -- The student interview at /interview.
 --
--- NOT YET APPLIED. Paste this whole file into the Supabase SQL editor and run
--- it once. Every statement is idempotent, so running it twice is safe.
+-- Applied 2026-11-10 to the "Trilorah" Supabase project (lmuuvwetrgmrphpkfywm),
+-- which JustClarify shares (see 000_base_schema.sql for why), through the
+-- Supabase connector as migration jc_005_interview. Every statement is
+-- idempotent, so running it again, or on a new project, is safe.
 --
 -- What it is for: a student opens a share link, agrees to talk to an AI, and
 -- answers about six short questions by typing or by voice note. The server

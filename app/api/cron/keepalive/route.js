@@ -2,13 +2,20 @@
 //
 // Supabase pauses a free-tier project after about a week with no activity,
 // and a paused project takes everything down with it: the report board, the
-// usage meter and the interview. It already happened once (November 2026: the
-// project's address stopped resolving and /api/tellme returned 503 until it
-// was restored by hand).
+// usage meter and the interview. It already happened once: in November 2026
+// the original project's address stopped resolving, /api/tellme returned 503,
+// and the tables had to be rebuilt from the code in a different project (see
+// migrations/000_base_schema.sql). The database is now shared with another
+// app, so this job keeps that app's project awake too.
 //
-// Vercel calls this once a day (see vercel.json). It does one read and one
-// write, sweeps interview sessions whose clock ran out, and deletes interview
-// answers older than the 12 months the privacy policy promises. No model calls.
+// Vercel calls this every six hours (see vercel.json). It does one read and
+// one write, sweeps interview sessions whose clock ran out, and deletes
+// interview answers older than the 12 months the privacy policy promises. No
+// model calls.
+//
+// Every six hours rather than daily because Supabase's own guidance is that
+// "a few user requests to the database each day" over the past week keeps a
+// project from pausing. Four runs of four requests clears that with room.
 //
 // The write is a heartbeat the interview board displays. If this cron ever
 // stops running, the board shows the heartbeat going stale, so a dead
