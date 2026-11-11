@@ -389,6 +389,43 @@ check('the support message names no single country', () => {
   lacks(copy.SUPPORT, '999');
   has(copy.SUPPORT, 'local emergency number');
 });
+check('the listening line changes as a voice note goes on', () => {
+  eq(copy.listeningLine(0), 'Listening');
+  eq(copy.listeningLine(6), 'Listening');
+  eq(copy.listeningLine(7), "Keep going, I'm listening");
+  eq(copy.listeningLine(39), "Keep going, I'm listening");
+  eq(copy.listeningLine(40), 'Still listening. Take your time.');
+  eq(copy.listeningLine(75), 'About 15 seconds left');
+  eq(copy.listeningLine(89), 'About 1 second left');
+  eq(copy.listeningLine(95), 'About 1 second left');
+});
+
+// Starters are typed into the answer box. They must open a sentence without
+// answering it, or the board ends up reporting our words as the students'.
+const LOADED = /wrong|incorrect|mistake|hallucinat|limit|cut me off|ran out|expensive|cheap|afford|flagged|accused|caught|cheat|confus|struggl|hate|love|great|bad|useless|helpful|trust|different from|did not match/i;
+for (const [topic, list] of Object.entries(copy.STARTERS)) {
+  check(`starters for ${topic}: two or three short openers`, () => {
+    if (list.length < 2 || list.length > 3) throw new Error(`has ${list.length}`);
+    for (const s of list) {
+      if (s.length > 44) throw new Error(`too long: ${s}`);
+      if (!s.endsWith('…')) throw new Error(`should trail off: ${s}`);
+      if (/[?!]/.test(s)) throw new Error(`not an opener: ${s}`);
+    }
+  });
+  check(`starters for ${topic}: say nothing about how it went`, () => {
+    for (const s of list) if (LOADED.test(s)) throw new Error(`leading: ${s}`);
+  });
+}
+check('every topic has starters, and unknown topics get the generic set', () => {
+  for (const key of TOPIC_KEYS) if (!copy.STARTERS[key]) throw new Error(`missing ${key}`);
+  eq(copy.startersFor('nonsense'), copy.STARTERS.generic);
+  eq(copy.startersFor(undefined), copy.STARTERS.generic);
+});
+check('the opening starters name none of the topics', () => {
+  const text = copy.STARTERS.opener.join(' ').toLowerCase();
+  for (const word of ['pay', 'check', 'lecturer', 'taught', 'tool', 'exam', 'phone', 'laptop', 'heard']) lacks(text, word);
+});
+
 check('the opener is neutral: it names no topic', () => {
   const lower = copy.OPENER.toLowerCase();
   for (const word of ['trust', 'pay', 'detect', 'cheat', 'wrong', 'limit', 'switch']) lacks(lower, word);
