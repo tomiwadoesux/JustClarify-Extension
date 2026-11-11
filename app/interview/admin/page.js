@@ -262,7 +262,7 @@ export default function InterviewAdminPage() {
 
               <Card title="Database keep-alive" right={<Pill tone={beatStale ? "bad" : "good"}>{beatStale ? "Stale" : "Healthy"}</Pill>}>
                 <p className="text-[13px] leading-relaxed text-[#6d645d]">
-                  Last heartbeat: <span className="font-semibold text-[#14110f]">{ago(beatAt)}</span>. A daily job writes it so Supabase does not pause the project.
+                  Last heartbeat: <span className="font-semibold text-[#14110f]">{ago(beatAt)}</span>. A job writes it every six hours so Supabase does not pause the project.
                 </p>
                 {beatStale ? (
                   <p className="mt-2 text-[13px] font-medium text-[#b3261e]">
