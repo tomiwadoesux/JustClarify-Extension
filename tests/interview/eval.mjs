@@ -137,6 +137,7 @@ async function run(persona, llm, { stepMs = 20_000 } = {}) {
 
   const started = await engine.start({ link: 'pilot-1' });
   const questions = [started.question?.text];
+  const starters = [started.question?.starters];
   const timings = [];
   let last = started;
   let turn = 1;
@@ -151,10 +152,11 @@ async function run(persona, llm, { stepMs = 20_000 } = {}) {
     if (last.sessionId) sessionId = last.sessionId;
     if (last.status === 'question') {
       questions.push(last.question.text);
+      starters.push(last.question.starters);
       turn = last.turn;
     }
   }
-  return { store, engine, started, last, turn, questions, sessionId, timings };
+  return { store, engine, started, last, turn, questions, starters, sessionId, timings };
 }
 
 async function checkPersona(persona, llm) {
@@ -171,6 +173,8 @@ async function checkPersona(persona, llm) {
     ok(`${tag} question is valid: ${String(q).slice(0, 40)}`, q === OPENER || checkQuestion(q) === q, q);
   }
   ok(`${tag} never more than ${LIMITS.maxTurns} questions`, r.questions.length <= LIMITS.maxTurns);
+  ok(`${tag} every question comes with ways to start an answer`, r.starters.every((s) => Array.isArray(s) && s.length >= 2));
+  ok(`${tag} the page is never told the topic`, !JSON.stringify([r.started, r.last]).match(/"topic"|question_topic/));
 
   const dump = r.store.dump();
   for (const secret of persona.mustNotStore || []) {

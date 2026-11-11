@@ -1,0 +1,680 @@
+/* The interview's look: shadcn/ui's AI chat components, ported to this one page.
+   ===========================================================================
+
+   WHY IT IS PORTED AND NOT INSTALLED. `shadcn init` rewrites the site-wide
+   colour tokens, and shadcn's `--accent` (a neutral hover surface) would
+   replace this site's `--accent`, which is the random brand colour every other
+   page reads. So the anatomy and the styling of the AI Elements pieces
+   (Conversation, Message, PromptInput, Suggestion, Shimmer) are reproduced
+   here, with their tokens scoped under `.iv` so nothing leaks either way.
+
+   MOTION RULES, after Emil Kowalski. They are stated once here because every
+   block below follows them:
+     - Only `transform`, `opacity` and (briefly) `filter` are animated.
+     - Things that enter use a strong ease-out, so they move the instant they
+       appear. Nothing uses ease-in, and nothing enters from scale(0).
+     - Interface motion stays under 300ms. The only slower things are the
+       typed-out starters and the shimmer, which are ambient, not responses.
+     - Every pressable thing answers the press with scale(0.97).
+     - Exits are faster than entrances.
+     - `transition` never says `all`.
+     - With reduced motion, movement goes and fades stay. */
+
+.iv {
+  --iv-bg: #ffffff;
+  --iv-fg: oklch(0.145 0 0);
+  --iv-muted: oklch(0.97 0 0);
+  --iv-muted-fg: oklch(0.5 0 0);
+  --iv-border: oklch(0.922 0 0);
+  --iv-ring: oklch(0.708 0 0);
+  --iv-primary: oklch(0.205 0 0);
+  --iv-primary-fg: oklch(0.985 0 0);
+  --iv-destructive: oklch(0.55 0.22 27);
+  --iv-radius: 0.625rem;
+
+  --iv-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --iv-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  background: var(--iv-bg);
+  color: var(--iv-fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* --- Entrances ------------------------------------------------------------- */
+
+@keyframes iv-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes iv-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A block that rises in once. `--i` staggers siblings, 45ms apart: enough to
+   read as a cascade, not enough to make anyone wait. */
+.iv-rise {
+  animation: iv-rise 420ms var(--iv-ease-out) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+/* --- Button ---------------------------------------------------------------- */
+
+.iv-btn {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--iv-radius) - 2px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition:
+    transform 160ms var(--iv-ease-out),
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.iv-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.iv-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.iv-btn:focus-visible {
+  outline: none;
+  border-color: var(--iv-ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--iv-ring) 50%, transparent);
+}
+
+.iv-btn--primary {
+  background: var(--iv-primary);
+  color: var(--iv-primary-fg);
+}
+
+.iv-btn--outline {
+  border-color: var(--iv-border);
+  background: var(--iv-bg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+
+.iv-btn--sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.iv-btn--lg {
+  height: 44px;
+  padding: 0 24px;
+  border-radius: var(--iv-radius);
+  font-size: 15px;
+}
+
+.iv-btn--icon {
+  width: 36px;
+  padding: 0;
+}
+
+.iv-btn--pill {
+  border-radius: 999px;
+}
+
+.iv-btn--link {
+  height: auto;
+  padding: 2px 0;
+  border: 0;
+  color: var(--iv-muted-fg);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.iv-btn--danger {
+  color: var(--iv-destructive);
+}
+
+/* A thumb is bigger than 36px. The hit area grows without the button growing. */
+.iv-btn--icon::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+/* Hover only where there is a real pointer: on a phone, hover fires on tap and
+   then sticks. */
+@media (hover: hover) and (pointer: fine) {
+  .iv-btn--primary:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--iv-primary) 88%, white);
+  }
+  .iv-btn--outline:hover:not(:disabled),
+  .iv-btn--ghost:hover:not(:disabled) {
+    background: var(--iv-muted);
+  }
+  .iv-btn--link:hover:not(:disabled) {
+    color: var(--iv-fg);
+  }
+}
+
+/* --- Badge, alert, progress ------------------------------------------------ */
+
+.iv-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: calc(var(--iv-radius) - 4px);
+  background: var(--iv-muted);
+  color: var(--iv-muted-fg);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.iv-alert {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--iv-border);
+  border-radius: var(--iv-radius);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.iv-alert svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.iv-progress {
+  display: flex;
+  gap: 4px;
+}
+
+.iv-progress span {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--iv-border);
+  transition: background-color 400ms ease;
+}
+
+.iv-progress span[data-on="true"] {
+  background: var(--iv-fg);
+}
+
+.iv-time {
+  min-width: 3.2ch;
+  color: var(--iv-muted-fg);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  transition: color 300ms ease;
+}
+
+.iv-time[data-low="true"] {
+  color: var(--iv-destructive);
+}
+
+/* --- Checkbox row (the gate) ----------------------------------------------- */
+
+.iv-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--iv-border);
+  border-radius: var(--iv-radius);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    transform 160ms var(--iv-ease-out);
+}
+
+.iv-check:active {
+  transform: scale(0.99);
+}
+
+.iv-check:has(input:checked) {
+  border-color: color-mix(in oklab, var(--iv-fg) 30%, transparent);
+  background: var(--iv-muted);
+}
+
+.iv-check:has(input:focus-visible) {
+  border-color: var(--iv-ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--iv-ring) 50%, transparent);
+}
+
+.iv-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.iv-check-box {
+  display: grid;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  place-items: center;
+  border: 1px solid color-mix(in oklab, var(--iv-fg) 35%, transparent);
+  border-radius: 5px;
+  background: var(--iv-bg);
+  color: var(--iv-primary-fg);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.iv-check-box svg {
+  opacity: 0;
+  transform: scale(0.9);
+  transition:
+    opacity 150ms ease,
+    transform 180ms var(--iv-ease-out);
+}
+
+.iv-check input:checked + .iv-check-box {
+  border-color: var(--iv-primary);
+  background: var(--iv-primary);
+}
+
+.iv-check input:checked + .iv-check-box svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* --- Conversation and messages --------------------------------------------- */
+
+.iv-conversation {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.iv-msg {
+  display: flex;
+  width: 100%;
+  max-width: 95%;
+  flex-direction: column;
+  gap: 8px;
+  animation: iv-rise 320ms var(--iv-ease-out) both;
+}
+
+.iv-msg--user {
+  margin-left: auto;
+  align-items: flex-end;
+}
+
+.iv-msg-content {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 16px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.iv-msg--user .iv-msg-content {
+  padding: 12px 16px;
+  border-radius: var(--iv-radius);
+  background: var(--iv-muted);
+  white-space: pre-wrap;
+}
+
+/* The question is the main thing on the screen, so it reads a touch larger
+   than the answers around it. */
+.iv-msg--assistant .iv-msg-content {
+  font-size: 17px;
+}
+
+.iv-card {
+  padding: 20px;
+  border: 1px solid var(--iv-border);
+  border-radius: calc(var(--iv-radius) + 4px);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  animation: iv-rise 420ms var(--iv-ease-out) both;
+}
+
+.iv-scroll-down {
+  position: sticky;
+  bottom: 12px;
+  left: 50%;
+  z-index: 1;
+  margin: -36px auto 0;
+  display: flex;
+  width: 36px;
+  translate: 0 0;
+  animation: iv-rise 240ms var(--iv-ease-out) both;
+}
+
+/* --- Shimmer --------------------------------------------------------------- */
+
+.iv-shimmer {
+  display: inline-block;
+  background:
+    linear-gradient(
+        90deg,
+        #0000 calc(50% - var(--iv-spread, 60px)),
+        var(--iv-bg),
+        #0000 calc(50% + var(--iv-spread, 60px))
+      )
+      no-repeat,
+    linear-gradient(var(--iv-muted-fg), var(--iv-muted-fg));
+  background-size:
+    250% 100%,
+    auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: 15px;
+  /* Linear, because this is constant motion, not a response to anything. */
+  animation: iv-shimmer 1.6s linear infinite;
+}
+
+@keyframes iv-shimmer {
+  from {
+    background-position:
+      100% center,
+      0 0;
+  }
+  to {
+    background-position:
+      0% center,
+      0 0;
+  }
+}
+
+/* --- Suggestions ----------------------------------------------------------- */
+
+.iv-suggestions {
+  display: flex;
+  gap: 8px;
+  margin: 0 -12px;
+  padding: 2px 12px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.iv-suggestions::-webkit-scrollbar {
+  display: none;
+}
+
+.iv-suggestion {
+  animation: iv-rise 360ms var(--iv-ease-out) both;
+  animation-delay: calc(var(--i, 0) * 45ms + 120ms);
+  color: var(--iv-muted-fg);
+  font-weight: 400;
+}
+
+/* --- Prompt input ---------------------------------------------------------- */
+
+.iv-prompt {
+  border: 1px solid var(--iv-border);
+  border-radius: calc(var(--iv-radius) + 6px);
+  background: var(--iv-bg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.iv-prompt:focus-within {
+  border-color: var(--iv-ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--iv-ring) 50%, transparent);
+}
+
+.iv-prompt-body {
+  position: relative;
+}
+
+.iv-textarea {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  max-height: min(40dvh, 240px);
+  margin: 0;
+  padding: 14px 16px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  /* 16px exactly: anything smaller and iOS zooms the page on focus. */
+  font-size: 16px;
+  line-height: 1.5;
+  outline: none;
+  resize: none;
+}
+
+.iv-textarea:disabled {
+  opacity: 0.5;
+}
+
+/* The typed-out starter sits exactly over the empty textarea. */
+.iv-typed {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  padding: 14px 16px 6px;
+  color: var(--iv-muted-fg);
+  font-size: 16px;
+  line-height: 1.5;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: iv-fade 200ms ease both;
+}
+
+.iv-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 1.1em;
+  margin-left: 1px;
+  background: currentColor;
+  vertical-align: -0.18em;
+  animation: iv-blink 1.05s steps(1) infinite;
+}
+
+@keyframes iv-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.iv-prompt-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+}
+
+.iv-prompt-hint {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--iv-muted-fg);
+  font-size: 12px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Recording ------------------------------------------------------------- */
+
+.iv-recording {
+  display: flex;
+  min-height: 64px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px 6px;
+  animation: iv-fade 200ms ease both;
+}
+
+.iv-recording-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.iv-rec-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--iv-destructive);
+  animation: iv-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes iv-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.iv-wave {
+  display: flex;
+  height: 26px;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.iv-wave span {
+  width: 3px;
+  height: 100%;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--iv-fg);
+  transform-origin: center;
+  /* Linear and short: each bar is following a live signal, not arriving. */
+  transition: transform 110ms linear;
+}
+
+/* The line under the waveform. When it changes, the old words blur out as the
+   new ones blur in, so the eye reads one line changing rather than two lines
+   swapping. */
+.iv-swap {
+  position: relative;
+  display: block;
+  min-height: 1.5em;
+  color: var(--iv-muted-fg);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.iv-swap-in {
+  display: block;
+  animation: iv-swap-in 320ms var(--iv-ease-out) both;
+}
+
+.iv-swap-out {
+  position: absolute;
+  inset: 0;
+  animation: iv-swap-out 180ms ease both;
+}
+
+@keyframes iv-swap-in {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+    transform: translateY(4px);
+  }
+}
+
+@keyframes iv-swap-out {
+  to {
+    opacity: 0;
+    filter: blur(3px);
+    transform: translateY(-4px);
+  }
+}
+
+/* --- Notices above the input ----------------------------------------------- */
+
+.iv-notice {
+  padding: 0 4px 8px;
+  color: var(--iv-muted-fg);
+  font-size: 13px;
+  line-height: 1.45;
+  animation: iv-rise 240ms var(--iv-ease-out) both;
+}
+
+.iv-notice[data-tone="error"] {
+  color: var(--iv-destructive);
+}
+
+/* --- Reduced motion -------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .iv-rise,
+  .iv-msg,
+  .iv-card,
+  .iv-suggestion,
+  .iv-notice,
+  .iv-scroll-down,
+  .iv-swap-in {
+    animation-name: iv-fade;
+    animation-duration: 200ms;
+    animation-delay: 0ms;
+  }
+
+  .iv-swap-out {
+    animation: none;
+    opacity: 0;
+  }
+
+  .iv-btn:active:not(:disabled),
+  .iv-check:active {
+    transform: none;
+  }
+
+  .iv-caret,
+  .iv-rec-dot {
+    animation: none;
+  }
+
+  .iv-shimmer {
+    animation: none;
+    background: none;
+    color: var(--iv-muted-fg);
+  }
+
+  .iv-wave span {
+    transition: none;
+  }
+}

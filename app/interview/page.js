@@ -2,12 +2,16 @@
 
 // The student interview. Built for a phone held in one hand.
 //
+// It looks like shadcn/ui's AI chat (a conversation, messages, a prompt input
+// with tools, suggestion pills) because that is a layout students already know
+// how to use. The pieces are in ./ui.js and their styling in ./interview.css.
+//
 // Four screens: a gate (what this is, what is kept, two ticks), the chat, an
 // ending, and "closed". All the decisions are made on the server; this file
 // shows what the server says and never decides when an interview is over.
 //
 // Layout notes, because each one is a bug that was designed out:
-//   The page is a fixed-height column and the message list is the ONLY thing
+//   The page is a fixed-height column and the conversation is the ONLY thing
 //     that scrolls. It carries data-lenis-prevent so the site-wide smooth
 //     scroll (components/smooth-scroll.js) leaves it alone on desktop.
 //   The height follows window.visualViewport, not 100dvh. On iOS the on-screen
@@ -17,11 +21,35 @@
 //     focus.
 //   No analytics component here. The consent screen says what is collected,
 //     and the honest way to keep that true is to add nothing else.
+//
+// Two things here exist to help a student answer, and both are deliberately
+// limited so they do not answer FOR the student (see STARTERS in copy.mjs):
+//   The answer box types out ways to begin a sentence, and offers the same
+//     openers as buttons.
+//   While a voice note records, the line under the waveform changes after a
+//     few seconds to say the page is still listening.
 
 import { useEffect, useRef, useState } from "react";
-import { GATE, ERRORS, UI, CONTACT_EMAIL } from "@/lib/interview/copy.mjs";
+import { GATE, ERRORS, UI, CONTACT_EMAIL, listeningLine } from "@/lib/interview/copy.mjs";
 import { LIMITS } from "@/lib/interview/config.mjs";
 import { recordingSupported, startRecording, fileNameFor } from "./recorder";
+import {
+  Button,
+  Checkbox,
+  Progress,
+  Message,
+  Shimmer,
+  Swap,
+  TypedStarters,
+  Waveform,
+  Diamond,
+  MicIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+  CheckIcon,
+  BotIcon,
+} from "./ui";
+import "./interview.css";
 
 const STORE_KEY = "jcInterview";
 
@@ -47,32 +75,9 @@ function clock(ms) {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-function Diamond() {
-  return (
-    <span className="inline-flex" style={{ color: "var(--accent, oklch(0.56 0.10 28))" }} aria-hidden="true">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <rect x="5" y="5" width="14" height="14" rx="3.5" transform="rotate(45 12 12)" fill="currentColor" />
-        <rect x="9" y="9" width="6" height="6" rx="1.6" transform="rotate(45 12 12)" fill="#fff" />
-      </svg>
-    </span>
-  );
-}
-
-function MicIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
-      <path d="M6 11a6 6 0 0 0 12 0M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SendIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+// A starter becomes the beginning of the answer: "I pay for…" -> "I pay for ".
+function starterText(starter) {
+  return `${String(starter).replace(/…$/, "").trimEnd()} `;
 }
 
 export default function InterviewPage() {
@@ -86,6 +91,7 @@ export default function InterviewPage() {
 
   const [session, setSession] = useState(null); // { token, turn, maxTurns, deadlineAt }
   const [messages, setMessages] = useState([]); // { role: 'ai' | 'me', text }
+  const [starters, setStarters] = useState([]);
   const [draft, setDraft] = useState("");
   const [draftVia, setDraftVia] = useState("typed");
   const [busy, setBusy] = useState(false);
@@ -98,6 +104,7 @@ export default function InterviewPage() {
   const [recSeconds, setRecSeconds] = useState(0);
   const [recLevel, setRecLevel] = useState(0);
   const [now, setNow] = useState(0);
+  const [atBottom, setAtBottom] = useState(true);
 
   const listRef = useRef(null);
   const inputRef = useRef(null);
@@ -126,6 +133,7 @@ export default function InterviewPage() {
         setLink(code);
         setSession(saved.session);
         setMessages(saved.messages || []);
+        setStarters(saved.starters || []);
         setNow(Date.now());
         setPhase("chat");
         return;
@@ -176,16 +184,24 @@ export default function InterviewPage() {
 
   // Survive a reload: the token and what has been said so far.
   useEffect(() => {
-    if (phase === "chat" && session) save({ session, messages });
+    if (phase === "chat" && session) save({ session, messages, starters });
     if (phase === "end" && ending) save({ ending, messages });
-  }, [phase, session, messages, ending]);
+  }, [phase, session, messages, starters, ending]);
 
   // Newest message in view. scrollTop on the list, never scrollIntoView, which
   // would scroll the page and fight the keyboard handling above.
   useEffect(() => {
     const list = listRef.current;
     if (list) list.scrollTop = list.scrollHeight;
-  }, [messages, busy, rec, error, phase]);
+  }, [messages, busy, phase]);
+
+  // Grow the answer box with its text, up to the cap set in the stylesheet.
+  useEffect(() => {
+    const box = inputRef.current;
+    if (!box) return;
+    box.style.height = "auto";
+    box.style.height = `${box.scrollHeight}px`;
+  }, [draft, rec, phase]);
 
   // Never leave a microphone open behind a closed page.
   useEffect(() => {
@@ -193,6 +209,17 @@ export default function InterviewPage() {
       recorderRef.current?.cancel();
     };
   }, []);
+
+  function onScroll() {
+    const list = listRef.current;
+    if (!list) return;
+    setAtBottom(list.scrollHeight - list.scrollTop - list.clientHeight < 48);
+  }
+
+  function scrollDown() {
+    const list = listRef.current;
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+  }
 
   function finish(kind, message, ref) {
     recorderRef.current?.cancel();
@@ -222,6 +249,7 @@ export default function InterviewPage() {
           deadlineAt: data.deadlineAt,
         });
         setMessages([{ role: "ai", text: data.question.text }]);
+        setStarters(data.question.starters || []);
         setNow(Date.now());
         setPhase("chat");
       } else if (data.closed) {
@@ -240,6 +268,7 @@ export default function InterviewPage() {
   // The server said which turn it is on. Trust it over what this tab thinks.
   function resync(data) {
     setSession((current) => (current ? { ...current, turn: data.turn } : current));
+    setStarters(data.question?.starters || []);
     setMessages((current) => {
       const lastAi = [...current].reverse().find((m) => m.role === "ai");
       if (lastAi?.text === data.question?.text) return current;
@@ -277,6 +306,7 @@ export default function InterviewPage() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.status === "question") {
         setSession((current) => (current ? { ...current, turn: data.turn } : current));
+        setStarters(data.question.starters || []);
         setMessages((current) => [...current, { role: "ai", text: data.question.text }]);
       } else if (res.ok && data.status) {
         finish(data.status, data.message, data.ref);
@@ -383,30 +413,41 @@ export default function InterviewPage() {
     setRec("idle");
   }
 
+  function applyStarter(starter) {
+    setDraft(starterText(starter));
+    setDraftVia("typed");
+    setError("");
+    // After the box has the text, put the caret at the end of it.
+    setTimeout(() => {
+      const box = inputRef.current;
+      if (!box) return;
+      box.focus();
+      box.setSelectionRange(box.value.length, box.value.length);
+    }, 0);
+  }
+
   const remaining = session ? new Date(session.deadlineAt).getTime() - now : 0;
   const nearlyUp = phase === "chat" && now > 0 && remaining <= 30_000;
   const canStart = consent && adult && !starting;
+  const showStarters = rec === "idle" && !draft && !busy && starters.length > 0;
+  const turnKey = session ? session.turn : 0;
 
   return (
-    <div
-      ref={rootRef}
-      className="fixed inset-x-0 top-0 flex h-[100dvh] flex-col bg-[#faf9f7] text-[#14110f]"
-    >
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#ece7e3] px-4 py-3">
+    <div ref={rootRef} className="iv fixed inset-x-0 top-0 flex h-[100dvh] flex-col">
+      <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[var(--iv-border)] px-4">
         <div className="flex items-center gap-2">
           <Diamond />
-          <span className="text-[15px] font-bold tracking-[-0.01em]">JustClarify</span>
-          <span className="rounded-full bg-[#14110f]/[0.06] px-2 py-0.5 text-[11px] font-semibold text-[#6d645d]">
-            {UI.brandTag}
-          </span>
+          <span className="text-[15px] font-semibold tracking-[-0.01em]">JustClarify</span>
+          <span className="iv-badge">{UI.brandTag}</span>
         </div>
         {phase === "chat" && session ? (
-          <div className="flex items-center gap-3 text-[12px] font-semibold text-[#6d645d]">
-            <span>{UI.progress(Math.min(session.turn, session.maxTurns), session.maxTurns)}</span>
-            <span
-              className={`tabular-nums ${nearlyUp ? "text-[#b3261e]" : ""}`}
-              aria-label="Time left"
-            >
+          <div className="flex items-center gap-3">
+            <Progress
+              value={Math.min(session.turn, session.maxTurns)}
+              max={session.maxTurns}
+              label={UI.progress(Math.min(session.turn, session.maxTurns), session.maxTurns)}
+            />
+            <span className="iv-time" data-low={nearlyUp} aria-label="Time left">
               {now > 0 ? clock(remaining) : ""}
             </span>
           </div>
@@ -414,61 +455,50 @@ export default function InterviewPage() {
       </header>
 
       {phase === "loading" ? (
-        <main className="flex flex-1 items-center justify-center text-[14px] text-[#6d645d]">
-          {UI.loading}
+        <main className="flex flex-1 items-center justify-center">
+          <Shimmer>{UI.loading}</Shimmer>
         </main>
       ) : null}
 
       {phase === "closed" ? (
         <main className="flex flex-1 items-center justify-center px-6">
-          <p className="max-w-sm text-center text-[16px] leading-relaxed text-[#3d3731]">{closedNote}</p>
+          <p className="iv-rise max-w-sm text-center text-[16px] leading-relaxed text-[var(--iv-muted-fg)]">
+            {closedNote}
+          </p>
         </main>
       ) : null}
 
       {phase === "gate" ? (
-        <main className="flex-1 overflow-y-auto overscroll-contain px-5 py-6" data-lenis-prevent>
-          <div className="mx-auto max-w-md">
-            <h1 className="text-[26px] font-bold leading-tight tracking-[-0.02em]">{GATE.title}</h1>
-            <p className="mt-3 text-[16px] leading-relaxed text-[#3d3731]">{GATE.intro}</p>
+        <main className="iv-conversation px-5 py-8" data-lenis-prevent>
+          <div className="mx-auto flex max-w-md flex-col gap-6">
+            <div className="iv-rise" style={{ "--i": 0 }}>
+              <h1 className="text-balance text-[26px] font-semibold leading-tight tracking-[-0.02em]">
+                {GATE.title}
+              </h1>
+              <p className="mt-2 text-[16px] leading-relaxed text-[var(--iv-muted-fg)]">{GATE.intro}</p>
+            </div>
 
-            <p className="mt-5 rounded-xl border border-[#14110f]/10 bg-white px-4 py-3 text-[15px] font-medium leading-relaxed">
-              {GATE.aiNotice}
-            </p>
+            <div className="iv-alert iv-rise" style={{ "--i": 1 }}>
+              <BotIcon size={18} />
+              <p>{GATE.aiNotice}</p>
+            </div>
 
-            <ul className="mt-5 space-y-2.5">
+            <ul className="iv-rise flex flex-col gap-2.5" style={{ "--i": 2 }}>
               {GATE.kept.map((line) => (
-                <li key={line} className="flex gap-2.5 text-[14px] leading-relaxed text-[#3d3731]">
-                  <span
-                    className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{ background: "var(--accent)" }}
-                    aria-hidden="true"
-                  />
+                <li key={line} className="flex gap-2.5 text-[14px] leading-relaxed text-[var(--iv-muted-fg)]">
+                  <CheckIcon size={15} className="mt-[3px] shrink-0 text-[var(--iv-fg)]" />
                   <span>{line}</span>
                 </li>
               ))}
             </ul>
 
-            <div className="mt-6 space-y-3">
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#14110f]/10 bg-white px-4 py-3.5">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-5 w-5 shrink-0"
-                  style={{ accentColor: "var(--accent)" }}
-                  checked={consent}
-                  onChange={(event) => setConsent(event.target.checked)}
-                />
-                <span className="text-[15px] font-medium">{GATE.consent}</span>
-              </label>
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#14110f]/10 bg-white px-4 py-3.5">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-5 w-5 shrink-0"
-                  style={{ accentColor: "var(--accent)" }}
-                  checked={adult}
-                  onChange={(event) => setAdult(event.target.checked)}
-                />
-                <span className="text-[15px] font-medium">{GATE.adult}</span>
-              </label>
+            <div className="iv-rise flex flex-col gap-2.5" style={{ "--i": 3 }}>
+              <Checkbox checked={consent} onChange={setConsent}>
+                {GATE.consent}
+              </Checkbox>
+              <Checkbox checked={adult} onChange={setAdult}>
+                {GATE.adult}
+              </Checkbox>
             </div>
 
             {/* A field no person sees or fills in. */}
@@ -483,92 +513,53 @@ export default function InterviewPage() {
               onChange={(event) => setHp(event.target.value)}
             />
 
-            {error ? (
-              <p className="mt-4 text-[14px] font-medium text-[#b3261e]" role="alert">
-                {error}
-              </p>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={start}
-              disabled={!canStart}
-              // Near-black, not the accent. The accent is a random colour on
-              // every load and white text on its lighter end is hard to read.
-              className="mt-6 h-12 w-full rounded-xl bg-[#14110f] text-[16px] font-semibold text-white transition-opacity disabled:opacity-40"
-            >
-              {starting ? UI.loading : GATE.start}
-            </button>
-
-            <p className="mt-4 pb-4 text-center text-[13px] text-[#6d645d]">
-              <a className="underline underline-offset-2" href="/privacy-policy" target="_blank" rel="noopener noreferrer">
+            <div className="iv-rise flex flex-col gap-3" style={{ "--i": 4 }}>
+              {error ? (
+                <p className="iv-notice" data-tone="error" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              <Button size="lg" className="w-full" onClick={start} disabled={!canStart}>
+                {starting ? UI.loading : GATE.start}
+              </Button>
+              <a
+                className="iv-btn iv-btn--link self-center"
+                href="/privacy-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 {UI.privacy}
               </a>
-            </p>
+            </div>
           </div>
         </main>
       ) : null}
 
       {phase === "chat" || phase === "end" ? (
-        <main
-          ref={listRef}
-          className="flex-1 overflow-y-auto overscroll-contain px-4 py-5"
-          data-lenis-prevent
-          aria-live="polite"
-        >
-          <div className="mx-auto flex max-w-xl flex-col gap-3">
-            {messages.map((message, index) =>
-              message.role === "ai" ? (
-                <div
-                  key={index}
-                  className="max-w-[88%] self-start rounded-2xl rounded-bl-md border border-[#ece7e3] bg-white px-4 py-3 text-[16px] leading-relaxed"
-                >
-                  {message.text}
-                </div>
-              ) : (
-                <div
-                  key={index}
-                  className="max-w-[88%] self-end whitespace-pre-wrap break-words rounded-2xl rounded-br-md px-4 py-3 text-[16px] leading-relaxed"
-                  style={{ background: "var(--accent-soft)" }}
-                >
-                  {message.text}
-                </div>
-              ),
-            )}
+        <main ref={listRef} onScroll={onScroll} className="iv-conversation" data-lenis-prevent aria-live="polite">
+          <div className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-6">
+            {messages.map((message, index) => (
+              <Message key={index} from={message.role === "ai" ? "assistant" : "user"}>
+                {message.text}
+              </Message>
+            ))}
 
             {busy && phase === "chat" ? (
-              <div
-                className="flex items-center gap-1.5 self-start rounded-2xl rounded-bl-md border border-[#ece7e3] bg-white px-4 py-4"
-                role="status"
-                aria-label={UI.thinking}
-              >
-                {[0, 1, 2].map((dot) => (
-                  <span
-                    key={dot}
-                    className="h-1.5 w-1.5 rounded-full bg-[#14110f]/40 motion-safe:animate-pulse"
-                    style={{ animationDelay: `${dot * 180}ms` }}
-                  />
-                ))}
+              <div className="iv-msg iv-msg--assistant">
+                <Shimmer>{UI.thinking}</Shimmer>
               </div>
             ) : null}
 
             {phase === "end" && ending ? (
-              <div
-                className={`mt-2 rounded-2xl border px-5 py-5 ${
-                  ending.kind === "support" ? "border-[#14110f]/20 bg-white" : "border-[#ece7e3] bg-white"
-                }`}
-                role="status"
-              >
+              <div className="iv-card" role="status">
                 <p className="text-[16px] leading-relaxed">{ending.message}</p>
                 {ending.ref ? (
-                  <div className="mt-4 border-t border-[#ece7e3] pt-4">
-                    <p className="text-[12px] font-semibold uppercase tracking-wide text-[#6d645d]">
-                      {UI.refLabel}
-                    </p>
-                    <p className="mt-1 select-all font-mono text-[20px] font-bold tracking-[0.12em]">
+                  <div className="mt-4 border-t border-[var(--iv-border)] pt-4">
+                    <p className="text-[12px] font-medium text-[var(--iv-muted-fg)]">{UI.refLabel}</p>
+                    <p className="mt-1 select-all font-mono text-[20px] font-semibold tracking-[0.12em]">
                       {ending.ref}
                     </p>
-                    <p className="mt-2 text-[13px] leading-relaxed text-[#6d645d]">
+                    <p className="mt-2 text-[13px] leading-relaxed text-[var(--iv-muted-fg)]">
                       {UI.deleteNote}{" "}
                       <a className="underline underline-offset-2" href={`mailto:${CONTACT_EMAIL}`}>
                         {CONTACT_EMAIL}
@@ -580,133 +571,150 @@ export default function InterviewPage() {
               </div>
             ) : null}
           </div>
+
+          {!atBottom && phase === "chat" ? (
+            <Button
+              variant="outline"
+              size="icon"
+              pill
+              className="iv-scroll-down"
+              onClick={scrollDown}
+              aria-label={UI.scrollDown}
+            >
+              <ArrowDownIcon />
+            </Button>
+          ) : null}
         </main>
       ) : null}
 
       {phase === "chat" && session ? (
-        <footer className="shrink-0 border-t border-[#ece7e3] bg-[#faf9f7] px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-2.5">
-          <div className="mx-auto max-w-xl">
+        <footer className="shrink-0 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-1">
+          <div className="mx-auto max-w-2xl">
             {nearlyUp ? (
-              <p className="mb-2 px-1 text-[13px] font-medium text-[#b3261e]">{UI.lastAnswer}</p>
+              <p className="iv-notice" data-tone="error">
+                {UI.lastAnswer}
+              </p>
             ) : null}
             {error ? (
-              <p className="mb-2 px-1 text-[13px] font-medium text-[#b3261e]" role="alert">
+              <p className="iv-notice" data-tone="error" role="alert">
                 {error}
               </p>
             ) : null}
-            {draftVia === "voice" && draft && rec === "idle" ? (
-              <p className="mb-2 px-1 text-[13px] text-[#6d645d]">{UI.review}</p>
+            {draftVia === "voice" && draft && rec === "idle" ? <p className="iv-notice">{UI.review}</p> : null}
+
+            {showStarters ? (
+              <div className="iv-suggestions" key={turnKey} role="group" aria-label={UI.startersLabel}>
+                {starters.map((starter, index) => (
+                  <Button
+                    key={starter}
+                    variant="outline"
+                    size="sm"
+                    pill
+                    className="iv-suggestion"
+                    style={{ "--i": index }}
+                    onClick={() => applyStarter(starter)}
+                  >
+                    {starter}
+                  </Button>
+                ))}
+              </div>
             ) : null}
 
-            {rec === "recording" ? (
-              <div className="rounded-2xl border border-[#14110f]/15 bg-white px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="relative flex h-3 w-3 shrink-0">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-[#b3261e] opacity-60 motion-safe:animate-ping" />
-                    <span className="relative inline-flex h-3 w-3 rounded-full bg-[#b3261e]" />
-                  </span>
-                  <span className="text-[14px] font-semibold tabular-nums" role="status">
-                    {UI.recording} {clock(recSeconds * 1000)}
-                  </span>
-                  {/* The level bar gets the rest of the row to itself, so on a
-                      narrow phone it is still wide enough to read. */}
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#14110f]/10" aria-hidden="true">
-                    <span
-                      className="block h-full rounded-full transition-[width] duration-100"
-                      style={{ width: `${Math.round(recLevel * 100)}%`, background: "var(--accent)" }}
-                    />
-                  </span>
+            <div className="iv-prompt">
+              {rec === "recording" ? (
+                <>
+                  <div className="iv-recording">
+                    <div className="iv-recording-row">
+                      <span className="iv-rec-dot" aria-hidden="true" />
+                      <Waveform level={recLevel} />
+                      <span className="iv-time" role="timer" aria-label={UI.recording}>
+                        {clock(recSeconds * 1000)}
+                      </span>
+                    </div>
+                    <Swap text={listeningLine(recSeconds, LIMITS.maxNoteSeconds)} />
+                  </div>
+                  <div className="iv-prompt-footer">
+                    <Button variant="ghost" size="sm" onClick={cancelRecording}>
+                      {UI.cancelRecording}
+                    </Button>
+                    <span className="iv-prompt-hint">{UI.recordingHint}</span>
+                    <Button size="sm" onClick={stopRecording}>
+                      <CheckIcon size={14} strokeWidth={2.5} />
+                      {UI.stopRecording}
+                    </Button>
+                  </div>
+                </>
+              ) : rec === "transcribing" ? (
+                <div className="iv-recording justify-center">
+                  <Shimmer>{UI.transcribing}</Shimmer>
                 </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={cancelRecording}
-                    className="h-11 rounded-xl border border-[#14110f]/15 px-4 text-[14px] font-semibold text-[#3d3731]"
-                  >
-                    {UI.cancelRecording}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={stopRecording}
-                    className="h-11 flex-1 rounded-xl bg-[#14110f] px-4 text-[14px] font-semibold text-white"
-                  >
-                    {UI.stopRecording}
-                  </button>
-                </div>
-              </div>
-            ) : rec === "transcribing" ? (
-              <div
-                className="rounded-2xl border border-[#14110f]/15 bg-white px-4 py-3.5 text-[14px] font-medium text-[#6d645d] motion-safe:animate-pulse"
-                role="status"
-              >
-                {UI.transcribing}
-              </div>
-            ) : (
-              <div className="flex items-end gap-2">
-                <textarea
-                  ref={inputRef}
-                  value={draft}
-                  onChange={(event) => {
-                    setDraft(event.target.value.slice(0, LIMITS.maxAnswerChars));
-                    if (!event.target.value) setDraftVia("typed");
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) send();
-                  }}
-                  rows={draft.length > 90 || draft.includes("\n") ? 4 : 2}
-                  placeholder={UI.placeholder}
-                  aria-label={UI.placeholder}
-                  disabled={busy}
-                  className="min-h-[52px] flex-1 resize-none rounded-2xl border border-[#14110f]/15 bg-white px-4 py-3 text-[16px] leading-snug outline-none placeholder:text-[#6d645d]/70 focus:border-[#14110f]/40 disabled:opacity-60"
-                />
-                {canRecord && !draft.trim() ? (
-                  <button
-                    type="button"
-                    onClick={record}
-                    disabled={busy}
-                    aria-label={UI.record}
-                    title={UI.record}
-                    className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-40"
-                    style={{ background: "var(--accent)" }}
-                  >
-                    <MicIcon />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={send}
-                    disabled={busy || !draft.trim()}
-                    aria-label={UI.send}
-                    title={UI.send}
-                    className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-40"
-                    style={{ background: "var(--accent)" }}
-                  >
-                    <SendIcon />
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div className="mt-2 flex h-8 items-center justify-center text-[12px] text-[#6d645d]">
-              {confirmStop ? (
-                <span className="flex items-center gap-3">
-                  <span>{UI.stopConfirm}</span>
-                  <button type="button" onClick={stopInterview} className="font-semibold text-[#b3261e] underline underline-offset-2">
-                    {UI.stopYes}
-                  </button>
-                  <button type="button" onClick={() => setConfirmStop(false)} className="font-semibold underline underline-offset-2">
-                    {UI.stopNo}
-                  </button>
-                </span>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirmStop(true)}
-                  disabled={busy || rec !== "idle"}
-                  className="underline underline-offset-2 disabled:opacity-40"
-                >
+                <>
+                  <div className="iv-prompt-body">
+                    <textarea
+                      ref={inputRef}
+                      className="iv-textarea"
+                      value={draft}
+                      onChange={(event) => {
+                        setDraft(event.target.value.slice(0, LIMITS.maxAnswerChars));
+                        if (!event.target.value) setDraftVia("typed");
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) send();
+                      }}
+                      rows={2}
+                      aria-label={UI.placeholder}
+                      disabled={busy}
+                    />
+                    {!draft && !busy ? (
+                      <TypedStarters key={turnKey} starters={starters} fallback={UI.placeholder} />
+                    ) : null}
+                  </div>
+                  <div className="iv-prompt-footer">
+                    {canRecord ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={record}
+                        disabled={busy}
+                        aria-label={UI.record}
+                        title={UI.record}
+                      >
+                        <MicIcon size={18} />
+                      </Button>
+                    ) : (
+                      <span />
+                    )}
+                    <Button
+                      size="icon"
+                      pill
+                      onClick={send}
+                      disabled={busy || !draft.trim()}
+                      aria-label={UI.send}
+                      title={UI.send}
+                    >
+                      <ArrowUpIcon size={18} strokeWidth={2.4} />
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex h-9 items-center justify-center gap-3 text-[12px] text-[var(--iv-muted-fg)]">
+              {confirmStop ? (
+                <>
+                  <span>{UI.stopConfirm}</span>
+                  <Button variant="link" className="iv-btn--danger" onClick={stopInterview}>
+                    {UI.stopYes}
+                  </Button>
+                  <Button variant="link" onClick={() => setConfirmStop(false)}>
+                    {UI.stopNo}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="link" onClick={() => setConfirmStop(true)} disabled={busy || rec !== "idle"}>
                   {UI.stopLink}
-                </button>
+                </Button>
               )}
             </div>
           </div>
